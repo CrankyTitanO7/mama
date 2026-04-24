@@ -1,5 +1,6 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { spawn } = require('child_process');
 
 let mainWindow;
 
@@ -24,6 +25,39 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+ipcMain.handle('run-python-command', async (event, action) => {
+  return new Promise((resolve) => {
+    let command, args;
+    
+    if (action === 'install') {
+      // Install PyTorch dependencies
+      command = 'pip3';
+      args = ['install', 'torch', 'torchvision', 'torchaudio', '--index-url', 'https://download.pytorch.org/whl/cpu'];
+    } else {
+      // Run the pytorch runner script
+      command = 'python3';
+      args = [path.join(__dirname, 'components', 'python', 'tests', 'pytorch_test.py')];
+    }
+    
+    const process = 
+    spawn(command, args);
+    let stdout = '';
+    let stderr = '';
+    
+    process.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    process.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    process.on('close', (code) => {
+      resolve({ stdout, stderr, code });
+    });
+  });
 });
 
 app.on('activate', () => {

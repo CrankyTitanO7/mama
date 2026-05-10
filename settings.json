@@ -1,7 +1,8 @@
 {
     "general settings" :
     {
-        "setup" : false
+        "setup" : true,
+        "language" : "eng" // change this!! if more support is added.
     }, 
 
     "aesthetic settings" :
@@ -14,13 +15,51 @@
     "hardware settings" : 
     {
         "graphics manufacturer" : "unscanned", // unscanned, undetected, nvidia, amd
-        "target card name" : null, // null as default / null setting
-        "cloud resources" : false
+        "target card name" : null // null as default / null setting
+        
 
     }, 
 
+    "software information" : {
+        "operating system" : null, // OS full name
+        "OS pretty" : null, // OS pretty name 
+
+        "cmake" : false, 
+        "gcc" : false 
+    },
+
+    "resource settings" : {
+        "cloud resources" : false, //external cloud resource
+        "cloud provider name" : null, // ie openai
+        "local hostname" : null, // ie ollama
+        "trainer browser" : "default" // local browser for ai browser use, set to user default for now
+    },
+
     "security settings" :
     {
-        "local key file path" : "default" // defaults to ./, autoassumes .env.local
+        "local key file path" : "default", // defaults to ./, autoassumes .env.local
+
+        // file modification approval permissions
+        // false = approval asked
+        "project mod" : false, 
+        "cloud mod" : false,
+        "all files" : false, 
+        "sudo" : false, // i'm not sure why a training program would ever need sudo priviledge, but hey i guess. open source
+
+        "browser access" : false // can model/training access web
+
+    }, 
+
+    // quality of life settings
+    "qol settings" : {
+        "reels enable" : false, 
+        "reels provider" : null, // I like to watch reels while code compiles. its a guilty habit.
+
+        "video enable" : false, // can be youtube, but also why not hianime? or wikipedia?
+        "video provider" : null, 
+
+        "task manager" : "ask", // task manager view: ask by default
+
+        "database provider" : null // ie huggingface
     }
 }

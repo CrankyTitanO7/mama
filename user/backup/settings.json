@@ -1,43 +1,48 @@
 {
     "general settings": {
-        "setup": true,
-        "language": "eng"
+        "setup": true,                              // tutorial enabled
+        "language": "eng"                           // change when support works
     },
     "aesthetic settings": {
-        "appearance": "dark",
-        "scaling factor": 1,
-        "accent color": "default"
+        "appearance": "dark",                       // dark mode vs light mode
+        "scaling factor": 1,                        // scaling factor, especially for WMs
+        "accent color": "default"                   // theming baseline
     },
     "hardware settings": {
-        "graphics manufacturer": "unscanned",
-        "target card name": null
+        "graphics manufacturer": "unscanned",       // unscanned, undetected, amd, nvidia, [...]
+        "target card name": null                    // default target card
     },
     "software information": {
-        "operating system": null,
-        "OS pretty": null,
-        "cmake": false,
+        "operating system": null,                   // OS full name     (uname -r)
+        "OS pretty": null,                          // OS pretty name   (cat /etc/fedora-release)
+
+        "cmake": false,                             // ctools, for custom programs
         "gcc": false
     },
     "resource settings": {
-        "cloud resources": false,
-        "cloud provider name": null,
-        "local hostname": null,
-        "trainer browser": "default"
+        "cloud resources": false,                   // ie openai cloud api
+        "cloud provider name": null,                
+        "local hostname": null,                     // eg ollama
+        "trainer browser": "default"                // ai browser use (defaults to default browser)
     },
     "security settings": {
-        "local key file path": "default",
-        "project mod": false,
-        "cloud mod": false,
-        "all files": false,
-        "sudo": false,
-        "browser access": false
+        "local key file path": "default",           // defaults to ./user/.env.local
+
+        // security confirmation checks
+        "project mod": false,                       // autoapprove modifying project files enable/disable
+        "cloud mod": false,                         // autoapprove modifying cloud files enable/disable
+        "all files": false,                         // autoapprove modifying all (local) files enable/disable
+        "sudo": false,                              // autoapprove sudo actions
+        "browser access": false                     // autoapprove browser actions
     },
     "qol settings": {
-        "reels enable": false,
+        "reels enable": false,                      // enable reels
         "reels provider": null,
-        "video enable": false,
-        "video provider": null,
-        "task manager": "ask",
-        "database provider": null
+        "video enable": false,                      // enable videos
+        "video provider": null,                     // URL provider, ie youtube or hianime (rest in peace)
+        
+        "task manager": "ask",                      // defaults to ask for task manager permissions
+
+        "database provider": null                   // eg huggingface
     }
 }

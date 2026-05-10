@@ -15,7 +15,7 @@ const createWindow = () => {
     }
   });
 
-  mainWindow.loadFile('index.html');
+  mainWindow.loadFile('public/index.html');
   // mainWindow.webContents.openDevTools(); // Uncomment to open DevTools
 };
 

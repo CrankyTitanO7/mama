@@ -2,11 +2,11 @@
   "name": "frank",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "public/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
-    "dev": "electron . --inspect=5858",
+    "dev": "electron . --inspect=5858 --trace-deprecation --trace-warnings",
     "build": "electron-builder"
   },
   "build": {
@@ -15,7 +15,7 @@
     "files": [
       "main.js",
       "preload.js",
-      "index.html",
+      "public/index.html",
       "styles.css",
       "renderer.js",
       "node_modules/**/*"

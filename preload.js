@@ -8,5 +8,10 @@ contextBridge.exposeInMainWorld('versions', {
 });
 
 contextBridge.exposeInMainWorld('electron', {
-  runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action)
+  runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action),
+  // Settings IPC
+  settingsRead: () => ipcRenderer.invoke('settings-read'),
+  settingsWrite: (settings) => ipcRenderer.invoke('settings-write', settings),
+  setupComplete: () => ipcRenderer.invoke('settings-setup-complete'),
+  navigateTo: (page) => ipcRenderer.invoke('navigate-to', page)
 });

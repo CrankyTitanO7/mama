@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Frank - Settings</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <div id="settings-app">
+      <header id="settings-header">
+        <h1>⚙️ Settings</h1>
+        <nav>
+          <button class="nav-btn" onclick="window.electron.navigateTo('public/index.html')">🏠 Home</button>
+          <button class="nav-btn" onclick="window.electron.navigateTo('public/setup.html')">🔧 Setup Wizard</button>
+        </nav>
+      </header>
+      <div id="settings-status" class="settings-status" style="display:none"></div>
+      <div id="settings-content">
+        <p class="loading-text">Loading settings...</p>
+      </div>
+    </div>
+    <script src="../components/setup/settings.js"></script>
+  </body>
+</html>

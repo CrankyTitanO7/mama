@@ -2,12 +2,18 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>My Electron App</title>
+    <title>Frank</title>
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body>
-    <h1>Welcome to Electron!</h1>
-    <p>This is a blank Electron application.</p>
+    <h1>Welcome to Frank</h1>
+    <p>Your AI training and management platform.</p>
+    
+    <div class="home-nav">
+      <button class="nav-btn" onclick="window.electron.navigateTo('public/setup.html')">🔧 Setup Wizard</button>
+      <button class="nav-btn" onclick="window.electron.navigateTo('public/settings.html')">⚙️ Settings</button>
+    </div>
+
     <script src="../renderer.js"></script>
     <script src="../components/pyrunner.js"></script>
   </body>

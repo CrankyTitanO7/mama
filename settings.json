@@ -1,0 +1,26 @@
+{
+    "general settings" :
+    {
+        "setup" : false
+    }, 
+
+    "aesthetic settings" :
+    {
+        "appearance" : "dark", 
+        "scaling factor" : 1,
+        "accent color" : "default"
+    }, 
+
+    "hardware settings" : 
+    {
+        "graphics manufacturer" : "unscanned", // unscanned, undetected, nvidia, amd
+        "target card name" : null, // null as default / null setting
+        "cloud resources" : false
+
+    }, 
+
+    "security settings" :
+    {
+        "local key file path" : "default" // defaults to ./, autoassumes .env.local
+    }
+}

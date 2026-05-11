@@ -17,9 +17,8 @@
         "OS pretty": null,
         "cmake": false,
         "gcc": false,
-        
-        "tf" : false, 
-        "pyt" : false
+        "tf": false,
+        "pyt": true
     },
     "resource settings": {
         "cloud resources": false,

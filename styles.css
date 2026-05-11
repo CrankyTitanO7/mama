@@ -345,6 +345,104 @@ a:hover {
 }
 
 /* ============================================
+   Setup: Radio Group
+   ============================================ */
+.setup-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.setup-radio-label {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: #1a1a2e;
+  border: 2px solid #0f3460;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.setup-radio-label:hover {
+  border-color: #00d4ff;
+}
+
+.setup-radio-label input[type="radio"] {
+  accent-color: #00d4ff;
+  margin-bottom: 8px;
+}
+
+.setup-radio-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 4px;
+}
+
+.setup-radio-desc {
+  font-size: 13px;
+  color: #888;
+}
+
+/* ============================================
+   Setup: Detection Output & Inline Actions
+   ============================================ */
+.setup-actions-inline {
+  margin: 16px 0;
+}
+
+.setup-detect-output {
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.setup-pre {
+  background: #111;
+  padding: 12px;
+  border-radius: 6px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #ccc;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.setup-pre-error {
+  color: #f44336;
+  border-left: 3px solid #f44336;
+}
+
+.setup-success-msg {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4caf50;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid #4caf50;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.setup-error-msg {
+  background: rgba(244, 67, 54, 0.15);
+  color: #f44336;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid #f44336;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+/* ============================================
    Home Page Enhancements
    ============================================ */
 .home-nav {

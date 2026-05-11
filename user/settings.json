@@ -16,7 +16,10 @@
         "operating system": null,
         "OS pretty": null,
         "cmake": false,
-        "gcc": false
+        "gcc": false,
+        
+        "tf" : false, 
+        "pyt" : false
     },
     "resource settings": {
         "cloud resources": false,

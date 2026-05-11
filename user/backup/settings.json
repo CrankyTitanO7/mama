@@ -17,7 +17,10 @@
         "OS pretty": null,                          // OS pretty name   (cat /etc/fedora-release)
 
         "cmake": false,                             // ctools, for custom programs
-        "gcc": false
+        "gcc": false,
+
+        "tf" : false,                               // tensorflow or pytorch
+        "pyt" : false
     },
     "resource settings": {
         "cloud resources": false,                   // ie openai cloud api

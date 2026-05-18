@@ -3,7 +3,20 @@
   // Track framework choice for cross-step use
   let selectedFramework = null; // 'torch' or 'tf'
 
-  // Step definitions
+  // ========== Utility ==========
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // ========== Step definitions ==========
+
   const STEPS = [
     // ============================================
     // STEP 0: Welcome
@@ -57,25 +70,29 @@
           <div class="setup-field">
             <label>Theme:</label>
             <select id="setup-appearance" class="setup-select">
-              <option value="dark" ${appearance === 'dark' ? 'selected' : ''}>Dark</option>
+              <option value="dark"  ${appearance === 'dark'  ? 'selected' : ''}>Dark</option>
               <option value="light" ${appearance === 'light' ? 'selected' : ''}>Light</option>
             </select>
           </div>
           <div class="setup-field">
             <label>Accent Color:</label>
             <select id="setup-accent" class="setup-select">
-              ${accentColors.map(c => `<option value="${c}" ${accent === c ? 'selected' : ''}>${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('')}
+              ${accentColors.map(c =>
+                `<option value="${c}" ${accent === c ? 'selected' : ''}>${c.charAt(0).toUpperCase() + c.slice(1)}</option>`
+              ).join('')}
             </select>
           </div>
           <div class="setup-field">
             <label>Scaling Factor:</label>
-            <input type="number" id="setup-scaling" class="setup-input" min="0.5" max="3" step="0.25" value="${settings['aesthetic settings']?.['scaling factor'] || 1}">
+            <input type="number" id="setup-scaling" class="setup-input"
+              min="0.5" max="3" step="0.25"
+              value="${settings['aesthetic settings']?.['scaling factor'] || 1}">
           </div>
         `;
       },
       collect: () => ({
-        appearance: document.getElementById('setup-appearance')?.value || 'dark',
-        'accent color': document.getElementById('setup-accent')?.value || 'default',
+        appearance:       document.getElementById('setup-appearance')?.value || 'dark',
+        'accent color':   document.getElementById('setup-accent')?.value    || 'default',
         'scaling factor': parseFloat(document.getElementById('setup-scaling')?.value) || 1
       })
     },
@@ -87,10 +104,9 @@
       id: 'framework',
       title: 'AI Framework',
       render: (settings) => {
-        // Check existing settings to pre-select
         const pytAlready = settings['software information']?.pyt === true;
-        const tfAlready = settings['software information']?.tf === true;
-        let preSelected = 'torch';
+        const tfAlready  = settings['software information']?.tf  === true;
+        let preSelected  = 'torch';
         if (tfAlready && !pytAlready) preSelected = 'tf';
         if (selectedFramework) preSelected = selectedFramework;
         return `
@@ -112,12 +128,9 @@
         `;
       },
       afterRender: () => {
-        // Wire up radio change to update selectedFramework
         document.querySelectorAll('input[name="framework"]').forEach(el => {
           el.addEventListener('change', (e) => {
-            if (e.target.checked) {
-              selectedFramework = e.target.value;
-            }
+            if (e.target.checked) selectedFramework = e.target.value;
           });
         });
       },
@@ -129,40 +142,101 @@
     },
 
     // ============================================
-    // STEP 4: Hardware Detection (with auto-detect)
+    // STEP 4: Confirm Install
+    // ============================================
+    {
+      id: 'install-conf',
+      title: 'Install Dependencies',
+      render: () => {
+        const fwName = selectedFramework === 'tf' ? 'TensorFlow' : 'PyTorch';
+        return `
+          <h2>Install Dependencies</h2>
+          <p>Click below to install all required packages for <strong>${fwName}</strong>.</p>
+          <div class="setup-actions-inline">
+            <button id="run-install-conf-btn" class="setup-btn setup-btn-primary">
+              ⬇️ Install all dependencies
+            </button>
+          </div>
+          <div id="install-conf-output" class="setup-detect-output" style="display:none"></div>
+        `;
+      },
+      afterRender: () => {
+        const btn = document.getElementById('run-install-conf-btn');
+        if (!btn) return;
+
+        btn.addEventListener('click', async () => {
+          const output = document.getElementById('install-conf-output');
+          if (!output) return;
+
+          output.style.display = 'block';
+          output.innerHTML = '<p class="setup-hint">⏳ Installing... This may take a few minutes.</p>';
+          btn.disabled = true;
+          btn.textContent = '⏳ Installing...';
+
+          try {
+            const fw = selectedFramework || 'torch';
+            const result = await window.electron.runInstall(fw);
+            const out = result.stdout || '';
+            const err = result.stderr || '';
+
+            if (result.code === 0) {
+              output.innerHTML = `
+                <div class="setup-success-msg">✅ Installation complete!</div>
+                <pre class="setup-pre">${escapeHtml(out.slice(0, 800))}</pre>
+              `;
+              btn.textContent = '✓ Installed';
+            } else {
+              output.innerHTML = `
+                <div class="setup-error-msg">❌ Installation failed</div>
+                <pre class="setup-pre setup-pre-error">${escapeHtml(err || out || 'Unknown error')}</pre>
+              `;
+              btn.textContent = '⬇️ Retry';
+              btn.disabled = false;
+            }
+          } catch (e) {
+            output.innerHTML = `<p class="setup-hint">⚠️ Error: ${escapeHtml(e.message)}</p>`;
+            btn.textContent = '⬇️ Retry';
+            btn.disabled = false;
+          }
+        });
+      }
+    },
+
+    // ============================================
+    // STEP 5: Hardware Detection (with auto-detect)
     // ============================================
     {
       id: 'hardware',
       title: 'Hardware Detection',
       render: (settings) => {
-        const gpu = settings['hardware settings']?.['graphics manufacturer'] || 'unscanned';
-        const targetCard = settings['hardware settings']?.['target card name'] || '';
-        const osName = settings['software information']?.['operating system'] || '';
-        const osPretty = settings['software information']?.['OS pretty'] || '';
-        const cmake = settings['software information']?.cmake || false;
-        const gcc = settings['software information']?.gcc || false;
+        const gpu        = settings['hardware settings']?.['graphics manufacturer'] || 'unscanned';
+        const targetCard = settings['hardware settings']?.['target card name']      || '';
+        const osName     = settings['software information']?.['operating system']   || '';
+        const osPretty   = settings['software information']?.['OS pretty']          || '';
+        const cmake      = settings['software information']?.cmake || false;
+        const gcc        = settings['software information']?.gcc   || false;
         return `
-          <h2>Hardware & System Detection</h2>
+          <h2>Hardware &amp; System Detection</h2>
           <div class="setup-field">
             <label>Operating System:</label>
-            <input type="text" id="setup-os" class="setup-input" placeholder="Auto-detected..." value="${osName}">
+            <input type="text" id="setup-os" class="setup-input" placeholder="Auto-detected..." value="${escapeHtml(osName)}">
           </div>
           <div class="setup-field">
             <label>OS Pretty Name:</label>
-            <input type="text" id="setup-os-pretty" class="setup-input" placeholder="Auto-detected..." value="${osPretty}">
+            <input type="text" id="setup-os-pretty" class="setup-input" placeholder="Auto-detected..." value="${escapeHtml(osPretty)}">
           </div>
           <div class="setup-field">
             <label>Graphics Manufacturer:</label>
             <select id="setup-gpu" class="setup-select">
-              <option value="unscanned" ${gpu === 'unscanned' ? 'selected' : ''}>Unscanned (auto-detect)</option>
-              <option value="nvidia" ${gpu === 'nvidia' ? 'selected' : ''}>NVIDIA</option>
-              <option value="amd" ${gpu === 'amd' ? 'selected' : ''}>AMD</option>
+              <option value="unscanned"  ${gpu === 'unscanned'  ? 'selected' : ''}>Unscanned (auto-detect)</option>
+              <option value="nvidia"     ${gpu === 'nvidia'     ? 'selected' : ''}>NVIDIA</option>
+              <option value="amd"        ${gpu === 'amd'        ? 'selected' : ''}>AMD</option>
               <option value="undetected" ${gpu === 'undetected' ? 'selected' : ''}>Undetected / Other</option>
             </select>
           </div>
           <div class="setup-field">
             <label>Target GPU Name:</label>
-            <input type="text" id="setup-target-gpu" class="setup-input" placeholder="e.g. RTX 4070" value="${targetCard}">
+            <input type="text" id="setup-target-gpu" class="setup-input" placeholder="e.g. RTX 4070" value="${escapeHtml(targetCard)}">
           </div>
           <div class="setup-field">
             <label class="setup-checkbox-label">
@@ -193,10 +267,10 @@
           output.style.display = 'block';
           output.innerHTML = '<p class="setup-hint">Running hardware detection...</p>';
 
-          // Detect OS info first (client-side)
-          const platform = navigator.platform || '';
+          // Client-side OS detection
+          const platform  = navigator.platform  || '';
           const userAgent = navigator.userAgent || '';
-          const osField = document.getElementById('setup-os');
+          const osField       = document.getElementById('setup-os');
           const osPrettyField = document.getElementById('setup-os-pretty');
 
           if (osField && !osField.value) {
@@ -204,48 +278,44 @@
           }
 
           if (osPrettyField && !osPrettyField.value) {
-            // Derive pretty OS name from user agent
             let pretty = 'Unknown';
-            if (userAgent.includes('Windows')) pretty = 'Windows';
-            else if (userAgent.includes('Mac OS')) pretty = 'macOS';
-            else if (userAgent.includes('Linux')) pretty = 'Linux';
+            if      (userAgent.includes('Windows')) pretty = 'Windows';
+            else if (userAgent.includes('Mac OS'))  pretty = 'macOS';
+            else if (userAgent.includes('Linux'))   pretty = 'Linux';
             else if (userAgent.includes('Android')) pretty = 'Android';
-            else if (userAgent.includes('iOS')) pretty = 'iOS';
+            else if (userAgent.includes('iOS'))     pretty = 'iOS';
             osPrettyField.value = pretty;
           }
 
-          // Run GPU detection via Python
+          // GPU detection via Python
           const framework = selectedFramework || 'torch';
           try {
             const result = await window.electron.runSystemDetect(framework);
-            if (result.stdout) {
-              output.innerHTML = `<pre class="setup-pre">${escapeHtml(result.stdout)}</pre>`;
-            }
-            if (result.stderr) {
-              output.innerHTML += `<pre class="setup-pre setup-pre-error">${escapeHtml(result.stderr)}</pre>`;
-            }
-
-            // Parse detection output to fill fields
-            const gpuSelect = document.getElementById('setup-gpu');
-            const gpuNameInput = document.getElementById('setup-target-gpu');
-
             const stdout = result.stdout || '';
             const stderr = result.stderr || '';
 
-            // Parse GPU manufacturer and card name from output
-            if (stdout.toLowerCase().includes('nvidia') || stdout.toLowerCase().includes('geforce') || stdout.toLowerCase().includes('rtx') || stdout.toLowerCase().includes('gtx') || stdout.toLowerCase().includes('tesla') || stdout.toLowerCase().includes('quadro')) {
+            if (stdout) {
+              output.innerHTML = `<pre class="setup-pre">${escapeHtml(stdout)}</pre>`;
+            }
+            if (stderr) {
+              output.innerHTML += `<pre class="setup-pre setup-pre-error">${escapeHtml(stderr)}</pre>`;
+            }
+
+            const gpuSelect    = document.getElementById('setup-gpu');
+            const gpuNameInput = document.getElementById('setup-target-gpu');
+            const lc           = stdout.toLowerCase();
+
+            if (lc.includes('nvidia') || lc.includes('geforce') || lc.includes('rtx') ||
+                lc.includes('gtx')    || lc.includes('tesla')   || lc.includes('quadro')) {
               if (gpuSelect) gpuSelect.value = 'nvidia';
-            } else if (stdout.toLowerCase().includes('amd') || stdout.toLowerCase().includes('radeon') || stdout.toLowerCase().includes('ryzen')) {
+            } else if (lc.includes('amd') || lc.includes('radeon') || lc.includes('ryzen')) {
               if (gpuSelect) gpuSelect.value = 'amd';
             } else if (result.code === 0 && stdout.trim()) {
-              // Script ran but no known GPU found
               if (gpuSelect) gpuSelect.value = 'undetected';
             } else {
-              // Failed to run detection
               if (gpuSelect) gpuSelect.value = 'unscanned';
             }
 
-            // Try to extract GPU name
             const gpuMatch = stdout.match(/(?:GPU\s*Detected|GPU\s*:)\s*(.+)/i) ||
                              stdout.match(/GeForce\s+\S+|Radeon\s+\S+|RTX\s+\S+|GTX\s+\S+|Tesla\s+\S+|Quadro\s+\S+/);
             if (gpuMatch && gpuNameInput) {
@@ -253,7 +323,7 @@
               if (card) gpuNameInput.value = card.trim();
             }
 
-            if (result.code !== 0 && !result.stdout) {
+            if (result.code !== 0 && !stdout) {
               output.innerHTML = '<p class="setup-hint">⚠️ Could not run hardware detection. Make sure Python is installed and try again, or fill in manually.</p>';
             }
           } catch (e) {
@@ -261,22 +331,18 @@
           }
         });
       },
-      collect: () => {
-        const osVal = document.getElementById('setup-os')?.value || null;
-        const osPrettyVal = document.getElementById('setup-os-pretty')?.value || null;
-        return {
-          'graphics manufacturer': document.getElementById('setup-gpu')?.value || 'unscanned',
-          'target card name': document.getElementById('setup-target-gpu')?.value || null,
-          'operating system': osVal,
-          'OS pretty': osPrettyVal,
-          cmake: document.getElementById('setup-cmake')?.checked || false,
-          gcc: document.getElementById('setup-gcc')?.checked || false
-        };
-      }
+      collect: () => ({
+        'graphics manufacturer': document.getElementById('setup-gpu')?.value          || 'unscanned',
+        'target card name':      document.getElementById('setup-target-gpu')?.value   || null,
+        'operating system':      document.getElementById('setup-os')?.value           || null,
+        'OS pretty':             document.getElementById('setup-os-pretty')?.value    || null,
+        cmake:                   document.getElementById('setup-cmake')?.checked      || false,
+        gcc:                     document.getElementById('setup-gcc')?.checked        || false
+      })
     },
 
     // ============================================
-    // STEP 5: Import Test + Auto-Install
+    // STEP 6: Framework Verification + Auto-Install
     // ============================================
     {
       id: 'imports',
@@ -286,7 +352,7 @@
         return `
           <h2>Verify ${fwName} Installation</h2>
           <p>We'll test if <strong>${fwName}</strong> can be imported. If not, we'll install it automatically.</p>
-          <div id="import-status" class="setup-detect-output" style="display:none"></div>
+          <div id="import-status"  class="setup-detect-output" style="display:none"></div>
           <div id="install-output" class="setup-detect-output" style="display:none"></div>
           <div id="import-actions">
             <button id="run-import-test-btn" class="setup-btn setup-btn-primary">▶ Run Import Test</button>
@@ -298,16 +364,15 @@
         if (!testBtn) return;
 
         testBtn.addEventListener('click', async () => {
-          const fw = selectedFramework || 'torch';
-          const fwName = fw === 'tf' ? 'TensorFlow' : 'PyTorch';
-          const statusDiv = document.getElementById('import-status');
+          const fw         = selectedFramework || 'torch';
+          const fwName     = fw === 'tf' ? 'TensorFlow' : 'PyTorch';
+          const statusDiv  = document.getElementById('import-status');
           const installDiv = document.getElementById('install-output');
-
           if (!statusDiv) return;
 
           statusDiv.style.display = 'block';
           statusDiv.innerHTML = '<p class="setup-hint">⏳ Running import test...</p>';
-          testBtn.disabled = true;
+          testBtn.disabled    = true;
           testBtn.style.opacity = '0.5';
 
           try {
@@ -316,27 +381,21 @@
             const stderr = result.stderr || '';
 
             if (result.code === 0) {
-              // Import succeeded
               statusDiv.innerHTML = `
                 <div class="setup-success-msg">✅ ${fwName} is installed and working!</div>
                 <pre class="setup-pre">${escapeHtml(stdout)}</pre>
               `;
-              testBtn.textContent = '✓ Verified';
-              testBtn.disabled = true;
+              testBtn.textContent   = '✓ Verified';
               testBtn.style.opacity = '0.7';
             } else {
-              // Import failed — offer install
-              let details = escapeHtml(stdout || stderr || 'Unknown error');
               statusDiv.innerHTML = `
                 <div class="setup-error-msg">❌ ${fwName} import failed</div>
-                <pre class="setup-pre setup-pre-error">${details}</pre>
+                <pre class="setup-pre setup-pre-error">${escapeHtml(stdout || stderr || 'Unknown error')}</pre>
                 <p>Would you like to install ${fwName} now?</p>
                 <button id="run-install-btn" class="setup-btn setup-btn-success">⬇️ Install ${fwName}</button>
               `;
-
               if (installDiv) installDiv.style.display = 'none';
 
-              // Wire up install button
               const installBtn = document.getElementById('run-install-btn');
               if (installBtn) {
                 installBtn.addEventListener('click', async () => {
@@ -344,8 +403,8 @@
                     installDiv.style.display = 'block';
                     installDiv.innerHTML = '<p class="setup-hint">⏳ Installing... This may take a few minutes.</p>';
                   }
-                  installBtn.disabled = true;
-                  installBtn.textContent = '⏳ Installing...';
+                  installBtn.disabled     = true;
+                  installBtn.textContent  = '⏳ Installing...';
 
                   try {
                     const installResult = await window.electron.runInstall(fw);
@@ -359,7 +418,7 @@
                           <pre class="setup-pre">${escapeHtml(iout.slice(0, 500))}</pre>
                         `;
                       }
-                      // Re-run import test
+                      // Re-test imports after install
                       statusDiv.innerHTML = '<p class="setup-hint">⏳ Re-testing imports...</p>';
                       const retestResult = await window.electron.runImportTest(fw);
                       if (retestResult.code === 0) {
@@ -382,14 +441,14 @@
                         `;
                       }
                       installBtn.textContent = '⬇️ Retry Install';
-                      installBtn.disabled = false;
+                      installBtn.disabled    = false;
                     }
                   } catch (e) {
                     if (installDiv) {
                       installDiv.innerHTML = `<p class="setup-hint">⚠️ Error: ${escapeHtml(e.message)}</p>`;
                     }
                     installBtn.textContent = '⬇️ Retry Install';
-                    installBtn.disabled = false;
+                    installBtn.disabled    = false;
                   }
                 });
               }
@@ -397,30 +456,30 @@
           } catch (e) {
             statusDiv.innerHTML = `<p class="setup-hint">⚠️ Test error: ${escapeHtml(e.message)}</p>`;
           } finally {
-            testBtn.disabled = false;
+            testBtn.disabled      = false;
             testBtn.style.opacity = '1';
           }
         });
       },
       collect: () => {
-        // Re-check the import status from the DOM
         const statusDiv = document.getElementById('import-status');
-        const success = statusDiv && statusDiv.textContent.includes('✅');
+        const success   = statusDiv?.textContent.includes('✅') || false;
         return { importSucceeded: success, framework: selectedFramework || 'torch' };
       }
     },
 
     // ============================================
-    // STEP 6: Resources
+    // STEP 7: Resources
     // ============================================
     {
       id: 'resources',
       title: 'Resources',
       render: (settings) => {
-        const cloudResources = settings['resource settings']?.['cloud resources'] || false;
-        const cloudProvider = settings['resource settings']?.['cloud provider name'] || '';
-        const localHostname = settings['resource settings']?.['local hostname'] || '';
-        const trainerBrowser = settings['resource settings']?.['trainer browser'] || 'default';
+        const res            = settings['resource settings'] || {};
+        const cloudResources = res['cloud resources']      || false;
+        const cloudProvider  = res['cloud provider name']  || '';
+        const localHostname  = res['local hostname']       || '';
+        const trainerBrowser = res['trainer browser']      || 'default';
         return `
           <h2>Resource Configuration</h2>
           <div class="setup-field">
@@ -431,28 +490,31 @@
           </div>
           <div class="setup-field">
             <label>Cloud Provider:</label>
-            <input type="text" id="setup-cloud-provider" class="setup-input" placeholder="e.g. openai" value="${cloudProvider}">
+            <input type="text" id="setup-cloud-provider" class="setup-input"
+              placeholder="e.g. openai" value="${escapeHtml(cloudProvider)}">
           </div>
           <div class="setup-field">
             <label>Local Hostname:</label>
-            <input type="text" id="setup-local-host" class="setup-input" placeholder="e.g. ollama" value="${localHostname}">
+            <input type="text" id="setup-local-host" class="setup-input"
+              placeholder="e.g. ollama" value="${escapeHtml(localHostname)}">
           </div>
           <div class="setup-field">
             <label>Trainer Browser:</label>
-            <input type="text" id="setup-trainer-browser" class="setup-input" placeholder="default" value="${trainerBrowser}">
+            <input type="text" id="setup-trainer-browser" class="setup-input"
+              placeholder="default" value="${escapeHtml(trainerBrowser)}">
           </div>
         `;
       },
       collect: () => ({
-        'cloud resources': document.getElementById('setup-cloud')?.checked || false,
-        'cloud provider name': document.getElementById('setup-cloud-provider')?.value || null,
-        'local hostname': document.getElementById('setup-local-host')?.value || null,
-        'trainer browser': document.getElementById('setup-trainer-browser')?.value || 'default'
+        'cloud resources':    document.getElementById('setup-cloud')?.checked          || false,
+        'cloud provider name':document.getElementById('setup-cloud-provider')?.value   || null,
+        'local hostname':     document.getElementById('setup-local-host')?.value       || null,
+        'trainer browser':    document.getElementById('setup-trainer-browser')?.value  || 'default'
       })
     },
 
     // ============================================
-    // STEP 7: QoL Settings
+    // STEP 8: Quality of Life
     // ============================================
     {
       id: 'qol',
@@ -469,7 +531,8 @@
           </div>
           <div class="setup-field">
             <label>Reels Provider:</label>
-            <input type="text" id="setup-reels-provider" class="setup-input" placeholder="e.g. youtube" value="${qol['reels provider'] || ''}">
+            <input type="text" id="setup-reels-provider" class="setup-input"
+              placeholder="e.g. youtube" value="${escapeHtml(qol['reels provider'] || '')}">
           </div>
           <div class="setup-field">
             <label class="setup-checkbox-label">
@@ -479,34 +542,36 @@
           </div>
           <div class="setup-field">
             <label>Video Provider:</label>
-            <input type="text" id="setup-video-provider" class="setup-input" placeholder="e.g. youtube" value="${qol['video provider'] || ''}">
+            <input type="text" id="setup-video-provider" class="setup-input"
+              placeholder="e.g. youtube" value="${escapeHtml(qol['video provider'] || '')}">
           </div>
           <div class="setup-field">
             <label>Task Manager:</label>
             <select id="setup-task-manager" class="setup-select">
-              <option value="ask" ${qol['task manager'] === 'ask' ? 'selected' : ''}>Ask</option>
+              <option value="ask"    ${qol['task manager'] === 'ask'    ? 'selected' : ''}>Ask</option>
               <option value="always" ${qol['task manager'] === 'always' ? 'selected' : ''}>Always Show</option>
-              <option value="never" ${qol['task manager'] === 'never' ? 'selected' : ''}>Never</option>
+              <option value="never"  ${qol['task manager'] === 'never'  ? 'selected' : ''}>Never</option>
             </select>
           </div>
           <div class="setup-field">
             <label>Database Provider:</label>
-            <input type="text" id="setup-db-provider" class="setup-input" placeholder="e.g. huggingface" value="${qol['database provider'] || ''}">
+            <input type="text" id="setup-db-provider" class="setup-input"
+              placeholder="e.g. huggingface" value="${escapeHtml(qol['database provider'] || '')}">
           </div>
         `;
       },
       collect: () => ({
-        'reels enable': document.getElementById('setup-reels')?.checked || false,
-        'reels provider': document.getElementById('setup-reels-provider')?.value || null,
-        'video enable': document.getElementById('setup-video')?.checked || false,
-        'video provider': document.getElementById('setup-video-provider')?.value || null,
-        'task manager': document.getElementById('setup-task-manager')?.value || 'ask',
-        'database provider': document.getElementById('setup-db-provider')?.value || null
+        'reels enable':     document.getElementById('setup-reels')?.checked           || false,
+        'reels provider':   document.getElementById('setup-reels-provider')?.value    || null,
+        'video enable':     document.getElementById('setup-video')?.checked           || false,
+        'video provider':   document.getElementById('setup-video-provider')?.value    || null,
+        'task manager':     document.getElementById('setup-task-manager')?.value      || 'ask',
+        'database provider':document.getElementById('setup-db-provider')?.value       || null
       })
     },
 
     // ============================================
-    // STEP 8: Security
+    // STEP 9: Security
     // ============================================
     {
       id: 'security',
@@ -536,33 +601,34 @@
           <div class="setup-field">
             <label class="setup-checkbox-label">
               <input type="checkbox" id="setup-sudo" ${sec['sudo'] ? 'checked' : ''}>
-              Allow sudo/system-level access
+              Allow sudo / system-level access
             </label>
           </div>
           <div class="setup-field">
             <label class="setup-checkbox-label">
               <input type="checkbox" id="setup-browser-access" ${sec['browser access'] ? 'checked' : ''}>
-              Allow model/web access
+              Allow model / web access
             </label>
           </div>
           <div class="setup-field">
             <label>Local Key File Path:</label>
-            <input type="text" id="setup-key-path" class="setup-input" placeholder="default" value="${sec['local key file path'] || 'default'}">
+            <input type="text" id="setup-key-path" class="setup-input"
+              placeholder="default" value="${escapeHtml(sec['local key file path'] || 'default')}">
           </div>
         `;
       },
       collect: () => ({
-        'project mod': document.getElementById('setup-project-mod')?.checked || false,
-        'cloud mod': document.getElementById('setup-cloud-mod')?.checked || false,
-        'all files': document.getElementById('setup-all-files')?.checked || false,
-        sudo: document.getElementById('setup-sudo')?.checked || false,
-        'browser access': document.getElementById('setup-browser-access')?.checked || false,
-        'local key file path': document.getElementById('setup-key-path')?.value || 'default'
+        'project mod':         document.getElementById('setup-project-mod')?.checked    || false,
+        'cloud mod':           document.getElementById('setup-cloud-mod')?.checked      || false,
+        'all files':           document.getElementById('setup-all-files')?.checked      || false,
+        sudo:                  document.getElementById('setup-sudo')?.checked           || false,
+        'browser access':      document.getElementById('setup-browser-access')?.checked || false,
+        'local key file path': document.getElementById('setup-key-path')?.value         || 'default'
       })
     },
 
     // ============================================
-    // STEP 9: Finish
+    // STEP 10: Finish
     // ============================================
     {
       id: 'finish',
@@ -576,7 +642,7 @@
     }
   ];
 
-  let currentStep = 0;
+  let currentStep   = 0;
   let settingsCache = null;
 
   // ========== Settings management ==========
@@ -584,9 +650,7 @@
   async function loadSettings() {
     try {
       settingsCache = await window.electron.settingsRead();
-      if (!settingsCache) {
-        settingsCache = getDefaultSettings();
-      }
+      if (!settingsCache) settingsCache = getDefaultSettings();
       return settingsCache;
     } catch (e) {
       console.error('Failed to load settings:', e);
@@ -597,68 +661,82 @@
 
   function getDefaultSettings() {
     return {
-      'general settings': { setup: true, language: 'eng' },
+      'general settings':   { setup: true, language: 'eng' },
       'aesthetic settings': { appearance: 'dark', 'scaling factor': 1, 'accent color': 'default' },
-      'hardware settings': { 'graphics manufacturer': 'unscanned', 'target card name': null },
-      'software information': { 'operating system': null, 'OS pretty': null, cmake: false, gcc: false, tf: false, pyt: false },
-      'resource settings': { 'cloud resources': false, 'cloud provider name': null, 'local hostname': null, 'trainer browser': 'default' },
-      'security settings': { 'local key file path': 'default', 'project mod': false, 'cloud mod': false, 'all files': false, sudo: false, 'browser access': false },
-      'qol settings': { 'reels enable': false, 'reels provider': null, 'video enable': false, 'video provider': null, 'task manager': 'ask', 'database provider': null }
+      'hardware settings':  { 'graphics manufacturer': 'unscanned', 'target card name': null },
+      'software information': {
+        'operating system': null, 'OS pretty': null,
+        cmake: false, gcc: false, tf: false, pyt: false
+      },
+      'resource settings': {
+        'cloud resources': false, 'cloud provider name': null,
+        'local hostname': null, 'trainer browser': 'default'
+      },
+      'security settings': {
+        'local key file path': 'default',
+        'project mod': false, 'cloud mod': false,
+        'all files': false, sudo: false, 'browser access': false
+      },
+      'qol settings': {
+        'reels enable': false, 'reels provider': null,
+        'video enable': false, 'video provider': null,
+        'task manager': 'ask', 'database provider': null
+      }
     };
   }
 
   async function collectAndSave() {
     if (!settingsCache) return;
 
-    // Collect all step data
-    for (let i = 0; i < STEPS.length; i++) {
-      const step = STEPS[i];
+    for (const step of STEPS) {
       if (!step.collect) continue;
-
       const data = step.collect();
 
       switch (step.id) {
         case 'language':
           settingsCache['general settings'].language = data;
           break;
+
         case 'appearance':
           Object.assign(settingsCache['aesthetic settings'], data);
           break;
+
         case 'framework':
-          // Write framework choice as nonbackup fields
           selectedFramework = data;
           settingsCache['software information'] = settingsCache['software information'] || {};
           if (data === 'tf') {
-            settingsCache['software information'].tf = true;
+            settingsCache['software information'].tf  = true;
             settingsCache['software information'].pyt = false;
           } else {
             settingsCache['software information'].pyt = true;
-            settingsCache['software information'].tf = false;
+            settingsCache['software information'].tf  = false;
           }
           break;
+
         case 'hardware':
           settingsCache['hardware settings'] = {
             'graphics manufacturer': data['graphics manufacturer'],
-            'target card name': data['target card name']
+            'target card name':      data['target card name']
           };
           settingsCache['software information'] = settingsCache['software information'] || {};
           settingsCache['software information']['operating system'] = data['operating system'];
-          settingsCache['software information']['OS pretty'] = data['OS pretty'];
-          settingsCache['software information'].cmake = data.cmake;
-          settingsCache['software information'].gcc = data.gcc;
+          settingsCache['software information']['OS pretty']        = data['OS pretty'];
+          settingsCache['software information'].cmake               = data.cmake;
+          settingsCache['software information'].gcc                 = data.gcc;
           break;
+
         case 'imports':
-          // Import status is ephemeral — don't persist to JSON, just track
+          // Ephemeral — not persisted
           break;
+
         case 'resources':
-          if (data['trainer browser']) {
-            // existing field
-          }
           Object.assign(settingsCache['resource settings'], data);
           break;
+
         case 'qol':
           Object.assign(settingsCache['qol settings'], data);
           break;
+
         case 'security':
           Object.assign(settingsCache['security settings'], data);
           break;
@@ -666,24 +744,15 @@
     }
 
     try {
-      // First save with backup (full settings)
       await window.electron.settingsWrite(settingsCache);
 
-      // Then update framework flags as nonbackup
-      const fwData = {
-        'software information': {
-          tf: settingsCache['software information']?.tf || false,
-          pyt: settingsCache['software information']?.pyt || false
-        }
-      };
-      // Merge nonbackup fields into existing settings and save without backup
-      const currentSettings = await window.electron.settingsRead() || settingsCache;
-      currentSettings['software information'] = currentSettings['software information'] || {};
-      currentSettings['software information'].tf = fwData['software information'].tf;
-      currentSettings['software information'].pyt = fwData['software information'].pyt;
-      await window.electron.settingsWriteNonbackup(currentSettings);
+      // Write framework flags as nonbackup
+      const current = await window.electron.settingsRead() || settingsCache;
+      current['software information']      = current['software information'] || {};
+      current['software information'].tf   = settingsCache['software information']?.tf  || false;
+      current['software information'].pyt  = settingsCache['software information']?.pyt || false;
+      await window.electron.settingsWriteNonbackup(current);
 
-      // Mark setup complete and navigate home
       await window.electron.setupComplete();
     } catch (e) {
       console.error('Failed to save settings:', e);
@@ -701,12 +770,9 @@
 
     container.innerHTML = step.render(settingsCache);
 
-    // Call afterRender if defined (for wiring up event listeners)
-    if (step.afterRender) {
-      step.afterRender();
-    }
+    if (step.afterRender) step.afterRender();
 
-    // Update progress indicator
+    // Progress dots
     const progressContainer = document.getElementById('setup-progress');
     if (progressContainer) {
       progressContainer.innerHTML = STEPS.map((s, i) => {
@@ -715,52 +781,44 @@
       }).join('');
     }
 
-    // Update buttons
-    const backBtn = document.getElementById('setup-back');
-    const nextBtn = document.getElementById('setup-next');
+    // Nav buttons
+    const backBtn   = document.getElementById('setup-back');
+    const nextBtn   = document.getElementById('setup-next');
     const finishBtn = document.getElementById('setup-finish');
 
-    if (backBtn) {
-      backBtn.style.display = currentStep === 0 ? 'none' : 'inline-block';
-    }
-    if (nextBtn) {
-      nextBtn.style.display = currentStep < STEPS.length - 1 ? 'inline-block' : 'none';
-    }
-    if (finishBtn) {
-      finishBtn.style.display = currentStep === STEPS.length - 1 ? 'inline-block' : 'none';
-    }
+    if (backBtn)   backBtn.style.display   = currentStep === 0                ? 'none'         : 'inline-block';
+    if (nextBtn)   nextBtn.style.display   = currentStep < STEPS.length - 1  ? 'inline-block' : 'none';
+    if (finishBtn) finishBtn.style.display = currentStep === STEPS.length - 1 ? 'inline-block' : 'none';
   }
 
   async function nextStep() {
-    // Collect current step data before moving forward (for framework step)
-    const currentStepDef = STEPS[currentStep];
-    if (currentStepDef && currentStepDef.collect) {
-      // For framework step, persist immediately as nonbackup
-      if (currentStepDef.id === 'framework') {
-        const fw = currentStepDef.collect();
-        selectedFramework = fw;
-        if (settingsCache) {
-          settingsCache['software information'] = settingsCache['software information'] || {};
-          if (fw === 'tf') {
-            settingsCache['software information'].tf = true;
-            settingsCache['software information'].pyt = false;
-          } else {
-            settingsCache['software information'].pyt = true;
-            settingsCache['software information'].tf = false;
-          }
-          // Save framework choice immediately as nonbackup
-          try {
-            const current = await window.electron.settingsRead() || settingsCache;
-            current['software information'] = current['software information'] || {};
-            current['software information'].tf = settingsCache['software information'].tf;
-            current['software information'].pyt = settingsCache['software information'].pyt;
-            await window.electron.settingsWriteNonbackup(current);
-          } catch (e) {
-            console.warn('Could not save framework selection immediately:', e);
-          }
+    const step = STEPS[currentStep];
+
+    // Persist framework choice immediately on leaving that step
+    if (step?.id === 'framework' && step.collect) {
+      const fw = step.collect();
+      selectedFramework = fw;
+      if (settingsCache) {
+        settingsCache['software information'] = settingsCache['software information'] || {};
+        if (fw === 'tf') {
+          settingsCache['software information'].tf  = true;
+          settingsCache['software information'].pyt = false;
+        } else {
+          settingsCache['software information'].pyt = true;
+          settingsCache['software information'].tf  = false;
+        }
+        try {
+          const current = await window.electron.settingsRead() || settingsCache;
+          current['software information']      = current['software information'] || {};
+          current['software information'].tf   = settingsCache['software information'].tf;
+          current['software information'].pyt  = settingsCache['software information'].pyt;
+          await window.electron.settingsWriteNonbackup(current);
+        } catch (e) {
+          console.warn('Could not save framework selection immediately:', e);
         }
       }
     }
+
     if (currentStep < STEPS.length - 1) {
       currentStep++;
       renderStep();
@@ -774,18 +832,8 @@
     }
   }
 
-  // Utility: escape HTML
-  function escapeHtml(text) {
-    if (!text) return '';
-    return String(text)
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"')
-      .replace(/'/g, '&#039;');
-  }
+  // ========== Bootstrap ==========
 
-  // ========== Initialize setup wizard ==========
   document.addEventListener('DOMContentLoaded', async () => {
     const wizard = document.createElement('div');
     wizard.id = 'setup-wizard';
@@ -796,8 +844,9 @@
       </div>
       <div id="setup-content"></div>
       <div id="setup-actions">
-        <button id="setup-back" class="setup-btn setup-btn-secondary">← Back</button>
-        <button id="setup-next" class="setup-btn setup-btn-primary">Next →</button>
+        <button id="setup-back"   class="setup-btn setup-btn-secondary">← Back</button>
+        <button id="setup-next"   class="setup-btn setup-btn-primary">Next →</button>
+        <button id="setup-skip"   class="setup-btn setup-btn-secondary">Skip →→→</button>
         <button id="setup-finish" class="setup-btn setup-btn-success" style="display:none">✓ Finish</button>
       </div>
     `;
@@ -815,6 +864,7 @@
 
     document.getElementById('setup-next')?.addEventListener('click', nextStep);
     document.getElementById('setup-back')?.addEventListener('click', prevStep);
+    document.getElementById('setup-skip')?.addEventListener('click', collectAndSave);
     document.getElementById('setup-finish')?.addEventListener('click', collectAndSave);
 
     renderStep();

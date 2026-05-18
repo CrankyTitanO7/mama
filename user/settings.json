@@ -18,7 +18,9 @@
         "cmake": false,
         "gcc": false,
         "tf": false,
-        "pyt": true
+        "pyt": true,
+        "OS full": null,
+        "OS kernel": null
     },
     "resource settings": {
         "cloud resources": false,

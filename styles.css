@@ -443,6 +443,62 @@ a:hover {
 }
 
 /* ============================================
+   Topbar
+   ============================================ */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+.topbar-brand {
+  font-size: 18px;
+  font-weight: 700;
+  color: #00d4ff;
+  letter-spacing: 1px;
+}
+
+.topbar-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.topbar-btn {
+  background: transparent;
+  color: #b0b0b0;
+  border: 1px solid transparent;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.topbar-btn:hover {
+  color: #e0e0e0;
+  border-color: #0f3460;
+  background: #1a1a2e;
+}
+
+/* Push page content below fixed topbar */
+.page-content {
+  margin-top: 60px;
+}
+
+/* Also apply to setup/settings pages that use the body directly */
+body {
+  padding-top: 0;
+}
+
+/* ============================================
    Home Page Enhancements
    ============================================ */
 .home-nav {

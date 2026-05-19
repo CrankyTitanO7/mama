@@ -6,12 +6,22 @@
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body>
-    <h1>Welcome to Frank</h1>
-    <p>Your AI training and management platform.</p>
-    
-    <div class="home-nav">
-      <button class="nav-btn" onclick="window.electron.navigateTo('public/setup.html')">🔧 Setup Wizard</button>
-      <button class="nav-btn" onclick="window.electron.navigateTo('public/settings.html')">⚙️ Settings</button>
+    <div class="topbar">
+      <span class="topbar-brand">Frank</span>
+      <div class="topbar-nav">
+        <button class="topbar-btn" onclick="window.electron.navigateTo('public/setup.html')">🔧 Setup</button>
+        <button class="topbar-btn" onclick="window.electron.navigateTo('public/settings.html')">⚙️ Settings</button>
+      </div>
+    </div>
+
+    <div class="page-content">
+      <h1>Welcome to Frank</h1>
+      <p>Your AI training and management platform.</p>
+      
+      <div class="home-nav">
+        <button class="nav-btn" onclick="window.electron.navigateTo('public/setup.html')">🔧 Setup Wizard</button>
+        <button class="nav-btn" onclick="window.electron.navigateTo('public/settings.html')">⚙️ Settings</button>
+      </div>
     </div>
 
     <script src="../renderer.js"></script>

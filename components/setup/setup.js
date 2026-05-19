@@ -899,7 +899,11 @@
   async function collectAndSave() {
     if (!settingsCache) return;
 
-    for (const step of STEPS) {
+    // Only collect from steps the user has actually visited (currentStep and before).
+    // Unvisited steps keep whatever was already in settingsCache from the original file.
+    const visitedCount = Math.min(currentStep + 1, STEPS.length);
+    for (let i = 0; i < visitedCount; i++) {
+      const step = STEPS[i];
       if (!step.collect) continue;
       const data = step.collect();
 
@@ -955,12 +959,12 @@
     try {
       await window.electron.settingsWrite(settingsCache);
 
-      // Write framework flags as nonbackup
+      // Write framework flags (no backup — plain write skips backup)
       const current = await window.electron.settingsRead() || settingsCache;
       current['software information']     = current['software information'] || {};
       current['software information'].tf  = settingsCache['software information']?.tf  || false;
       current['software information'].pyt = settingsCache['software information']?.pyt || false;
-      await window.electron.settingsWriteNonbackup(current);
+      await window.electron.settingsWrite(current);
 
       await window.electron.setupComplete();
     } catch (e) {
@@ -1014,7 +1018,7 @@
           current['software information']     = current['software information'] || {};
           current['software information'].tf  = si.tf;
           current['software information'].pyt = si.pyt;
-          await window.electron.settingsWriteNonbackup(current);
+          await window.electron.settingsWrite(current);
         } catch (e) {
           console.warn('Could not save framework selection immediately:', e);
         }

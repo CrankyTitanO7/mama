@@ -118,18 +118,20 @@ app.on('activate', () => {
 ipcMain.handle('settings-read', async () => loadSettings());
 
 ipcMain.handle('settings-write', async (event, settings) => {
-  return saveSettings(settings, false);
+  // Save without touching backup
+  return saveSettings(settings, true);
 });
 
-ipcMain.handle('settings-write-nonbackup', async (event, settings) => {
-  return saveSettings(settings, true);
+// Explicit backup endpoint — only called when user intentionally wants a backup
+ipcMain.handle('settings-write-with-backup', async (event, settings) => {
+  return saveSettings(settings, false);
 });
 
 ipcMain.handle('settings-setup-complete', async () => {
   const settings = loadSettings();
   if (settings && settings['general settings']) {
     settings['general settings'].setup = false;
-    saveSettings(settings);
+    saveSettings(settings, true); // no backup
   }
   if (mainWindow) {
     mainWindow.loadFile('public/index.html');

@@ -204,6 +204,21 @@ ipcMain.handle('run-system-detect', async (event, framework) => {
   return result;
 });
 
+// --- System: Generic command runner (for mission control pre-flight checks) ---
+ipcMain.handle('run-system-command', async (event, command, args) => {
+  return new Promise((resolve) => {
+    const proc = spawn(command, args || []);
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    proc.on('close', (code) => resolve({ stdout, stderr, code }));
+    proc.on('error', (err) => resolve({ stdout, stderr: err.message, code: -1 }));
+  });
+});
+
 // --- Python: Run generic command (existing, kept for compatibility) ---
 ipcMain.handle('run-python-command', async (event, action) => {
   if (action === 'install') {

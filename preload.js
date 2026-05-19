@@ -25,5 +25,8 @@ contextBridge.exposeInMainWorld('electron', {
   runInstall: (framework) => ipcRenderer.invoke('run-install', framework),
 
   // Python: System / GPU detection
-  runSystemDetect: (framework) => ipcRenderer.invoke('run-system-detect', framework)
+  runSystemDetect: (framework) => ipcRenderer.invoke('run-system-detect', framework),
+
+  // System: Generic command (for mission control checks)
+  runSystemCommand: (command, args) => ipcRenderer.invoke('run-system-command', command, args)
 });

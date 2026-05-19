@@ -506,3 +506,109 @@ body {
   gap: 12px;
   margin-top: 24px;
 }
+
+/* ============================================
+   Mission Control – Pre-Flight Checks
+   ============================================ */
+.mc-page-content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.mc-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.mc-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 18px 20px;
+  flex: 1 1 240px;
+  min-width: 200px;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.mc-card-pending {
+  border-color: #ffc107;
+  box-shadow: 0 0 8px rgba(255, 193, 7, 0.3);
+}
+
+.mc-card-pass {
+  border-color: #4caf50;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.3);
+}
+
+.mc-card-fail {
+  border-color: #f44336;
+  box-shadow: 0 0 8px rgba(244, 67, 54, 0.3);
+}
+
+.mc-card-warn {
+  border-color: #ff9800;
+  box-shadow: 0 0 8px rgba(255, 152, 0, 0.3);
+}
+
+.mc-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+}
+
+.mc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mc-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #e0e0e0;
+  margin-bottom: 2px;
+}
+
+.mc-status {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 1px;
+}
+
+.mc-detail {
+  font-size: 12px;
+  color: #888;
+  font-family: 'Consolas', 'Courier New', monospace;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.mc-run-btn {
+  display: inline-block;
+  padding: 12px 32px;
+  background: #00d4ff;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  margin-top: 8px;
+}
+
+.mc-run-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.mc-run-btn:active {
+  transform: translateY(0);
+}

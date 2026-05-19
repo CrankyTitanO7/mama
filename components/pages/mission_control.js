@@ -6,26 +6,50 @@ const MC = (() => {
 
   // ── Config ────────────────────────────────────────────────
   const CHECKS = [
-    { id: 'python',        label: 'Python',        action: 'python' },
-    { id: 'node',          label: 'Node.js',       action: 'node' },
-    { id: 'npm',           label: 'npm',           action: 'npm' },
-    { id: 'git',           label: 'Git',           action: 'git' },
-    { id: 'torch',         label: 'PyTorch',       action: 'import-torch' },
-    { id: 'tensorflow',    label: 'TensorFlow',    action: 'import-tf' },
-    { id: 'docker',        label: 'Docker',        action: 'docker' },
+    { id: 'python',        label: 'Python',        action: 'python',        settingKey: null },
+    { id: 'node',          label: 'Node.js',       action: 'node',          settingKey: null },
+    { id: 'npm',           label: 'npm',           action: 'npm',           settingKey: null },
+    { id: 'git',           label: 'Git',           action: 'git',           settingKey: null },
+    { id: 'torch',         label: 'PyTorch',       action: 'import-torch',  settingKey: 'pyt' },
+    { id: 'tensorflow',    label: 'TensorFlow',    action: 'import-tf',     settingKey: 'tf' },
+    { id: 'docker',        label: 'Docker',        action: 'docker',        settingKey: null },
   ];
 
-  const ICON = { idle: '⏳', pending: '🔄', pass: '✅', fail: '❌', warn: '⚠️' };
-  const LABEL = { idle: 'Pending…', pending: 'Checking…', pass: 'Pass', fail: 'Fail', warn: 'Warning' };
-  const COLOR = { idle: '#666', pending: '#ffc107', pass: '#4caf50', fail: '#f44336', warn: '#ff9800' };
+  const ICON = { idle: '⏳', pending: '🔄', pass: '✅', fail: '❌', warn: '⚠️', disabled: '🔒' };
+  const LABEL = { idle: 'Pending…', pending: 'Checking…', pass: 'Pass', fail: 'Fail', warn: 'Warning', disabled: 'Disabled' };
+  const COLOR = { idle: '#666', pending: '#ffc107', pass: '#4caf50', fail: '#f44336', warn: '#ff9800', disabled: '#444' };
 
   let container = null;
   let cards = {};
+  let settings = null;
+
+  // ── Load settings ─────────────────────────────────────────
+  async function loadSettings() {
+    try {
+      settings = await window.electron.settingsRead();
+    } catch (e) {
+      settings = null;
+    }
+  }
+
+  // ── Check if a framework check should be disabled ──────────
+  function isDisabled(settingKey) {
+    if (!settingKey || !settings) return false;
+    // software information contains tf and pyt booleans
+    const si = settings['software information'];
+    if (!si) return false;
+    // If the setting key is present and false, the framework is deselected → disabled
+    if (si[settingKey] === false) return true;
+    return false;
+  }
 
   // ── Render ────────────────────────────────────────────────
-  function render(target) {
+  async function render(target) {
     container = target;
     container.innerHTML = '';
+
+    // Load settings first so we know which frameworks are active
+    await loadSettings();
 
     const title = document.createElement('h2');
     title.textContent = '🚀 Pre-Flight Checks';
@@ -38,10 +62,11 @@ const MC = (() => {
       const card = document.createElement('div');
       card.className = 'mc-card';
       card.dataset.checkId = check.id;
+      const disabled = isDisabled(check.settingKey);
 
       const statusIcon = document.createElement('span');
       statusIcon.className = 'mc-icon';
-      statusIcon.textContent = ICON.idle;
+      statusIcon.textContent = disabled ? ICON.disabled : ICON.idle;
 
       const info = document.createElement('div');
       info.className = 'mc-info';
@@ -49,30 +74,52 @@ const MC = (() => {
       const name = document.createElement('div');
       name.className = 'mc-name';
       name.textContent = check.label;
+      if (disabled) name.style.color = '#555';
 
       const status = document.createElement('div');
       status.className = 'mc-status';
-      status.textContent = LABEL.idle;
-      status.style.color = COLOR.idle;
+      status.textContent = disabled ? LABEL.disabled : LABEL.idle;
+      status.style.color = disabled ? COLOR.disabled : COLOR.idle;
 
       const detail = document.createElement('div');
       detail.className = 'mc-detail';
-      detail.textContent = '';
+      detail.textContent = disabled ? 'Deselected in settings' : '';
 
       info.appendChild(name);
       info.appendChild(status);
       info.appendChild(detail);
 
+      // If disabled, add a small "check anyway" link
+      if (disabled) {
+        const checkAnyway = document.createElement('button');
+        checkAnyway.className = 'mc-check-anyway';
+        checkAnyway.textContent = '▶ check anyway';
+        checkAnyway.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // Unlock the card so setStatus works
+          cards[check.id].disabled = false;
+          // Run just this check
+          runSingleCheck(check.id);
+        });
+        info.appendChild(checkAnyway);
+      }
+
       card.appendChild(statusIcon);
       card.appendChild(info);
       flexGrid.appendChild(card);
 
-      cards[check.id] = { card, statusIcon, statusEl: status, detailEl: detail };
+      cards[check.id] = {
+        card,
+        statusIcon,
+        statusEl: status,
+        detailEl: detail,
+        disabled
+      };
     });
 
     container.appendChild(flexGrid);
 
-    // Run button
+    // Run button (skip disabled checks)
     const runBtn = document.createElement('button');
     runBtn.className = 'mc-run-btn';
     runBtn.textContent = '▶ Run All Checks';
@@ -84,11 +131,12 @@ const MC = (() => {
   function setStatus(id, state, detailText) {
     const c = cards[id];
     if (!c) return;
+    // Never overwrite disabled state
+    if (c.disabled) return;
     c.statusIcon.textContent = ICON[state] || ICON.idle;
     c.statusEl.textContent = LABEL[state] || LABEL.idle;
     c.statusEl.style.color = COLOR[state] || COLOR.idle;
     c.detailEl.textContent = detailText || '';
-    // Add class for styling
     c.card.className = 'mc-card mc-card-' + state;
   }
 
@@ -101,7 +149,6 @@ const MC = (() => {
         const ver = result.stdout.trim().replace(/^Python\s+/i, '');
         setStatus('python', 'pass', `v${ver}`);
       } else {
-        // Try python3 on non-Windows
         const result3 = await window.electron.runSystemCommand('python3', ['--version']);
         if (result3.code === 0 && result3.stdout) {
           const ver = result3.stdout.trim().replace(/^Python\s+/i, '');
@@ -206,21 +253,39 @@ const MC = (() => {
     }
   }
 
+  // ── Run a single check by id ────────────────────────────────
+  async function runSingleCheck(id) {
+    switch (id) {
+      case 'python':     return runCheckPython();
+      case 'node':       return runCheckNode();
+      case 'npm':        return runCheckNpm();
+      case 'git':        return runCheckGit();
+      case 'docker':     return runCheckDocker();
+      case 'torch':      return runCheckImportTorch();
+      case 'tensorflow': return runCheckImportTf();
+    }
+  }
+
   // ── Run All ────────────────────────────────────────────────
   async function runAll() {
-    // Reset all to pending
+    // Reset all to idle first
     CHECKS.forEach(c => setStatus(c.id, 'idle', ''));
 
-    // Run in parallel
-    const tasks = [
-      runCheckPython(),
-      runCheckNode(),
-      runCheckNpm(),
-      runCheckGit(),
-      runCheckDocker(),
-      runCheckImportTorch(),
-      runCheckImportTf(),
-    ];
+    const tasks = [];
+
+    // Only add tasks for non-disabled checks
+    CHECKS.forEach((check) => {
+      if (cards[check.id] && cards[check.id].disabled) return;
+      switch (check.id) {
+        case 'python':     tasks.push(runCheckPython()); break;
+        case 'node':       tasks.push(runCheckNode()); break;
+        case 'npm':        tasks.push(runCheckNpm()); break;
+        case 'git':        tasks.push(runCheckGit()); break;
+        case 'docker':     tasks.push(runCheckDocker()); break;
+        case 'torch':      tasks.push(runCheckImportTorch()); break;
+        case 'tensorflow': tasks.push(runCheckImportTf()); break;
+      }
+    });
 
     await Promise.allSettled(tasks);
   }

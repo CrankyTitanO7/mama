@@ -556,6 +556,30 @@ body {
   box-shadow: 0 0 8px rgba(255, 152, 0, 0.3);
 }
 
+.mc-card-disabled {
+  border-color: #333;
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
+
+.mc-check-anyway {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  background: transparent;
+  color: #00d4ff;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.mc-check-anyway:hover {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: #00d4ff;
+}
+
 .mc-icon {
   font-size: 28px;
   line-height: 1;

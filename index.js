@@ -207,14 +207,26 @@ ipcMain.handle('run-system-detect', async (event, framework) => {
 // --- System: Generic command runner (for mission control pre-flight checks) ---
 ipcMain.handle('run-system-command', async (event, command, args) => {
   return new Promise((resolve) => {
-    const proc = spawn(command, args || []);
+    // Use shell:true on Windows to resolve PATH, and merge stderr into stdout
+    // so version output that goes to stderr isn't lost
+    const isWin = process.platform === 'win32';
+    const opts = { shell: isWin };
+    const proc = spawn(command, args || [], opts);
     let stdout = '';
     let stderr = '';
 
     proc.stdout.on('data', (data) => { stdout += data.toString(); });
     proc.stderr.on('data', (data) => { stderr += data.toString(); });
 
-    proc.on('close', (code) => resolve({ stdout, stderr, code }));
+    proc.on('close', (code) => {
+      // Some CLIs (e.g. npm on certain setups) write version to stderr
+      // Merge stderr into stdout so callers can find version strings
+      if (code === 0 && stderr && !stdout) {
+        stdout = stderr;
+        stderr = '';
+      }
+      resolve({ stdout, stderr, code });
+    });
     proc.on('error', (err) => resolve({ stdout, stderr: err.message, code: -1 }));
   });
 });

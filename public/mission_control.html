@@ -8,6 +8,33 @@
         <link rel="stylesheet" href="../styles.css" />
     </head>
     <body>
+        <div class="topbar">
+            <span class="topbar-brand">Frank</span>
+            <div class="topbar-nav">
+                <button
+                    class="topbar-btn"
+                    onclick="window.electron.navigateTo('public/setup.html')"
+                >
+                    🔧 Setup
+                </button>
+                <button
+                    class="topbar-btn"
+                    onclick="window.electron.navigateTo('public/settings.html')"
+                >
+                    ⚙️ Settings
+                </button>
+                <button
+                    class="topbar-btn"
+                    onclick="
+                        window.electron.navigateTo(
+                            'public/mission_control.html',
+                        )
+                    "
+                >
+                    mission control
+                </button>
+            </div>
+        </div>
         <div id="main-box" class="flex-box mc-page-content">
             <!-- Cards rendered dynamically by mission_control.js -->
         </div>

@@ -1,49 +1,49 @@
 {
-    "general settings": {
-        "setup": false,
-        "language": "eng"
-    },
-    "aesthetic settings": {
-        "appearance": "dark",
-        "scaling factor": 1,
-        "accent color": "default"
-    },
-    "hardware settings": {
-        "graphics manufacturer": "nvidia",
-        "target card name": null,
-        "cuda version": null,
-        "rocm version": null
-    },
-    "software information": {
-        "operating system": null,
-        "OS pretty": "",
-        "cmake": false,
-        "gcc": false,
-        "tf": false,
-        "pyt": true,
-        "OS full": "",
-        "OS kernel": ""
-    },
-    "resource settings": {
-        "cloud resources": false,
-        "cloud provider name": null,
-        "local hostname": null,
-        "trainer browser": "default"
-    },
-    "security settings": {
-        "local key file path": "default",
-        "project mod": false,
-        "cloud mod": false,
-        "all files": false,
-        "sudo": false,
-        "browser access": false
-    },
-    "qol settings": {
-        "reels enable": false,
-        "reels provider": null,
-        "video enable": false,
-        "video provider": null,
-        "task manager": "ask",
-        "database provider": null
-    }
+  "general settings": {
+    "setup": false,
+    "language": "eng"
+  },
+  "aesthetic settings": {
+    "appearance": "dark",
+    "scaling factor": 1,
+    "accent color": "default"
+  },
+  "hardware settings": {
+    "graphics manufacturer": "nvidia",
+    "target card name": null,
+    "cuda version": null,
+    "rocm version": null
+  },
+  "software information": {
+    "operating system": null,
+    "OS pretty": "",
+    "cmake": false,
+    "gcc": false,
+    "tf": false,
+    "pyt": true,
+    "OS full": "",
+    "OS kernel": ""
+  },
+  "resource settings": {
+    "cloud resources": false,
+    "cloud provider name": null,
+    "local hostname": null,
+    "trainer browser": "default"
+  },
+  "security settings": {
+    "local key file path": "default",
+    "project mod": false,
+    "cloud mod": false,
+    "all files": false,
+    "sudo": false,
+    "browser access": false
+  },
+  "qol settings": {
+    "reels enable": false,
+    "reels provider": null,
+    "video enable": false,
+    "video provider": null,
+    "task manager": "ask",
+    "database provider": null
+  }
 }

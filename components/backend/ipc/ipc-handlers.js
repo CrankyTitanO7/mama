@@ -26,14 +26,12 @@ const fs               = require('fs');
 
 // ── Script paths ──────────────────────────────────────────────────────────────
 
-const SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
-
 const SCRIPT = {
-  osDetect:     path.join(SCRIPTS_DIR, 'detect_os.py'),
-  pythonDetect: path.join(SCRIPTS_DIR, 'detect_python.py'),
-  gpuDetect:    path.join(SCRIPTS_DIR, 'detect_gpu.py'),
-  install:      path.join(SCRIPTS_DIR, 'install_fw.py'),
-  importTest:   path.join(SCRIPTS_DIR, 'import_test.py'),
+  osDetect:     path.join(__dirname, '..', 'systemDetect', 'detect_os.py'),
+  pythonDetect: path.join(__dirname, '..', 'systemDetect', 'detect_python.py'),
+  gpuDetect:    path.join(__dirname, '..', 'systemDetect', 'detect_gpu.py'),
+  install:      path.join(__dirname, '..', 'installs', 'install_fw.py'),
+  importTest:   path.join(__dirname, '..', 'installs', 'import_test.py'),
 };
 
 // ── Python executable resolution ──────────────────────────────────────────────

@@ -3,6 +3,9 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
+// ── Modular IPC handlers (detection, install, settings, etc.) ────
+const { registerIPCHandlers } = require('./components/backend/ipc/ipc-handlers');
+
 let mainWindow;
 
 const SETTINGS_PATH = path.join(__dirname, 'user', 'settings.json');
@@ -20,7 +23,6 @@ function loadSettings() {
 }
 
 function saveSettings(settings, skipBackup = false) {
-  // Backup before overwriting (unless it's a nonbackup save)
   if (!skipBackup && fs.existsSync(SETTINGS_PATH)) {
     try {
       fs.mkdirSync(path.dirname(SETTINGS_BACKUP_PATH), { recursive: true });
@@ -37,7 +39,6 @@ function saveSettings(settings, skipBackup = false) {
 
 function runPythonScript(scriptPath, args = []) {
   return new Promise((resolve) => {
-    // Try python3 first, then python
     const cmd = process.platform === 'win32' ? 'python' : 'python3';
     const proc = spawn(cmd, [scriptPath, ...args]);
     let stdout = '';
@@ -51,7 +52,6 @@ function runPythonScript(scriptPath, args = []) {
     });
 
     proc.on('error', (err) => {
-      // If python3 fails on Windows, try python
       if (process.platform === 'win32') {
         const proc2 = spawn('python', [scriptPath, ...args]);
         let stdout2 = '';
@@ -87,6 +87,70 @@ const createWindow = (page) => {
 };
 
 app.on('ready', () => {
+  // ── Register all modular IPC handlers first ──
+  // This registers: run-os-detect, run-python-detect, run-gpu-detect,
+  //   run-install (GPU-variant aware), run-import-test (enhanced),
+  //   settings-read, settings-write, settings-write-nonbackup, setup-complete
+  registerIPCHandlers(app, SETTINGS_PATH);
+
+  // ── Additional index.js-specific IPC handlers ──
+  // (These do NOT overlap with what registerIPCHandlers registered)
+
+  ipcMain.handle('navigate-to', async (event, page) => {
+    if (mainWindow) {
+      mainWindow.loadFile(page);
+    }
+    return true;
+  });
+
+  ipcMain.handle('settings-write-with-backup', async (event, settings) => {
+    return saveSettings(settings, false);
+  });
+
+  ipcMain.handle('settings-setup-complete', async () => {
+    const settings = loadSettings();
+    if (settings && settings['general settings']) {
+      settings['general settings'].setup = false;
+      saveSettings(settings, true);
+    }
+    if (mainWindow) {
+      mainWindow.loadFile('public/index.html');
+    }
+    return true;
+  });
+
+  // System: Generic command runner (for mission control pre-flight checks)
+  ipcMain.handle('run-system-command', async (event, command, args) => {
+    return new Promise((resolve) => {
+      const isWin = process.platform === 'win32';
+      const opts = { shell: isWin };
+      const proc = spawn(command, args || [], opts);
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (data) => { stdout += data.toString(); });
+      proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+      proc.on('close', (code) => {
+        if (code === 0 && stderr && !stdout) {
+          stdout = stderr;
+          stderr = '';
+        }
+        resolve({ stdout, stderr, code });
+      });
+      proc.on('error', (err) => resolve({ stdout, stderr: err.message, code: -1 }));
+    });
+  });
+
+  // Python: Run generic command (existing, kept for compatibility)
+  ipcMain.handle('run-python-command', async (event, action) => {
+    if (action === 'install') {
+      return runPythonScript(path.join(__dirname, 'components', 'python', 'tests', 'pytorch_test.py'));
+    }
+    return runPythonScript(path.join(__dirname, 'components', 'python', 'tests', 'pytorch_test.py'));
+  });
+
+  // ── Launch window ──
   const settings = loadSettings();
   if (settings && settings['general settings'] && settings['general settings'].setup === true) {
     createWindow('public/setup.html');
@@ -110,132 +174,4 @@ app.on('activate', () => {
       createWindow('public/index.html');
     }
   }
-});
-
-// ========== IPC Handlers ==========
-
-// --- Settings ---
-ipcMain.handle('settings-read', async () => loadSettings());
-
-ipcMain.handle('settings-write', async (event, settings) => {
-  // Save without touching backup
-  return saveSettings(settings, true);
-});
-
-// Explicit backup endpoint — only called when user intentionally wants a backup
-ipcMain.handle('settings-write-with-backup', async (event, settings) => {
-  return saveSettings(settings, false);
-});
-
-ipcMain.handle('settings-setup-complete', async () => {
-  const settings = loadSettings();
-  if (settings && settings['general settings']) {
-    settings['general settings'].setup = false;
-    saveSettings(settings, true); // no backup
-  }
-  if (mainWindow) {
-    mainWindow.loadFile('public/index.html');
-  }
-  return true;
-});
-
-ipcMain.handle('navigate-to', async (event, page) => {
-  if (mainWindow) {
-    mainWindow.loadFile(page);
-  }
-  return true;
-});
-
-// --- Python: Import test ---
-ipcMain.handle('run-import-test', async (event, framework) => {
-  // framework: 'torch' or 'tf'
-  const scriptPath = path.join(__dirname, 'components', 'python', 'tests', 'importTests.py');
-  const result = await runPythonScript(scriptPath, [framework]);
-  return result;
-});
-
-// --- Python: Install framework ---
-ipcMain.handle('run-install', async (event, framework) => {
-  // framework: 'torch' or 'tf'
-  let command, args;
-  if (framework === 'torch') {
-    command = 'pip3';
-    args = ['install', 'torch', 'torchvision', 'torchaudio', '--index-url', 'https://download.pytorch.org/whl/cpu'];
-    if (process.platform === 'win32') {
-      command = 'pip';
-      args = ['install', 'torch', 'torchvision', 'torchaudio', '--index-url', 'https://download.pytorch.org/whl/cpu'];
-    }
-  } else {
-    command = 'pip3';
-    args = ['install', 'tensorflow'];
-    if (process.platform === 'win32') {
-      command = 'pip';
-      args = ['install', 'tensorflow'];
-    }
-  }
-
-  return new Promise((resolve) => {
-    const proc = spawn(command, args);
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (data) => { stdout += data.toString(); });
-    proc.stderr.on('data', (data) => { stderr += data.toString(); });
-
-    proc.on('close', (code) => resolve({ stdout, stderr, code }));
-    proc.on('error', (err) => resolve({ stdout, stderr: err.message, code: -1 }));
-  });
-});
-
-// --- Python: System detect (hardware / GPU) ---
-ipcMain.handle('run-system-detect', async (event, framework) => {
-  let scriptPath;
-  if (framework === 'torch') {
-    scriptPath = path.join(__dirname, 'components', 'backend', 'systemDetect', 'systemDetectTorch.py');
-  } else {
-    scriptPath = path.join(__dirname, 'components', 'backend', 'systemDetect', 'systemDetectTF.py');
-  }
-
-  if (!fs.existsSync(scriptPath)) {
-    return { stdout: '', stderr: 'Detection script not found', code: -1 };
-  }
-
-  const result = await runPythonScript(scriptPath);
-  return result;
-});
-
-// --- System: Generic command runner (for mission control pre-flight checks) ---
-ipcMain.handle('run-system-command', async (event, command, args) => {
-  return new Promise((resolve) => {
-    // Use shell:true on Windows to resolve PATH, and merge stderr into stdout
-    // so version output that goes to stderr isn't lost
-    const isWin = process.platform === 'win32';
-    const opts = { shell: isWin };
-    const proc = spawn(command, args || [], opts);
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (data) => { stdout += data.toString(); });
-    proc.stderr.on('data', (data) => { stderr += data.toString(); });
-
-    proc.on('close', (code) => {
-      // Some CLIs (e.g. npm on certain setups) write version to stderr
-      // Merge stderr into stdout so callers can find version strings
-      if (code === 0 && stderr && !stdout) {
-        stdout = stderr;
-        stderr = '';
-      }
-      resolve({ stdout, stderr, code });
-    });
-    proc.on('error', (err) => resolve({ stdout, stderr: err.message, code: -1 }));
-  });
-});
-
-// --- Python: Run generic command (existing, kept for compatibility) ---
-ipcMain.handle('run-python-command', async (event, action) => {
-  if (action === 'install') {
-    return runPythonScript(path.join(__dirname, 'components', 'python', 'tests', 'pytorch_test.py'));
-  }
-
-  return runPythonScript(path.join(__dirname, 'components', 'python', 'tests', 'pytorch_test.py'));
 });

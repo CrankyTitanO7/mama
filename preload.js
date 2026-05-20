@@ -8,25 +8,35 @@ contextBridge.exposeInMainWorld('versions', {
 });
 
 contextBridge.exposeInMainWorld('electron', {
-  // Python commands (existing)
-  runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action),
-
-  // Settings IPC
-  settingsRead: () => ipcRenderer.invoke('settings-read'),
-  settingsWrite: (settings) => ipcRenderer.invoke('settings-write', settings),
-  settingsWriteWithBackup: (settings) => ipcRenderer.invoke('settings-write-with-backup', settings),
-  setupComplete: () => ipcRenderer.invoke('settings-setup-complete'),
+  // ── Navigation ──────────────────────────────────────────────
   navigateTo: (page) => ipcRenderer.invoke('navigate-to', page),
 
-  // Python: Import test
+  // ── Settings ────────────────────────────────────────────────
+  settingsRead:            ()       => ipcRenderer.invoke('settings-read'),
+  settingsWrite:           (s)      => ipcRenderer.invoke('settings-write', s),
+  settingsWriteNonbackup:  (s)      => ipcRenderer.invoke('settings-write-nonbackup', s),
+  settingsWriteWithBackup: (s)      => ipcRenderer.invoke('settings-write-with-backup', s),
+  settingsSetupComplete:   ()       => ipcRenderer.invoke('settings-setup-complete'),
+  setupComplete:           ()       => ipcRenderer.invoke('setup-complete'),
+
+  // ── System Detection (Python scripts) ──────────────────────
+  runOSDetect:     ()                 => ipcRenderer.invoke('run-os-detect'),
+  runPythonDetect: ()                 => ipcRenderer.invoke('run-python-detect'),
+  runGPUDetect:    ()                 => ipcRenderer.invoke('run-gpu-detect'),
+
+  // ── Python: Install framework (GPU-variant aware) ──────────
+  runInstall: (fw, gpuVariant = 'cpu', accelVersion = '') =>
+                 ipcRenderer.invoke('run-install', fw, gpuVariant, accelVersion),
+
+  // ── Python: Import test ────────────────────────────────────
   runImportTest: (framework) => ipcRenderer.invoke('run-import-test', framework),
 
-  // Python: Install framework
-  runInstall: (framework) => ipcRenderer.invoke('run-install', framework),
-
-  // Python: System / GPU detection
+  // ── Python: Legacy system / GPU detection ──────────────────
   runSystemDetect: (framework) => ipcRenderer.invoke('run-system-detect', framework),
 
-  // System: Generic command (for mission control checks)
-  runSystemCommand: (command, args) => ipcRenderer.invoke('run-system-command', command, args)
+  // ── System: Generic command (for mission control checks) ───
+  runSystemCommand: (command, args) => ipcRenderer.invoke('run-system-command', command, args),
+
+  // ── Python: Legacy commands ─────────────────────────────────
+  runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action),
 });

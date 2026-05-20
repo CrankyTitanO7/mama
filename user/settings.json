@@ -9,18 +9,20 @@
         "accent color": "default"
     },
     "hardware settings": {
-        "graphics manufacturer": "unscanned",
-        "target card name": null
+        "graphics manufacturer": "nvidia",
+        "target card name": null,
+        "cuda version": null,
+        "rocm version": null
     },
     "software information": {
         "operating system": null,
-        "OS pretty": null,
+        "OS pretty": "",
         "cmake": false,
         "gcc": false,
         "tf": false,
         "pyt": true,
-        "OS full": null,
-        "OS kernel": null
+        "OS full": "",
+        "OS kernel": ""
     },
     "resource settings": {
         "cloud resources": false,

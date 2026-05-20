@@ -1,61 +1,83 @@
 // Setup Wizard — runs on first launch
 //
 // Step order:
-//   Welcome → Language → Appearance → Framework →
-//   Software Detection → Software Install → Framework Verification →
-//   Hardware Detection → Resources → QoL → Security → Finish
+//   Welcome → Language → Appearance →
+//   OS Detection → Python & Tools Detection → GPU Detection →
+//   Framework Selection → Framework Install → Framework Verification →
+//   Resources → QoL → Security → Finish
 //
-// ── New IPC call required in main.js / preload.js ──────────────────────────
-//   window.electron.runSoftwareDetect()
+// ── Required IPC calls (add to main.js / preload.js) ───────────────────────
 //
-//   The Python script it invokes should print lines in KEY=VALUE format:
+//   window.electron.runOSDetect()
+//   window.electron.runPythonDetect()
+//   window.electron.runGPUDetect()
+//   window.electron.runInstall(fw, gpuVariant)   ← gpuVariant: 'cuda' | 'rocm' | 'cpu'
+//   window.electron.runImportTest(fw)
+//   window.electron.settingsRead()
+//   window.electron.settingsWrite(obj)
+//   window.electron.settingsWriteNonbackup(obj)
+//   window.electron.setupComplete()
 //
-//     PYTHON_VERSION=3.11.5
-//     PIP_AVAILABLE=true
-//     CMAKE_AVAILABLE=true
-//     GCC_AVAILABLE=false
-//     TORCH_AVAILABLE=false
-//     TF_AVAILABLE=true
+// ── Expected script output formats (KEY=VALUE per line) ────────────────────
 //
-//     # Windows  (winreg):
-//     OS_FULL=Windows 11 Pro 24H2
-//     OS_PRETTY=Windows 11 Pro
-//     OS_KERNEL=10.0.26100
+//   runOSDetect()
+//     Windows  → winreg HKLM\...\CurrentVersion
+//       OS_FULL    = Windows 11 Pro 24H2
+//       OS_PRETTY  = Windows 11 Pro
+//       OS_KERNEL  = 10.0.26100
 //
-//     # Linux  (/etc/os-release + uname -r):
-//     OS_FULL=Ubuntu 22.04.3 LTS (kernel 5.15.0-89-generic)
-//     OS_PRETTY=Ubuntu 22.04.3 LTS
-//     OS_KERNEL=5.15.0-89-generic
+//     Linux    → /etc/os-release + uname -r
+//       OS_FULL    = Ubuntu 22.04.3 LTS (kernel 5.15.0-89-generic)
+//       OS_PRETTY  = Ubuntu 22.04.3 LTS
+//       OS_KERNEL  = 5.15.0-89-generic
 //
-//     # macOS  (sw_vers):
-//     OS_FULL=macOS 14.5 (Sonoma)
-//     OS_PRETTY=macOS 14.5
-//     OS_KERNEL=23.5.0
+//     macOS    → sw_vers + uname -r
+//       OS_FULL    = macOS 14.5 (Sonoma)
+//       OS_PRETTY  = macOS 14.5
+//       OS_KERNEL  = 23.5.0
 //
-// ── Reference Python logic for OS fields ───────────────────────────────────
+//   runPythonDetect()
+//     PYTHON_VERSION  = 3.11.5          (or empty if not found)
+//     PIP_AVAILABLE   = true | false
+//     CMAKE_AVAILABLE = true | false
+//     GCC_AVAILABLE   = true | false
 //
-//   Windows:
-//     import winreg, platform
-//     key     = winreg.OpenKey(HKLM, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
-//     product = QueryValueEx(key, "ProductName")[0]      # "Windows 11 Pro"
-//     try:    build = QueryValueEx(key, "DisplayVersion")[0]   # "24H2"
-//     except: build = QueryValueEx(key, "ReleaseId")[0]        # fallback "2009"
-//     OS_FULL   = f"{product} {build}"
-//     OS_PRETTY = product
-//     OS_KERNEL = platform.version()                     # "10.0.26100"
+//   runGPUDetect()
+//     GPU_MANUFACTURER = nvidia | amd | intel | none
+//     GPU_NAME         = NVIDIA GeForce RTX 4070
+//     GPU_VRAM_MB      = 12288           (optional)
+//     CUDA_VERSION     = 12.1            (nvidia only, empty otherwise)
+//     ROCM_VERSION     = 5.7             (amd only, empty otherwise)
+//     DRIVER_VERSION   = 536.23          (optional)
 //
-//   Linux:
-//     kernel = subprocess.run(['uname', '-r'], ...).stdout.strip()
-//     # parse /etc/os-release for PRETTY_NAME
-//     OS_FULL   = f"{pretty_name} (kernel {kernel})"
-//     OS_PRETTY = pretty_name                            # "Ubuntu 22.04.3 LTS"
-//     OS_KERNEL = kernel                                 # "5.15.0-89-generic"
+//     Detection logic:
+//       nvidia → nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+//               + parse CUDA version from "nvidia-smi" header line
+//       amd    → rocm-smi --showproductname  (Linux)
+//               or lspci | grep -i "vga\|display" (fallback)
+//       intel  → lspci | grep -i "intel.*graphics"  or  wmic path Win32_VideoController
+//       none   → all above failed or returned nothing
 //
-//   macOS:
-//     version = sw_vers -productVersion                  # "14.5"
-//     OS_FULL   = f"macOS {version}"
-//     OS_PRETTY = f"macOS {version}"
-//     OS_KERNEL = platform.release()                     # "23.5.0"
+//   runInstall(fw, gpuVariant)
+//     fw:         'torch' | 'tf'
+//     gpuVariant: 'cuda' | 'rocm' | 'cpu'
+//
+//     Resulting pip commands:
+//
+//       torch + cuda  → pip install torch torchvision torchaudio \
+//                         --index-url https://download.pytorch.org/whl/cu<CUDA_MAJOR_MINOR>
+//                       e.g. cu121 for CUDA 12.1
+//
+//       torch + rocm  → pip install torch torchvision torchaudio \
+//                         --index-url https://download.pytorch.org/whl/rocm<ROCM_MAJOR>
+//                       e.g. rocm5.7
+//
+//       torch + cpu   → pip install torch torchvision torchaudio \
+//                         --index-url https://download.pytorch.org/whl/cpu
+//
+//       tf    + cuda  → pip install tensorflow[and-cuda]
+//       tf    + rocm  → pip install tensorflow-rocm
+//       tf    + cpu   → pip install tensorflow-cpu
 
 (function () {
 
@@ -63,17 +85,24 @@
 
   let selectedFramework = null; // 'torch' | 'tf'
 
-  // Populated by the Software Detection step; read by Hardware Detection.
-  const softwareInfo = {
+  // Populated by detection steps; read by later steps
+  const detected = {
+    // OS
+    osFullName:    '',
+    osPrettyName:  '',
+    osKernel:      '',
+    // Python / tools
     pythonVersion:  null,
     pipAvailable:   false,
     cmakeAvailable: false,
     gccAvailable:   false,
-    torchAvailable: false,
-    tfAvailable:    false,
-    osFullName:     '',
-    osPrettyName:   '',
-    osKernel:       ''
+    // GPU
+    gpuManufacturer: 'none',   // 'nvidia' | 'amd' | 'intel' | 'none'
+    gpuName:         '',
+    gpuVramMB:       null,
+    cudaVersion:     '',
+    rocmVersion:     '',
+    driverVersion:   ''
   };
 
   // ========== Utilities ==========
@@ -88,7 +117,6 @@
       .replace(/'/g,  '&#039;');
   }
 
-  /** Parse KEY=VALUE lines from a script's stdout into a plain object. */
   function parseKV(stdout) {
     const result = {};
     for (const line of (stdout || '').split('\n')) {
@@ -99,12 +127,37 @@
     return result;
   }
 
-  function boolVal(str) {
-    return str?.toLowerCase() === 'true';
+  function boolVal(str)     { return str?.toLowerCase() === 'true'; }
+  function statusIcon(ok)   { return ok ? '✅' : '❌'; }
+  function warnIcon(ok)     { return ok ? '✅' : '⚠️'; }
+
+  /** Derive the pip index URL for PyTorch based on detected GPU info. */
+  function torchIndexURL() {
+    const mfr = detected.gpuManufacturer;
+    if (mfr === 'nvidia' && detected.cudaVersion) {
+      // Convert "12.1" → "cu121", "11.8" → "cu118"
+      const tag = 'cu' + detected.cudaVersion.replace('.', '');
+      return `https://download.pytorch.org/whl/${tag}`;
+    }
+    if (mfr === 'amd' && detected.rocmVersion) {
+      return `https://download.pytorch.org/whl/rocm${detected.rocmVersion}`;
+    }
+    return 'https://download.pytorch.org/whl/cpu';
   }
 
-  function statusIcon(ok) {
-    return ok ? '✅' : '❌';
+  /** Human-readable variant label */
+  function gpuVariantLabel() {
+    const mfr = detected.gpuManufacturer;
+    if (mfr === 'nvidia') return detected.cudaVersion ? `CUDA ${detected.cudaVersion}` : 'CUDA (version unknown)';
+    if (mfr === 'amd')    return detected.rocmVersion ? `ROCm ${detected.rocmVersion}` : 'ROCm (version unknown)';
+    return 'CPU-only';
+  }
+
+  /** gpuVariant string passed to runInstall() */
+  function gpuVariant() {
+    if (detected.gpuManufacturer === 'nvidia') return 'cuda';
+    if (detected.gpuManufacturer === 'amd')    return 'rocm';
+    return 'cpu';
   }
 
   // ========== Step definitions ==========
@@ -116,11 +169,13 @@
     // ============================================
     {
       id: 'welcome',
-      title: 'Welcome to Frank',
+      title: 'Welcome',
       render: () => `
-        <h2>Welcome!</h2>
+        <h2>Welcome to Frank!</h2>
         <p>Let's get your environment configured. This will only take a moment.</p>
-        <p>You can revisit these settings anytime from the settings page.</p>
+        <p>Frank will detect your OS, Python install, and GPU automatically — then install the right
+           version of PyTorch or TensorFlow for your hardware.</p>
+        <p class="setup-hint">You can revisit these settings anytime from the settings page.</p>
       `
     },
 
@@ -191,28 +246,392 @@
     },
 
     // ============================================
-    // STEP 3: Framework Selection
+    // STEP 3: OS Detection  (auto-runs on render)
+    // Calls window.electron.runOSDetect()
+    // See file header for expected output format.
+    // ============================================
+    {
+      id: 'os-detect',
+      title: 'OS Detection',
+      render: () => `
+        <h2>Operating System Detection</h2>
+        <p>Detecting your operating system...</p>
+        <div id="os-detect-output" class="setup-detect-output">
+          <p class="setup-hint">⏳ Running detection...</p>
+        </div>
+        <div id="os-fields" style="display:none">
+          <div class="setup-field">
+            <label>OS Full Name
+              <span class="setup-hint">&nbsp;— e.g. Windows 11 Pro 24H2 / Ubuntu 22.04.3 LTS (kernel 5.15.0-89-generic)</span>
+            </label>
+            <input type="text" id="setup-os-full"   class="setup-input">
+          </div>
+          <div class="setup-field">
+            <label>OS Pretty Name
+              <span class="setup-hint">&nbsp;— e.g. Windows 11 Pro / Ubuntu 22.04.3 LTS</span>
+            </label>
+            <input type="text" id="setup-os-pretty" class="setup-input">
+          </div>
+          <div class="setup-field">
+            <label>Kernel / Build
+              <span class="setup-hint">&nbsp;— e.g. 10.0.26100 / 5.15.0-89-generic / 23.5.0</span>
+            </label>
+            <input type="text" id="setup-os-kernel" class="setup-input">
+          </div>
+          <div class="setup-actions-inline">
+            <button id="os-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-scan</button>
+          </div>
+        </div>
+      `,
+      afterRender: () => {
+        runOSScan();
+
+        document.getElementById('os-rescan-btn')?.addEventListener('click', () => {
+          const out = document.getElementById('os-detect-output');
+          if (out) out.innerHTML = '<p class="setup-hint">⏳ Running detection...</p>';
+          runOSScan();
+        });
+
+        async function runOSScan() {
+          const out    = document.getElementById('os-detect-output');
+          const fields = document.getElementById('os-fields');
+          if (!out) return;
+
+          try {
+            const result = await window.electron.runOSDetect();
+            const kv     = parseKV(result.stdout);
+
+            detected.osFullName   = kv['OS_FULL']   || '';
+            detected.osPrettyName = kv['OS_PRETTY']  || '';
+            detected.osKernel     = kv['OS_KERNEL']  || '';
+
+            if (detected.osFullName) {
+              out.innerHTML = `<div class="setup-success-msg">✅ OS detected: <strong>${escapeHtml(detected.osFullName)}</strong></div>`;
+            } else {
+              out.innerHTML = `<div class="setup-error-msg">⚠️ Could not auto-detect OS — please fill in manually.</div>`;
+            }
+
+            // Populate editable fields
+            const full   = document.getElementById('setup-os-full');
+            const pretty = document.getElementById('setup-os-pretty');
+            const kernel = document.getElementById('setup-os-kernel');
+            if (full)   full.value   = detected.osFullName;
+            if (pretty) pretty.value = detected.osPrettyName;
+            if (kernel) kernel.value = detected.osKernel;
+
+            if (fields) fields.style.display = 'block';
+
+            if (result.stderr && result.code !== 0) {
+              out.innerHTML += `<pre class="setup-pre setup-pre-error">${escapeHtml(result.stderr)}</pre>`;
+            }
+          } catch (e) {
+            out.innerHTML = `
+              <p class="setup-hint">⚠️ Detection failed: ${escapeHtml(e.message)}</p>
+              <p class="setup-hint">Fill in manually below.</p>
+            `;
+            if (fields) fields.style.display = 'block';
+          }
+        }
+      },
+      collect: () => {
+        // Prefer edited field values over auto-detected cache
+        detected.osFullName   = document.getElementById('setup-os-full')?.value   || detected.osFullName;
+        detected.osPrettyName = document.getElementById('setup-os-pretty')?.value || detected.osPrettyName;
+        detected.osKernel     = document.getElementById('setup-os-kernel')?.value || detected.osKernel;
+        return {
+          'OS full':   detected.osFullName,
+          'OS pretty': detected.osPrettyName,
+          'OS kernel': detected.osKernel
+        };
+      }
+    },
+
+    // ============================================
+    // STEP 4: Python & Tools Detection  (auto-runs on render)
+    // Calls window.electron.runPythonDetect()
+    // See file header for expected output format.
+    // ============================================
+    {
+      id: 'python-detect',
+      title: 'Python & Tools',
+      render: () => `
+        <h2>Python &amp; Tools Detection</h2>
+        <p>Checking for Python, pip, CMake, and GCC...</p>
+        <div id="py-detect-output" class="setup-detect-output">
+          <p class="setup-hint">⏳ Running detection...</p>
+        </div>
+        <div class="setup-actions-inline" style="margin-top:12px; display:none" id="py-rescan-wrap">
+          <button id="py-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-scan</button>
+        </div>
+        <div id="py-missing-warn" style="display:none">
+          <p class="setup-hint">
+            ⚠️ Python was not found. Frank requires Python 3.8 or later.<br>
+            Please install Python from <strong>python.org</strong> and re-scan before continuing.
+          </p>
+        </div>
+      `,
+      afterRender: () => {
+        runPyScan();
+
+        document.getElementById('py-rescan-btn')?.addEventListener('click', () => {
+          const out = document.getElementById('py-detect-output');
+          if (out) out.innerHTML = '<p class="setup-hint">⏳ Running detection...</p>';
+          runPyScan();
+        });
+
+        async function runPyScan() {
+          const out      = document.getElementById('py-detect-output');
+          const rescanWr = document.getElementById('py-rescan-wrap');
+          const misWarn  = document.getElementById('py-missing-warn');
+          if (!out) return;
+
+          try {
+            const result = await window.electron.runPythonDetect();
+            const kv     = parseKV(result.stdout);
+
+            detected.pythonVersion  = kv['PYTHON_VERSION']  || null;
+            detected.pipAvailable   = boolVal(kv['PIP_AVAILABLE']);
+            detected.cmakeAvailable = boolVal(kv['CMAKE_AVAILABLE']);
+            detected.gccAvailable   = boolVal(kv['GCC_AVAILABLE']);
+
+            const pyOk = !!detected.pythonVersion;
+
+            out.innerHTML = `
+              <table class="setup-status-table">
+                <tbody>
+                  <tr>
+                    <td>${statusIcon(pyOk)}</td>
+                    <td>Python</td>
+                    <td class="setup-hint">${escapeHtml(detected.pythonVersion || 'not found')}</td>
+                  </tr>
+                  <tr>
+                    <td>${statusIcon(detected.pipAvailable)}</td>
+                    <td>pip</td>
+                    <td class="setup-hint">${detected.pipAvailable ? 'available' : 'not found'}</td>
+                  </tr>
+                  <tr>
+                    <td>${warnIcon(detected.cmakeAvailable)}</td>
+                    <td>CMake <span class="setup-hint">(optional)</span></td>
+                    <td class="setup-hint">${detected.cmakeAvailable ? 'available' : 'not found'}</td>
+                  </tr>
+                  <tr>
+                    <td>${warnIcon(detected.gccAvailable)}</td>
+                    <td>GCC / C++ compiler <span class="setup-hint">(optional)</span></td>
+                    <td class="setup-hint">${detected.gccAvailable ? 'available' : 'not found'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            `;
+
+            if (misWarn) misWarn.style.display = pyOk ? 'none' : 'block';
+          } catch (e) {
+            out.innerHTML = `<p class="setup-hint">⚠️ Detection failed: ${escapeHtml(e.message)}</p>`;
+          } finally {
+            if (rescanWr) rescanWr.style.display = 'block';
+          }
+        }
+      }
+    },
+
+    // ============================================
+    // STEP 5: GPU Detection  (auto-runs on render)
+    // Calls window.electron.runGPUDetect()
+    // See file header for expected output format.
+    // ============================================
+    {
+      id: 'gpu-detect',
+      title: 'GPU Detection',
+      render: () => `
+        <h2>GPU Detection</h2>
+        <p>Scanning for your graphics hardware...</p>
+        <div id="gpu-detect-output" class="setup-detect-output">
+          <p class="setup-hint">⏳ Running detection...</p>
+        </div>
+        <div id="gpu-fields" style="display:none">
+          <div class="setup-field">
+            <label>Manufacturer:</label>
+            <select id="setup-gpu-mfr" class="setup-select">
+              <option value="nvidia">NVIDIA</option>
+              <option value="amd">AMD</option>
+              <option value="intel">Intel</option>
+              <option value="none">None / CPU only</option>
+            </select>
+          </div>
+          <div class="setup-field">
+            <label>GPU Name:</label>
+            <input type="text" id="setup-gpu-name" class="setup-input" placeholder="e.g. RTX 4070">
+          </div>
+          <div class="setup-field">
+            <label>CUDA Version <span class="setup-hint">(NVIDIA only — leave blank for CPU / AMD)</span>:</label>
+            <input type="text" id="setup-cuda-ver" class="setup-input" placeholder="e.g. 12.1">
+          </div>
+          <div class="setup-field">
+            <label>ROCm Version <span class="setup-hint">(AMD only — leave blank for CPU / NVIDIA)</span>:</label>
+            <input type="text" id="setup-rocm-ver" class="setup-input" placeholder="e.g. 5.7">
+          </div>
+          <div class="setup-actions-inline">
+            <button id="gpu-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-scan</button>
+          </div>
+        </div>
+        <div id="gpu-raw-output" class="setup-detect-output" style="display:none"></div>
+      `,
+      afterRender: () => {
+        runGPUScan();
+
+        document.getElementById('gpu-rescan-btn')?.addEventListener('click', () => {
+          const out = document.getElementById('gpu-detect-output');
+          if (out) out.innerHTML = '<p class="setup-hint">⏳ Running detection...</p>';
+          runGPUScan();
+        });
+
+        // When manufacturer changes, show/hide CUDA / ROCm fields sensibly
+        document.getElementById('setup-gpu-mfr')?.addEventListener('change', (e) => {
+          const mfr       = e.target.value;
+          const cudaField = document.getElementById('setup-cuda-ver');
+          const rocmField = document.getElementById('setup-rocm-ver');
+          if (cudaField) cudaField.closest('.setup-field').style.opacity = mfr === 'nvidia' ? '1' : '0.4';
+          if (rocmField) rocmField.closest('.setup-field').style.opacity = mfr === 'amd'    ? '1' : '0.4';
+        });
+
+        async function runGPUScan() {
+          const out    = document.getElementById('gpu-detect-output');
+          const fields = document.getElementById('gpu-fields');
+          const raw    = document.getElementById('gpu-raw-output');
+          if (!out) return;
+
+          try {
+            const result = await window.electron.runGPUDetect();
+            const kv     = parseKV(result.stdout);
+
+            detected.gpuManufacturer = (kv['GPU_MANUFACTURER'] || 'none').toLowerCase();
+            detected.gpuName         = kv['GPU_NAME']        || '';
+            detected.gpuVramMB       = kv['GPU_VRAM_MB']     ? parseInt(kv['GPU_VRAM_MB']) : null;
+            detected.cudaVersion     = kv['CUDA_VERSION']    || '';
+            detected.rocmVersion     = kv['ROCM_VERSION']    || '';
+            detected.driverVersion   = kv['DRIVER_VERSION']  || '';
+
+            const mfrLabel = {
+              nvidia: 'NVIDIA',
+              amd:    'AMD',
+              intel:  'Intel',
+              none:   'None / CPU only'
+            }[detected.gpuManufacturer] || 'Unknown';
+
+            const vramStr  = detected.gpuVramMB ? ` — ${(detected.gpuVramMB / 1024).toFixed(1)} GB VRAM` : '';
+            const accelStr = detected.cudaVersion ? ` (CUDA ${detected.cudaVersion})`
+                           : detected.rocmVersion ? ` (ROCm ${detected.rocmVersion})`
+                           : '';
+
+            if (detected.gpuManufacturer !== 'none' && detected.gpuName) {
+              out.innerHTML = `
+                <div class="setup-success-msg">
+                  ✅ GPU detected: <strong>${escapeHtml(detected.gpuName)}</strong>${escapeHtml(vramStr + accelStr)}
+                </div>
+              `;
+            } else if (detected.gpuManufacturer !== 'none') {
+              out.innerHTML = `<div class="setup-success-msg">✅ ${mfrLabel} GPU detected${escapeHtml(accelStr)}</div>`;
+            } else {
+              out.innerHTML = `
+                <div class="setup-hint">
+                  ℹ️ No discrete GPU detected — will install CPU-only framework variants.
+                  If you have a GPU, check your drivers and re-scan, or select manually below.
+                </div>
+              `;
+            }
+
+            // Populate editable fields
+            const mfrSelect  = document.getElementById('setup-gpu-mfr');
+            const nameInput  = document.getElementById('setup-gpu-name');
+            const cudaInput  = document.getElementById('setup-cuda-ver');
+            const rocmInput  = document.getElementById('setup-rocm-ver');
+            if (mfrSelect) mfrSelect.value = detected.gpuManufacturer;
+            if (nameInput) nameInput.value = detected.gpuName;
+            if (cudaInput) cudaInput.value = detected.cudaVersion;
+            if (rocmInput) rocmInput.value = detected.rocmVersion;
+
+            if (fields) fields.style.display = 'block';
+
+            if (result.stderr) {
+              if (raw) {
+                raw.style.display = 'block';
+                raw.innerHTML = `<pre class="setup-pre setup-pre-error">${escapeHtml(result.stderr)}</pre>`;
+              }
+            }
+          } catch (e) {
+            out.innerHTML = `
+              <p class="setup-hint">⚠️ GPU detection failed: ${escapeHtml(e.message)}</p>
+              <p class="setup-hint">Select manually below.</p>
+            `;
+            if (fields) fields.style.display = 'block';
+          }
+        }
+      },
+      collect: () => {
+        // Commit any manual overrides back to detected state
+        detected.gpuManufacturer = document.getElementById('setup-gpu-mfr')?.value  || detected.gpuManufacturer;
+        detected.gpuName         = document.getElementById('setup-gpu-name')?.value || detected.gpuName;
+        detected.cudaVersion     = document.getElementById('setup-cuda-ver')?.value || detected.cudaVersion;
+        detected.rocmVersion     = document.getElementById('setup-rocm-ver')?.value || detected.rocmVersion;
+        return {
+          'graphics manufacturer': detected.gpuManufacturer,
+          'target card name':      detected.gpuName         || null,
+          'cuda version':          detected.cudaVersion     || null,
+          'rocm version':          detected.rocmVersion     || null
+        };
+      }
+    },
+
+    // ============================================
+    // STEP 6: Framework Selection
+    // Pre-suggests PyTorch for NVIDIA/AMD (better GPU ecosystem),
+    // TensorFlow for Intel or CPU-only (historically better CPU perf).
     // ============================================
     {
       id: 'framework',
       title: 'AI Framework',
       render: (settings) => {
-        const pytAlready = settings['software information']?.pyt === true;
-        const tfAlready  = settings['software information']?.tf  === true;
-        const preSelected = selectedFramework || (tfAlready && !pytAlready ? 'tf' : 'torch');
+        const pytAlready  = settings['software information']?.pyt === true;
+        const tfAlready   = settings['software information']?.tf  === true;
+
+        // Smart default: suggest PyTorch for NVIDIA/AMD, TF for Intel/none
+        let suggested = 'torch';
+        if (detected.gpuManufacturer === 'intel' || detected.gpuManufacturer === 'none') {
+          suggested = 'tf';
+        }
+        const preSelected = selectedFramework
+          || (pytAlready && !tfAlready ? 'torch' : tfAlready && !pytAlready ? 'tf' : suggested);
+
+        const variant    = gpuVariantLabel();
+        const indexUrl   = torchIndexURL();
+
         return `
           <h2>AI Framework</h2>
           <p>Which deep learning framework would you like to use?</p>
+          <div class="setup-hint" style="margin-bottom:12px">
+            Detected hardware: <strong>${escapeHtml(detected.gpuName || detected.gpuManufacturer || 'CPU only')}</strong>
+            — install variant will be <strong>${escapeHtml(variant)}</strong>
+          </div>
           <div class="setup-radio-group">
             <label class="setup-radio-label">
               <input type="radio" name="framework" value="torch" ${preSelected === 'torch' ? 'checked' : ''}>
               <span class="setup-radio-title">PyTorch</span>
-              <span class="setup-radio-desc">torch, torchvision, torchaudio</span>
+              <span class="setup-radio-desc">
+                torch, torchvision, torchaudio
+                ${detected.gpuManufacturer === 'nvidia' ? `<br><code>--index-url ${escapeHtml(indexUrl)}</code>` : ''}
+                ${detected.gpuManufacturer === 'amd'    ? `<br><code>--index-url ${escapeHtml(indexUrl)}</code>` : ''}
+                ${detected.gpuManufacturer === 'none' || detected.gpuManufacturer === 'intel'
+                  ? '<br>CPU-only wheels' : ''}
+              </span>
             </label>
             <label class="setup-radio-label">
               <input type="radio" name="framework" value="tf" ${preSelected === 'tf' ? 'checked' : ''}>
               <span class="setup-radio-title">TensorFlow</span>
-              <span class="setup-radio-desc">tensorflow (includes Keras)</span>
+              <span class="setup-radio-desc">
+                ${detected.gpuManufacturer === 'nvidia' ? 'tensorflow[and-cuda]' : ''}
+                ${detected.gpuManufacturer === 'amd'    ? 'tensorflow-rocm' : ''}
+                ${detected.gpuManufacturer === 'intel' || detected.gpuManufacturer === 'none'
+                  ? 'tensorflow-cpu' : ''}
+              </span>
             </label>
           </div>
         `;
@@ -232,185 +651,78 @@
     },
 
     // ============================================
-    // STEP 4: Software Detection
-    // Auto-runs on render. Populates softwareInfo for later steps.
-    // Requires window.electron.runSoftwareDetect() — see file header.
+    // STEP 7: Framework Install
+    // GPU-aware: shows the exact pip command before running it.
     // ============================================
     {
-      id: 'software-detect',
-      title: 'Software Detection',
-      render: () => `
-        <h2>Software Detection</h2>
-        <p>Scanning your system for required dependencies...</p>
-        <div id="sw-detect-table" class="setup-detect-output">
-          <p class="setup-hint">⏳ Running scan...</p>
-        </div>
-        <div class="setup-actions-inline" style="margin-top:12px">
-          <button id="sw-rescan-btn" class="setup-btn setup-btn-secondary" style="display:none">
-            🔄 Re-scan
-          </button>
-        </div>
-        <div id="sw-detect-raw" class="setup-detect-output" style="display:none"></div>
-      `,
-      afterRender: () => {
-        runScan();
-        document.getElementById('sw-rescan-btn')?.addEventListener('click', () => {
-          const table = document.getElementById('sw-detect-table');
-          if (table) table.innerHTML = '<p class="setup-hint">⏳ Running scan...</p>';
-          document.getElementById('sw-rescan-btn').style.display = 'none';
-          runScan();
-        });
-
-        async function runScan() {
-          const table  = document.getElementById('sw-detect-table');
-          const raw    = document.getElementById('sw-detect-raw');
-          const rescan = document.getElementById('sw-rescan-btn');
-          if (!table) return;
-
-          try {
-            const result = await window.electron.runSoftwareDetect();
-            const kv     = parseKV(result.stdout);
-
-            softwareInfo.pythonVersion  = kv['PYTHON_VERSION'] || null;
-            softwareInfo.pipAvailable   = boolVal(kv['PIP_AVAILABLE']);
-            softwareInfo.cmakeAvailable = boolVal(kv['CMAKE_AVAILABLE']);
-            softwareInfo.gccAvailable   = boolVal(kv['GCC_AVAILABLE']);
-            softwareInfo.torchAvailable = boolVal(kv['TORCH_AVAILABLE']);
-            softwareInfo.tfAvailable    = boolVal(kv['TF_AVAILABLE']);
-            softwareInfo.osFullName     = kv['OS_FULL']   || '';
-            softwareInfo.osPrettyName   = kv['OS_PRETTY'] || '';
-            softwareInfo.osKernel       = kv['OS_KERNEL'] || '';
-
-            const fwOk    = selectedFramework === 'tf' ? softwareInfo.tfAvailable : softwareInfo.torchAvailable;
-            const fwLabel = selectedFramework === 'tf' ? 'TensorFlow' : 'PyTorch';
-
-            table.innerHTML = `
-              <table class="setup-status-table">
-                <tbody>
-                  <tr>
-                    <td>${statusIcon(!!softwareInfo.pythonVersion)}</td>
-                    <td>Python</td>
-                    <td class="setup-hint">${escapeHtml(softwareInfo.pythonVersion || 'not found')}</td>
-                  </tr>
-                  <tr>
-                    <td>${statusIcon(softwareInfo.pipAvailable)}</td>
-                    <td>pip</td>
-                    <td class="setup-hint">${softwareInfo.pipAvailable ? 'available' : 'not found'}</td>
-                  </tr>
-                  <tr>
-                    <td>${statusIcon(softwareInfo.cmakeAvailable)}</td>
-                    <td>CMake</td>
-                    <td class="setup-hint">${softwareInfo.cmakeAvailable ? 'available' : 'not found'}</td>
-                  </tr>
-                  <tr>
-                    <td>${statusIcon(softwareInfo.gccAvailable)}</td>
-                    <td>GCC / C++ compiler</td>
-                    <td class="setup-hint">${softwareInfo.gccAvailable ? 'available' : 'not found'}</td>
-                  </tr>
-                  <tr>
-                    <td>${statusIcon(fwOk)}</td>
-                    <td>${escapeHtml(fwLabel)}</td>
-                    <td class="setup-hint">${fwOk ? 'importable' : 'not installed'}</td>
-                  </tr>
-                  <tr>
-                    <td>🖥️</td>
-                    <td>OS</td>
-                    <td class="setup-hint">${escapeHtml(softwareInfo.osFullName || 'unknown')}</td>
-                  </tr>
-                </tbody>
-              </table>
-            `;
-
-            if (result.stderr && result.code !== 0) {
-              if (raw) {
-                raw.style.display = 'block';
-                raw.innerHTML = `<pre class="setup-pre setup-pre-error">${escapeHtml(result.stderr)}</pre>`;
-              }
-            }
-          } catch (e) {
-            table.innerHTML = `
-              <p class="setup-hint">⚠️ Scan failed: ${escapeHtml(e.message)}</p>
-              <p class="setup-hint">Make sure Python is installed and accessible, then re-scan.</p>
-            `;
-          } finally {
-            if (rescan) rescan.style.display = 'inline-block';
-          }
-        }
-      }
-    },
-
-    // ============================================
-    // STEP 5: Software Install
-    // Shows what is missing based on softwareInfo; installs on demand.
-    // ============================================
-    {
-      id: 'software-install',
-      title: 'Software Install',
+      id: 'fw-install',
+      title: 'Framework Install',
       render: () => {
-        const fw   = selectedFramework === 'tf' ? 'TensorFlow' : 'PyTorch';
-        const fwOk = selectedFramework === 'tf' ? softwareInfo.tfAvailable : softwareInfo.torchAvailable;
+        const fw      = selectedFramework === 'tf' ? 'TensorFlow' : 'PyTorch';
+        const variant = gpuVariantLabel();
 
-        const missing = [];
-        if (!softwareInfo.pipAvailable)   missing.push('pip / Python packages');
-        if (!fwOk)                        missing.push(fw);
-        if (!softwareInfo.cmakeAvailable) missing.push('CMake <span class="setup-hint">(optional — needed for some source builds)</span>');
-        if (!softwareInfo.gccAvailable)   missing.push('GCC / C++ compiler <span class="setup-hint">(optional — needed for some source builds)</span>');
-
-        if (!missing.length) {
-          return `
-            <h2>Software Install</h2>
-            <div class="setup-success-msg">✅ All required software is already installed.</div>
-            <p class="setup-hint">You can continue to the next step.</p>
-          `;
+        // Build the install command string for display
+        let installCmd = '';
+        if (selectedFramework === 'tf') {
+          if (detected.gpuManufacturer === 'nvidia') installCmd = 'pip install tensorflow[and-cuda]';
+          else if (detected.gpuManufacturer === 'amd') installCmd = 'pip install tensorflow-rocm';
+          else installCmd = 'pip install tensorflow-cpu';
+        } else {
+          installCmd = `pip install torch torchvision torchaudio --index-url ${torchIndexURL()}`;
         }
 
         return `
-          <h2>Software Install</h2>
-          <p>The following are missing or could not be verified:</p>
-          <ul class="setup-missing-list">
-            ${missing.map(m => `<li>${m}</li>`).join('')}
-          </ul>
+          <h2>Install ${fw}</h2>
+          <p>
+            Installing <strong>${fw}</strong> with <strong>${escapeHtml(variant)}</strong> support.
+          </p>
+          <div class="setup-field">
+            <label>Install command:</label>
+            <input type="text" id="install-cmd-input" class="setup-input setup-input-mono"
+              value="${escapeHtml(installCmd)}">
+            <p class="setup-hint">Edit if you need a different CUDA/ROCm version — see pytorch.org/get-started.</p>
+          </div>
           <div class="setup-actions-inline">
-            <button id="run-sw-install-btn" class="setup-btn setup-btn-primary">
-              ⬇️ Install missing dependencies
+            <button id="run-fw-install-btn" class="setup-btn setup-btn-primary">
+              ⬇️ Install ${fw}
             </button>
           </div>
-          <div id="sw-install-output" class="setup-detect-output" style="display:none"></div>
+          <div id="fw-install-output" class="setup-detect-output" style="display:none"></div>
         `;
       },
       afterRender: () => {
-        const btn = document.getElementById('run-sw-install-btn');
-        if (!btn) return;
-
-        btn.addEventListener('click', async () => {
-          const output = document.getElementById('sw-install-output');
-          if (!output) return;
+        document.getElementById('run-fw-install-btn')?.addEventListener('click', async () => {
+          const btn    = document.getElementById('run-fw-install-btn');
+          const output = document.getElementById('fw-install-output');
+          if (!output || !btn) return;
 
           output.style.display = 'block';
           output.innerHTML     = '<p class="setup-hint">⏳ Installing... This may take several minutes.</p>';
           btn.disabled         = true;
           btn.textContent      = '⏳ Installing...';
 
-          const fw = selectedFramework || 'torch';
+          const fw  = selectedFramework || 'torch';
+          const gv  = gpuVariant();
+
           try {
-            const result = await window.electron.runInstall(fw);
+            const result = await window.electron.runInstall(fw, gv);
             const out    = result.stdout || '';
             const err    = result.stderr || '';
 
             if (result.code === 0) {
               output.innerHTML = `
                 <div class="setup-success-msg">✅ Installation complete!</div>
-                <pre class="setup-pre">${escapeHtml(out.slice(0, 800))}</pre>
+                <pre class="setup-pre">${escapeHtml(out.slice(0, 1000))}</pre>
               `;
               btn.textContent = '✓ Installed';
-              // Optimistically update softwareInfo so the next step reflects reality
-              softwareInfo.pipAvailable = true;
-              if (fw === 'tf') softwareInfo.tfAvailable    = true;
-              else             softwareInfo.torchAvailable = true;
             } else {
               output.innerHTML = `
                 <div class="setup-error-msg">❌ Installation failed</div>
                 <pre class="setup-pre setup-pre-error">${escapeHtml(err || out || 'Unknown error')}</pre>
+                <p class="setup-hint">
+                  Check the install command above. For NVIDIA, confirm your CUDA version with
+                  <code>nvidia-smi</code>. For AMD, confirm ROCm version with <code>rocm-smi --version</code>.
+                </p>
               `;
               btn.textContent = '⬇️ Retry';
               btn.disabled    = false;
@@ -425,32 +737,30 @@
     },
 
     // ============================================
-    // STEP 6: Framework Verification
+    // STEP 8: Framework Verification
     // ============================================
     {
-      id: 'imports',
-      title: 'Framework Verification',
+      id: 'fw-verify',
+      title: 'Verify Install',
       render: () => {
         const fwName = selectedFramework === 'tf' ? 'TensorFlow' : 'PyTorch';
         return `
-          <h2>Verify ${fwName} Installation</h2>
+          <h2>Verify ${fwName}</h2>
           <p>Run a quick import test to confirm <strong>${fwName}</strong> is working correctly.</p>
-          <div id="import-status"  class="setup-detect-output" style="display:none"></div>
-          <div id="install-output" class="setup-detect-output" style="display:none"></div>
-          <div id="import-actions">
-            <button id="run-import-test-btn" class="setup-btn setup-btn-primary">▶ Run Import Test</button>
+          <div id="verify-status"  class="setup-detect-output" style="display:none"></div>
+          <div id="verify-install" class="setup-detect-output" style="display:none"></div>
+          <div>
+            <button id="run-verify-btn" class="setup-btn setup-btn-primary">▶ Run Import Test</button>
           </div>
         `;
       },
       afterRender: () => {
-        const testBtn = document.getElementById('run-import-test-btn');
-        if (!testBtn) return;
-
-        testBtn.addEventListener('click', async () => {
+        document.getElementById('run-verify-btn')?.addEventListener('click', async () => {
+          const testBtn    = document.getElementById('run-verify-btn');
+          const statusDiv  = document.getElementById('verify-status');
+          const installDiv = document.getElementById('verify-install');
           const fw         = selectedFramework || 'torch';
           const fwName     = fw === 'tf' ? 'TensorFlow' : 'PyTorch';
-          const statusDiv  = document.getElementById('import-status');
-          const installDiv = document.getElementById('install-output');
           if (!statusDiv) return;
 
           statusDiv.style.display = 'block';
@@ -465,7 +775,7 @@
 
             if (result.code === 0) {
               statusDiv.innerHTML = `
-                <div class="setup-success-msg">✅ ${fwName} is installed and working!</div>
+                <div class="setup-success-msg">✅ ${fwName} is working!</div>
                 <pre class="setup-pre">${escapeHtml(stdout)}</pre>
               `;
               testBtn.textContent   = '✓ Verified';
@@ -474,51 +784,43 @@
               statusDiv.innerHTML = `
                 <div class="setup-error-msg">❌ ${fwName} import failed</div>
                 <pre class="setup-pre setup-pre-error">${escapeHtml(stdout || stderr || 'Unknown error')}</pre>
-                <p>Would you like to install ${fwName} now?</p>
-                <button id="run-install-btn" class="setup-btn setup-btn-success">⬇️ Install ${fwName}</button>
+                <p>Would you like to try installing again?</p>
+                <button id="retry-install-btn" class="setup-btn setup-btn-success">⬇️ Retry Install</button>
               `;
               if (installDiv) installDiv.style.display = 'none';
 
-              document.getElementById('run-install-btn')?.addEventListener('click', async () => {
-                const installBtn = document.getElementById('run-install-btn');
+              document.getElementById('retry-install-btn')?.addEventListener('click', async () => {
+                const retryBtn = document.getElementById('retry-install-btn');
                 if (installDiv) {
                   installDiv.style.display = 'block';
-                  installDiv.innerHTML     = '<p class="setup-hint">⏳ Installing... This may take a few minutes.</p>';
+                  installDiv.innerHTML     = '<p class="setup-hint">⏳ Installing...</p>';
                 }
-                if (installBtn) { installBtn.disabled = true; installBtn.textContent = '⏳ Installing...'; }
+                if (retryBtn) { retryBtn.disabled = true; retryBtn.textContent = '⏳ Installing...'; }
 
                 try {
-                  const ir   = await window.electron.runInstall(fw);
-                  const iout = ir.stdout || '';
-                  const ierr = ir.stderr || '';
-
+                  const ir = await window.electron.runInstall(fw, gpuVariant());
+                  if (installDiv) {
+                    installDiv.innerHTML = ir.code === 0
+                      ? `<div class="setup-success-msg">✅ Installed!</div>
+                         <pre class="setup-pre">${escapeHtml((ir.stdout || '').slice(0, 500))}</pre>`
+                      : `<div class="setup-error-msg">❌ Install failed</div>
+                         <pre class="setup-pre setup-pre-error">${escapeHtml(ir.stderr || ir.stdout || '')}</pre>`;
+                  }
                   if (ir.code === 0) {
-                    if (installDiv) {
-                      installDiv.innerHTML = `
-                        <div class="setup-success-msg">✅ ${fwName} installed successfully!</div>
-                        <pre class="setup-pre">${escapeHtml(iout.slice(0, 500))}</pre>
-                      `;
-                    }
-                    statusDiv.innerHTML = '<p class="setup-hint">⏳ Re-testing imports...</p>';
+                    statusDiv.innerHTML = '<p class="setup-hint">⏳ Re-testing...</p>';
                     const retest = await window.electron.runImportTest(fw);
                     statusDiv.innerHTML = retest.code === 0
-                      ? `<div class="setup-success-msg">✅ ${fwName} verified after installation!</div>
+                      ? `<div class="setup-success-msg">✅ ${fwName} verified after reinstall!</div>
                          <pre class="setup-pre">${escapeHtml(retest.stdout || '')}</pre>`
-                      : `<div class="setup-error-msg">❌ Import still failing after install</div>
-                         <pre class="setup-pre setup-pre-error">${escapeHtml(retest.stderr || retest.stdout || 'Unknown')}</pre>`;
-                    if (installBtn) installBtn.textContent = '✓ Installed';
+                      : `<div class="setup-error-msg">❌ Still failing — check the install step output.</div>
+                         <pre class="setup-pre setup-pre-error">${escapeHtml(retest.stderr || retest.stdout || '')}</pre>`;
+                    if (retryBtn) retryBtn.textContent = '✓ Done';
                   } else {
-                    if (installDiv) {
-                      installDiv.innerHTML = `
-                        <div class="setup-error-msg">❌ Installation failed</div>
-                        <pre class="setup-pre setup-pre-error">${escapeHtml(ierr || iout || 'Unknown error')}</pre>
-                      `;
-                    }
-                    if (installBtn) { installBtn.textContent = '⬇️ Retry Install'; installBtn.disabled = false; }
+                    if (retryBtn) { retryBtn.textContent = '⬇️ Retry'; retryBtn.disabled = false; }
                   }
                 } catch (e) {
-                  if (installDiv) installDiv.innerHTML = `<p class="setup-hint">⚠️ Error: ${escapeHtml(e.message)}</p>`;
-                  if (installBtn) { installBtn.textContent = '⬇️ Retry Install'; installBtn.disabled = false; }
+                  if (installDiv) installDiv.innerHTML = `<p class="setup-hint">⚠️ ${escapeHtml(e.message)}</p>`;
+                  if (retryBtn) { retryBtn.textContent = '⬇️ Retry'; retryBtn.disabled = false; }
                 }
               });
             }
@@ -531,7 +833,7 @@
         });
       },
       collect: () => {
-        const statusDiv = document.getElementById('import-status');
+        const statusDiv = document.getElementById('verify-status');
         return {
           importSucceeded: statusDiv?.textContent.includes('✅') || false,
           framework:       selectedFramework || 'torch'
@@ -540,149 +842,7 @@
     },
 
     // ============================================
-    // STEP 7: Hardware Detection
-    // OS fields pre-filled from softwareInfo (populated in step 4).
-    // GPU detection runs via the existing runSystemDetect() call.
-    // ============================================
-    {
-      id: 'hardware',
-      title: 'Hardware Detection',
-      render: (settings) => {
-        const gpu        = settings['hardware settings']?.['graphics manufacturer'] || 'unscanned';
-        const targetCard = settings['hardware settings']?.['target card name']      || '';
-
-        // Prefer live softwareInfo over stale settings
-        const osFullName   = softwareInfo.osFullName   || settings['software information']?.['OS full']   || '';
-        const osPrettyName = softwareInfo.osPrettyName || settings['software information']?.['OS pretty'] || '';
-        const osKernel     = softwareInfo.osKernel     || settings['software information']?.['OS kernel'] || '';
-
-        return `
-          <h2>Hardware Detection</h2>
-
-          <div class="setup-field">
-            <label>OS Full Name
-              <span class="setup-hint">&nbsp;— e.g. Windows 11 Pro 24H2 / Ubuntu 22.04.3 LTS (kernel 5.15.0-89-generic)</span>
-            </label>
-            <input type="text" id="setup-os-full" class="setup-input"
-              placeholder="Auto-filled from Software Detection..."
-              value="${escapeHtml(osFullName)}">
-          </div>
-
-          <div class="setup-field">
-            <label>OS Pretty Name
-              <span class="setup-hint">&nbsp;— e.g. Windows 11 Pro / Ubuntu 22.04.3 LTS</span>
-            </label>
-            <input type="text" id="setup-os-pretty" class="setup-input"
-              placeholder="Auto-filled from Software Detection..."
-              value="${escapeHtml(osPrettyName)}">
-          </div>
-
-          <div class="setup-field">
-            <label>Kernel / Build
-              <span class="setup-hint">&nbsp;— e.g. 10.0.26100 / 5.15.0-89-generic / 23.5.0</span>
-            </label>
-            <input type="text" id="setup-os-kernel" class="setup-input"
-              placeholder="Auto-filled from Software Detection..."
-              value="${escapeHtml(osKernel)}">
-          </div>
-
-          <div class="setup-field">
-            <label>Graphics Manufacturer:</label>
-            <select id="setup-gpu" class="setup-select">
-              <option value="unscanned"  ${gpu === 'unscanned'  ? 'selected' : ''}>Unscanned (auto-detect)</option>
-              <option value="nvidia"     ${gpu === 'nvidia'     ? 'selected' : ''}>NVIDIA</option>
-              <option value="amd"        ${gpu === 'amd'        ? 'selected' : ''}>AMD</option>
-              <option value="undetected" ${gpu === 'undetected' ? 'selected' : ''}>Undetected / Other</option>
-            </select>
-          </div>
-
-          <div class="setup-field">
-            <label>Target GPU Name:</label>
-            <input type="text" id="setup-target-gpu" class="setup-input"
-              placeholder="e.g. RTX 4070" value="${escapeHtml(targetCard)}">
-          </div>
-
-          <div class="setup-actions-inline">
-            <button id="auto-detect-btn" class="setup-btn setup-btn-primary">🔍 Auto-Detect GPU</button>
-          </div>
-          <div id="detect-output" class="setup-detect-output" style="display:none"></div>
-        `;
-      },
-      afterRender: () => {
-        document.getElementById('auto-detect-btn')?.addEventListener('click', async () => {
-          const output    = document.getElementById('detect-output');
-          const detectBtn = document.getElementById('auto-detect-btn');
-          if (!output) return;
-
-          output.style.display = 'block';
-          output.innerHTML     = '<p class="setup-hint">Running GPU detection...</p>';
-          detectBtn.disabled   = true;
-
-          // If OS fields are still blank (software detect was skipped), do a
-          // client-side UA guess as a last resort — we note it's imprecise.
-          const osFullField = document.getElementById('setup-os-full');
-          if (osFullField && !osFullField.value) {
-            const ua    = navigator.userAgent;
-            let   guess = 'Unknown OS';
-            if      (ua.includes('Windows')) guess = 'Windows (version unknown — run Software Detection for full name)';
-            else if (ua.includes('Mac OS'))  guess = 'macOS (version unknown — run Software Detection for full name)';
-            else if (ua.includes('Linux'))   guess = 'Linux (version unknown — run Software Detection for full name)';
-            osFullField.value = guess;
-            const osPretty = document.getElementById('setup-os-pretty');
-            const osKernel = document.getElementById('setup-os-kernel');
-            if (osPretty) osPretty.value = guess;
-            if (osKernel) osKernel.value = navigator.platform || '';
-          }
-
-          try {
-            const result = await window.electron.runSystemDetect(selectedFramework || 'torch');
-            const stdout = result.stdout || '';
-            const stderr = result.stderr || '';
-
-            if (stdout) output.innerHTML  = `<pre class="setup-pre">${escapeHtml(stdout)}</pre>`;
-            if (stderr) output.innerHTML += `<pre class="setup-pre setup-pre-error">${escapeHtml(stderr)}</pre>`;
-
-            const gpuSelect    = document.getElementById('setup-gpu');
-            const gpuNameInput = document.getElementById('setup-target-gpu');
-            const lc           = stdout.toLowerCase();
-
-            if (lc.includes('nvidia') || lc.includes('geforce') || lc.includes('rtx') ||
-                lc.includes('gtx')    || lc.includes('tesla')   || lc.includes('quadro')) {
-              if (gpuSelect) gpuSelect.value = 'nvidia';
-            } else if (lc.includes('amd') || lc.includes('radeon') || lc.includes('ryzen')) {
-              if (gpuSelect) gpuSelect.value = 'amd';
-            } else if (result.code === 0 && stdout.trim()) {
-              if (gpuSelect) gpuSelect.value = 'undetected';
-            }
-
-            const gpuMatch = stdout.match(/(?:GPU\s*Detected|GPU\s*:)\s*(.+)/i) ||
-                             stdout.match(/GeForce\s+\S+|Radeon\s+\S+|RTX\s+\S+|GTX\s+\S+|Tesla\s+\S+|Quadro\s+\S+/);
-            if (gpuMatch && gpuNameInput) {
-              const card = gpuMatch[1] || gpuMatch[0];
-              if (card) gpuNameInput.value = card.trim();
-            }
-
-            if (result.code !== 0 && !stdout) {
-              output.innerHTML = '<p class="setup-hint">⚠️ Could not run GPU detection. Make sure Python is installed, or fill in manually.</p>';
-            }
-          } catch (e) {
-            output.innerHTML = `<p class="setup-hint">⚠️ Detection failed: ${escapeHtml(e.message)}</p>`;
-          } finally {
-            detectBtn.disabled = false;
-          }
-        });
-      },
-      collect: () => ({
-        'graphics manufacturer': document.getElementById('setup-gpu')?.value        || 'unscanned',
-        'target card name':      document.getElementById('setup-target-gpu')?.value || null,
-        'OS full':               document.getElementById('setup-os-full')?.value    || null,
-        'OS pretty':             document.getElementById('setup-os-pretty')?.value  || null,
-        'OS kernel':             document.getElementById('setup-os-kernel')?.value  || null
-      })
-    },
-
-    // ============================================
-    // STEP 8: Resources
+    // STEP 9: Resources
     // ============================================
     {
       id: 'resources',
@@ -723,7 +883,7 @@
     },
 
     // ============================================
-    // STEP 9: Quality of Life
+    // STEP 10: Quality of Life
     // ============================================
     {
       id: 'qol',
@@ -780,7 +940,7 @@
     },
 
     // ============================================
-    // STEP 10: Security
+    // STEP 11: Security
     // ============================================
     {
       id: 'security',
@@ -837,7 +997,7 @@
     },
 
     // ============================================
-    // STEP 11: Finish
+    // STEP 12: Finish
     // ============================================
     {
       id: 'finish',
@@ -874,14 +1034,19 @@
     return {
       'general settings':   { setup: true, language: 'eng' },
       'aesthetic settings': { appearance: 'dark', 'scaling factor': 1, 'accent color': 'default' },
-      'hardware settings':  { 'graphics manufacturer': 'unscanned', 'target card name': null },
+      'hardware settings': {
+        'graphics manufacturer': 'unscanned',
+        'target card name':      null,
+        'cuda version':          null,
+        'rocm version':          null
+      },
       'software information': {
         'OS full': null, 'OS pretty': null, 'OS kernel': null,
         cmake: false, gcc: false, tf: false, pyt: false
       },
       'resource settings': {
         'cloud resources': false, 'cloud provider name': null,
-        'local hostname': null,   'trainer browser': 'default'
+        'local hostname':  null,  'trainer browser': 'default'
       },
       'security settings': {
         'local key file path': 'default',
@@ -899,11 +1064,7 @@
   async function collectAndSave() {
     if (!settingsCache) return;
 
-    // Only collect from steps the user has actually visited (currentStep and before).
-    // Unvisited steps keep whatever was already in settingsCache from the original file.
-    const visitedCount = Math.min(currentStep + 1, STEPS.length);
-    for (let i = 0; i < visitedCount; i++) {
-      const step = STEPS[i];
+    for (const step of STEPS) {
       if (!step.collect) continue;
       const data = step.collect();
 
@@ -916,29 +1077,35 @@
           Object.assign(settingsCache['aesthetic settings'], data);
           break;
 
-        case 'framework':
-          selectedFramework = data;
-          settingsCache['software information'] = settingsCache['software information'] || {};
-          settingsCache['software information'].tf  = data === 'tf';
-          settingsCache['software information'].pyt = data !== 'tf';
-          break;
-
-        case 'hardware': {
-          settingsCache['hardware settings'] = {
-            'graphics manufacturer': data['graphics manufacturer'],
-            'target card name':      data['target card name']
-          };
+        case 'os-detect': {
           const si = settingsCache['software information'] = settingsCache['software information'] || {};
           si['OS full']   = data['OS full'];
           si['OS pretty'] = data['OS pretty'];
           si['OS kernel'] = data['OS kernel'];
-          // Persist cmake/gcc from software detection
-          si.cmake = softwareInfo.cmakeAvailable;
-          si.gcc   = softwareInfo.gccAvailable;
           break;
         }
 
-        case 'imports':
+        case 'gpu-detect':
+          settingsCache['hardware settings'] = {
+            'graphics manufacturer': data['graphics manufacturer'],
+            'target card name':      data['target card name'],
+            'cuda version':          data['cuda version'],
+            'rocm version':          data['rocm version']
+          };
+          break;
+
+        case 'framework': {
+          selectedFramework = data;
+          const si = settingsCache['software information'] = settingsCache['software information'] || {};
+          si.tf  = data === 'tf';
+          si.pyt = data !== 'tf';
+          // Persist cmake/gcc from python detection step
+          si.cmake = detected.cmakeAvailable;
+          si.gcc   = detected.gccAvailable;
+          break;
+        }
+
+        case 'fw-verify':
           // Ephemeral — not persisted
           break;
 
@@ -959,12 +1126,12 @@
     try {
       await window.electron.settingsWrite(settingsCache);
 
-      // Write framework flags (no backup — plain write skips backup)
+      // Write framework flags as nonbackup
       const current = await window.electron.settingsRead() || settingsCache;
       current['software information']     = current['software information'] || {};
       current['software information'].tf  = settingsCache['software information']?.tf  || false;
       current['software information'].pyt = settingsCache['software information']?.pyt || false;
-      await window.electron.settingsWrite(current);
+      await window.electron.settingsWriteNonbackup(current);
 
       await window.electron.setupComplete();
     } catch (e) {
@@ -1005,7 +1172,7 @@
   async function nextStep() {
     const step = STEPS[currentStep];
 
-    // Persist framework choice immediately on leaving that step
+    // Commit framework choice immediately when leaving that step
     if (step?.id === 'framework' && step.collect) {
       const fw = step.collect();
       selectedFramework = fw;
@@ -1018,7 +1185,7 @@
           current['software information']     = current['software information'] || {};
           current['software information'].tf  = si.tf;
           current['software information'].pyt = si.pyt;
-          await window.electron.settingsWrite(current);
+          await window.electron.settingsWriteNonbackup(current);
         } catch (e) {
           console.warn('Could not save framework selection immediately:', e);
         }

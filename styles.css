@@ -499,12 +499,51 @@ body {
 }
 
 /* ============================================
-   Home Page Enhancements
+   Home Page – 3-Box Flex Layout
    ============================================ */
-.home-nav {
+.home-layout {
   display: flex;
-  gap: 12px;
+  gap: 20px;
   margin-top: 24px;
+  align-items: stretch;
+}
+
+.home-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-right {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-box {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 20px;
+  flex: 1;
+}
+
+.home-box h3 {
+  margin: 0 0 12px 0;
+  color: #00d4ff;
+  font-size: 16px;
+}
+
+.home-box p {
+  margin: 0 0 16px 0;
+  color: #b0b0b0;
+  line-height: 1.5;
+}
+
+.home-box .nav-btn {
+  margin-right: 8px;
+  margin-bottom: 8px;
 }
 
 /* ============================================

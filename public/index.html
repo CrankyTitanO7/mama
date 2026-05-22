@@ -51,18 +51,22 @@
           <div class="home-box">
             <h3>status</h3>
             <!-- terminal output / model learning visualization -->
+            <div id="status-content"></div>
           </div>
         </div>
         <div class="home-right">
           <div class="home-box">
             <h3>resources</h3>
             <!-- if enabled in settings.json, show top tasks/resource consumption -->
+            <div id="resources-content"></div>
           </div>
           <div class="home-box">
             <h3>quick actions</h3>
-            <button>pause/play</button>
-            <button>cancel</button>
-            <button>open folder</button>
+            <div id="quick-actions-content">
+              <button class="qa-pause-play">⏸️ pause/play</button>
+              <button class="qa-cancel">✖️ cancel</button>
+              <button class="qa-open-folder">📂 open folder</button>
+            </div>
           </div>
         </div>
       </div>
@@ -72,14 +76,16 @@
           <div class="home-box">
             <h3>reels</h3>
             <!-- if reels enabled in settings show reels from reels provider using browserwindow -->
-             <!-- otherwise say disabled in settings -->
+            <!-- otherwise say disabled in settings -->
+            <div id="reels-content"></div>
           </div>
         </div>
         <div class="home-right">
           <div class="home-box">
             <h3>site</h3>
             <!-- if video enabled in settings show video from video provider using browserwindow -->
-              <!-- otherwise say disabled in settings -->
+            <!-- otherwise say disabled in settings -->
+            <div id="site-content"></div>
           </div>
         </div>
       </div>
@@ -88,6 +94,7 @@
 
     <!-- <script src="../renderer.js"></script>
     <script src="../components/pyrunner.js"></script> -->
+    <script src="../components/pages/home.js"></script>
 
   </body>
 </html>

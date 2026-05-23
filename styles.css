@@ -547,6 +547,89 @@ body {
 }
 
 /* ============================================
+   Resources Widget – btop-like bars
+   ============================================ */
+.resources-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resource-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resource-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.resource-bar-track {
+  width: 100%;
+  height: 12px;
+  background: #1a1a2e;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #0f3460;
+}
+
+.resource-bar {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.8s ease;
+}
+
+.cpu-bar  { background: #00d4ff; }
+.ram-bar  { background: #4caf50; }
+.gpu-bar  { background: #ff9800; }
+.vram-bar { background: #e040fb; }
+
+.resource-detail {
+  font-size: 12px;
+  color: #b0b0b0;
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.resource-update-msg {
+  font-size: 10px;
+  color: #555;
+  text-align: right;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ============================================
+   Embed Frames (reels / site)
+   ============================================ */
+.embed-frame {
+  width: 100%;
+  height: 200px;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  background: #1a1a2e;
+}
+
+/* ============================================
+   Disabled message
+   ============================================ */
+.disabled-msg {
+  color: #888;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.disabled-msg a {
+  color: #00d4ff;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ============================================
    Mission Control – Pre-Flight Checks
    ============================================ */
 .mc-page-content {

@@ -71,15 +71,12 @@ function renderResources() {
     return;
   }
 
-  // Placeholder for live resource consumption data.
-  // Future: subscribe to IPC events for CPU/RAM/GPU usage.
-  container.innerHTML = `
-    <div class="resources-placeholder">
-      <div class="resource-row"><span class="resource-label">CPU</span><span class="resource-value">—</span></div>
-      <div class="resource-row"><span class="resource-label">RAM</span><span class="resource-value">—</span></div>
-      <div class="resource-row"><span class="resource-label">GPU</span><span class="resource-value">—</span></div>
-    </div>
-  `;
+  // Load the btop-like resource widget
+  if (typeof initResourcesWidget === 'function') {
+    initResourcesWidget(container);
+  } else {
+    container.innerHTML = `<p class="disabled-msg">Resources widget not loaded.</p>`;
+  }
 }
 
 /**

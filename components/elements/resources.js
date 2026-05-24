@@ -39,13 +39,35 @@
 
 // ── Platform detection ─────────────────────────────────────────────────────
 
-const PLATFORM = (() => {
-  const p  = (navigator.platform  || '').toLowerCase();
-  const ua = (navigator.userAgent || '').toLowerCase();
-  if (p.startsWith('win') || ua.includes('windows')) return 'windows';
-  if (p.startsWith('mac') || ua.includes('macintosh') || ua.includes('mac os')) return 'macos';
-  return 'linux';
-})();
+// const PLATFORM = (() => {
+//   const p  = (navigator.platform  || '').toLowerCase();
+//   const ua = (navigator.userAgent || '').toLowerCase();
+//   if (p.startsWith('win') || ua.includes('windows')) return 'windows';
+//   if (p.startsWith('mac') || ua.includes('macintosh') || ua.includes('mac os')) return 'macos';
+//   return 'linux';
+// })();
+
+// Platform derived from settings.json → software information → operating system.
+// Set asynchronously at widget init via initResourcesWidget().
+let PLATFORM = 'linux';   // default fallback until settings are read
+
+/**
+ * Update PLATFORM from settings.json.
+ * Call at the start of initResourcesWidget() before the first refresh.
+ */
+async function loadPlatformFromSettings() {
+  try {
+    const settings = await window.electron.settingsRead();
+    if (settings && settings['software information'] && settings['software information']['operating system']) {
+      const os = settings['software information']['operating system'].toLowerCase();
+      if (os.includes('win'))       PLATFORM = 'windows';
+      else if (os.includes('mac'))  PLATFORM = 'macos';
+      else                          PLATFORM = 'linux';
+    }
+  } catch (_) {
+    // keep fallback
+  }
+}
 
 // ── Widget entry point ─────────────────────────────────────────────────────
 
@@ -558,5 +580,8 @@ function initResourcesWidget(container) {
   });
 
   // ── Kick off ──────────────────────────────────────────────────────────────
-  refresh();
+  (async () => {
+    await loadPlatformFromSettings();
+    await refresh();
+  })();
 }

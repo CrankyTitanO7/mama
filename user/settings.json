@@ -15,7 +15,7 @@
     "rocm version": null
   },
   "software information": {
-    "operating system": null,
+    "operating system": "windows",
     "OS pretty": "",
     "cmake": false,
     "gcc": false,

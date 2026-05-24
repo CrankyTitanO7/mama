@@ -47,26 +47,40 @@
 //   return 'linux';
 // })();
 
-// Platform derived from settings.json → software information → operating system.
+// Platform derived from settings.json → software information.
 // Set asynchronously at widget init via initResourcesWidget().
 let PLATFORM = 'linux';   // default fallback until settings are read
 
 /**
- * Update PLATFORM from settings.json.
+ * Update PLATFORM from settings.json, with fallback to navigator.platform.
+ * Checks fields in priority: operating system → OS full → OS pretty → navigator.
  * Call at the start of initResourcesWidget() before the first refresh.
  */
 async function loadPlatformFromSettings() {
+  let os = null;
   try {
     const settings = await window.electron.settingsRead();
-    if (settings && settings['software information'] && settings['software information']['operating system']) {
-      const os = settings['software information']['operating system'].toLowerCase();
-      if (os.includes('win'))       PLATFORM = 'windows';
-      else if (os.includes('mac'))  PLATFORM = 'macos';
-      else                          PLATFORM = 'linux';
+    const si = settings && settings['software information'];
+    if (si) {
+      os = si['operating system'] || si['OS full'] || si['OS pretty'] || null;
     }
   } catch (_) {
-    // keep fallback
+    // fall through to navigator fallback
   }
+
+  if (!os) {
+    // Fallback: detect from browser navigator (works even if setup not complete)
+    const p  = (navigator.platform  || '').toLowerCase();
+    const ua = (navigator.userAgent || '').toLowerCase();
+    if (p.startsWith('win') || ua.includes('windows')) os = 'windows';
+    else if (p.startsWith('mac') || ua.includes('macintosh') || ua.includes('mac os')) os = 'macos';
+    else os = 'linux';
+  }
+
+  const lc = os.toLowerCase();
+  if (lc.includes('win'))       PLATFORM = 'windows';
+  else if (lc.includes('mac'))  PLATFORM = 'macos';
+  else                          PLATFORM = 'linux';
 }
 
 // ── Widget entry point ─────────────────────────────────────────────────────
@@ -300,36 +314,6 @@ function initResourcesWidget(container) {
   }
 
   /**
-   * Linux RAM via `free -b` (bytes, so no unit conversion rounding).
-   *
-   * `free -b` columns: total used free shared buff/cache available
-   *
-   * "used" shown in htop / GNOME System Monitor =  total - available
-   * This correctly excludes reclaimable page cache and buffers,
-   * giving the memory that is actually committed to processes.
-   */
-  async function getRAMLinux() {
-    try {
-      const r = await cmd('free', ['-b']);
-      const line = (r.stdout || '')
-        .split('\n')
-        .find(l => l.trim().startsWith('Mem:'));
-      if (line) {
-        const parts = line.trim().split(/\s+/);
-        // parts: ["Mem:", total, used, free, shared, buff/cache, available]
-        const total     = parseFloat(parts[1]);
-        const available = parseFloat(parts[6]);   // ← key fix: use available, not parts[2]
-        if (!isNaN(total) && total > 0 && !isNaN(available)) {
-          const used = total - available;
-          return { total, used, pct: clampPct((used / total) * 100) };
-        }
-      }
-    } catch (_) {}
-
-    return { total: 0, used: 0, pct: 0 };
-  }
-
-  /**
    * macOS RAM via vm_stat + sysctl.
    *
    * sysctl -n hw.memsize → total bytes
@@ -388,65 +372,68 @@ function initResourcesWidget(container) {
   /**
    * Windows GPU via PDH performance counters (any GPU vendor, no extra drivers).
    *
-   * GPU utilisation:  sum of \GPU Engine(*)\Utilization Percentage across all engines
-   * VRAM:            \GPU Adapter Memory(*)\Dedicated Usage + Dedicated Limit
-   *
-   * Requires Win 8+ / Server 2012+ (Get-Counter is available there).
+   * Uses verified commands:
+   *   \GPU Process Memory(*)\Local Usage       → VRAM (bytes → MB)
+   *   \GPU Engine(*engtype_3D)\Utilization Percentage  → GPU utilisation
    */
   async function getGPUWindows() {
-    try {
-      // GPU utilisation — sum all engine utilisation percentages
-      const r1 = await cmd('powershell', [
-        '-NoProfile', '-Command',
-        '(Get-Counter \'\\GPU Engine(*)\\Utilization Percentage\' -ErrorAction SilentlyContinue).CounterSamples | ' +
-        'Where-Object { $_.Status -eq 0 } | ' +
-        'Measure-Object -Property CookedValue -Sum | ' +
-        'Select-Object -ExpandProperty Sum'
-      ]);
-      const gpuPct = parseFirst(r1.stdout);
-      if (isNaN(gpuPct)) return null;
+  try {
+    const r = await cmd('powershell', [
+      '-NoProfile',
+      '-Command',
 
-      // VRAM — dedicated usage + limit
-      const r2 = await cmd('powershell', [
-        '-NoProfile', '-Command',
-        '$u = (Get-Counter \'\\GPU Adapter Memory(*)\\Dedicated Usage\' -ErrorAction SilentlyContinue).CounterSamples | ' +
-        'Where-Object { $_.Status -eq 0 } | ' +
-        'Measure-Object -Property CookedValue -Sum | ' +
-        'Select-Object -ExpandProperty Sum; ' +
-        '$l = (Get-Counter \'\\GPU Adapter Memory(*)\\Dedicated Limit\' -ErrorAction SilentlyContinue).CounterSamples | ' +
-        'Where-Object { $_.Status -eq 0 } | ' +
-        'Measure-Object -Property CookedValue -Sum | ' +
-        'Select-Object -ExpandProperty Sum; ' +
-        'Write-Output "$u $l"'
-      ]);
-      const parts = (r2.stdout || '').trim().split(/\s+/);
-      const vramUsedBytes  = parseFloat(parts[0]);
-      const vramTotalBytes = parseFloat(parts[1]);
+      // EXACT commands requested
+      '$GpuMemTotal = (((Get-Counter "\GPU Process Memory(*)\Local Usage").CounterSamples | where CookedValue).CookedValue | measure -sum).sum; ' +
+      'Write-Output "Total GPU Process Memory Local Usage: $([math]::Round($GpuMemTotal/1MB,2)) MB"; ' +
 
-      if (!isNaN(vramTotalBytes) && vramTotalBytes > 0) {
-        return {
-          gpuPct:   clampPct(gpuPct),
-          vramUsed: vramUsedBytes,
-          vramTotal: vramTotalBytes,
-          vramPct:  clampPct((vramUsedBytes / vramTotalBytes) * 100),
-          source:   'windows-pdh',
-          available: true,
-        };
-      }
+      '$GpuUseTotal = (((Get-Counter "\GPU Engine(*engtype_3D)\Utilization Percentage").CounterSamples | where CookedValue).CookedValue | measure -sum).sum; ' +
+      'Write-Output "Total GPU Engine Usage: $([math]::Round($GpuUseTotal,2))%"'
+    ]);
 
-      // VRAM counters unavailable — still return GPU utilisation
-      return {
-        gpuPct:    clampPct(gpuPct),
-        vramUsed:  0,
-        vramTotal: 0,
-        vramPct:   0,
-        source:    'windows-pdh',
-        available: true,
-      };
-    } catch (_) {
-      return null;
-    }
+    const output = r.stdout || '';
+
+    // Parse:
+    // "Total GPU Process Memory Local Usage: 2048.32 MB"
+    // "Total GPU Engine Usage: 37.5%"
+
+    const memMatch = output.match(
+      /Total GPU Process Memory Local Usage:\s*([\d.]+)\s*MB/i
+    );
+
+    const gpuMatch = output.match(
+      /Total GPU Engine Usage:\s*([\d.]+)\s*%/i
+    );
+
+    const vramMB = memMatch
+      ? parseFloat(memMatch[1])
+      : 0;
+
+    const gpuPct = gpuMatch
+      ? parseFloat(gpuMatch[1])
+      : 0;
+
+    // Convert MB → bytes
+    const vramBytes = vramMB * 1024 * 1024;
+
+    return {
+      gpuPct: clampPct(gpuPct),
+
+      vramUsed: vramBytes,
+
+      // Unknown total VRAM using this method
+      vramTotal: 0,
+
+      // Can't compute %
+      vramPct: 0,
+
+      source: 'windows-pdh',
+      available: true,
+    };
+
+  } catch (_) {
+    return null;
   }
+}
 
   /** NVIDIA via nvidia-smi (all platforms). */
   async function getGPUNvidia() {

@@ -1,5 +1,5 @@
 /**
- * preload.js — Exposes the Frank IPC API to the renderer process.
+ * preload.js — Exposes the mama IPC API to the renderer process.
  *
  * Runs in an isolated context (nodeIntegration: false).
  * All communication goes through ipcRenderer.invoke() — no direct Node access

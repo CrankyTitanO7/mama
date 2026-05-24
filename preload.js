@@ -1,4 +1,4 @@
-// Preload script for secure context
+// Preload script for secure context — mama
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('versions', {

@@ -171,9 +171,9 @@
       id: 'welcome',
       title: 'Welcome',
       render: () => `
-        <h2>Welcome to Frank!</h2>
+        <h2>Welcome to mama!</h2>
         <p>Let's get your environment configured. This will only take a moment.</p>
-        <p>Frank will detect your OS, Python install, and GPU automatically — then install the right
+        <p>mama will detect your OS, Python install, and GPU automatically — then install the right
            version of PyTorch or TensorFlow for your hardware.</p>
         <p class="setup-hint">You can revisit these settings anytime from the settings page.</p>
       `
@@ -365,7 +365,7 @@
         </div>
         <div id="py-missing-warn" style="display:none">
           <p class="setup-hint">
-            ⚠️ Python was not found. Frank requires Python 3.8 or later.<br>
+            ⚠️ Python was not found. mama requires Python 3.8 or later.<br>
             Please install Python from <strong>python.org</strong> and re-scan before continuing.
           </p>
         </div>
@@ -1005,7 +1005,7 @@
       render: () => `
         <h2>All Set!</h2>
         <p>Your configuration is complete.</p>
-        <p>Click <strong>Finish</strong> to save all settings and start using Frank.</p>
+        <p>Click <strong>Finish</strong> to save all settings and start using mama.</p>
         <p class="setup-hint">You can change any of these settings later from the settings page.</p>
       `
     }
@@ -1212,7 +1212,7 @@
     wizard.id    = 'setup-wizard';
     wizard.innerHTML = `
       <div id="setup-header">
-        <h1>Frank Setup</h1>
+        <h1>mama Setup</h1>
         <div id="setup-progress"></div>
       </div>
       <div id="setup-content"></div>

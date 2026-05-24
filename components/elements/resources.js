@@ -382,8 +382,71 @@ function initResourcesWidget(container) {
   /**
    * GPU result shape:
    *   { gpuPct, vramUsed, vramTotal, vramPct, source, available }
-   *   source: 'nvidia' | 'rocm' | 'sysfs' | 'none'
+   *   source: 'nvidia' | 'rocm' | 'sysfs' | 'windows-pdh' | 'none'
    */
+
+  /**
+   * Windows GPU via PDH performance counters (any GPU vendor, no extra drivers).
+   *
+   * GPU utilisation:  sum of \GPU Engine(*)\Utilization Percentage across all engines
+   * VRAM:            \GPU Adapter Memory(*)\Dedicated Usage + Dedicated Limit
+   *
+   * Requires Win 8+ / Server 2012+ (Get-Counter is available there).
+   */
+  async function getGPUWindows() {
+    try {
+      // GPU utilisation — sum all engine utilisation percentages
+      const r1 = await cmd('powershell', [
+        '-NoProfile', '-Command',
+        '(Get-Counter \'\\GPU Engine(*)\\Utilization Percentage\' -ErrorAction SilentlyContinue).CounterSamples | ' +
+        'Where-Object { $_.Status -eq 0 } | ' +
+        'Measure-Object -Property CookedValue -Sum | ' +
+        'Select-Object -ExpandProperty Sum'
+      ]);
+      const gpuPct = parseFirst(r1.stdout);
+      if (isNaN(gpuPct)) return null;
+
+      // VRAM — dedicated usage + limit
+      const r2 = await cmd('powershell', [
+        '-NoProfile', '-Command',
+        '$u = (Get-Counter \'\\GPU Adapter Memory(*)\\Dedicated Usage\' -ErrorAction SilentlyContinue).CounterSamples | ' +
+        'Where-Object { $_.Status -eq 0 } | ' +
+        'Measure-Object -Property CookedValue -Sum | ' +
+        'Select-Object -ExpandProperty Sum; ' +
+        '$l = (Get-Counter \'\\GPU Adapter Memory(*)\\Dedicated Limit\' -ErrorAction SilentlyContinue).CounterSamples | ' +
+        'Where-Object { $_.Status -eq 0 } | ' +
+        'Measure-Object -Property CookedValue -Sum | ' +
+        'Select-Object -ExpandProperty Sum; ' +
+        'Write-Output "$u $l"'
+      ]);
+      const parts = (r2.stdout || '').trim().split(/\s+/);
+      const vramUsedBytes  = parseFloat(parts[0]);
+      const vramTotalBytes = parseFloat(parts[1]);
+
+      if (!isNaN(vramTotalBytes) && vramTotalBytes > 0) {
+        return {
+          gpuPct:   clampPct(gpuPct),
+          vramUsed: vramUsedBytes,
+          vramTotal: vramTotalBytes,
+          vramPct:  clampPct((vramUsedBytes / vramTotalBytes) * 100),
+          source:   'windows-pdh',
+          available: true,
+        };
+      }
+
+      // VRAM counters unavailable — still return GPU utilisation
+      return {
+        gpuPct:    clampPct(gpuPct),
+        vramUsed:  0,
+        vramTotal: 0,
+        vramPct:   0,
+        source:    'windows-pdh',
+        available: true,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
 
   /** NVIDIA via nvidia-smi (all platforms). */
   async function getGPUNvidia() {
@@ -499,7 +562,8 @@ function initResourcesWidget(container) {
     const result =
       (await getGPUNvidia()) ||
       (await getGPUROCm())   ||
-      (PLATFORM === 'linux' ? await getGPUSysfs() : null) ||
+      (PLATFORM === 'linux'   ? await getGPUSysfs()    : null) ||
+      (PLATFORM === 'windows' ? await getGPUWindows()  : null) ||
       { gpuPct: 0, vramUsed: 0, vramTotal: 0, vramPct: 0, source: 'none', available: false };
     return result;
   }
@@ -542,9 +606,10 @@ function initResourcesWidget(container) {
     const gpuPct = Math.round(gpu.gpuPct);
     setBar('.gpu-bar', gpuPct);
     if (gpu.available) {
-      const label = gpu.source === 'nvidia' ? 'NVIDIA' :
-                    gpu.source === 'rocm'   ? 'AMD/ROCm' :
-                    gpu.source === 'sysfs'  ? 'AMD/sysfs' : '';
+      const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
+                    gpu.source === 'rocm'        ? 'AMD/ROCm' :
+                    gpu.source === 'sysfs'       ? 'AMD/sysfs' :
+                    gpu.source === 'windows-pdh' ? 'Windows/PDH' : '';
       setText('.gpu-detail', `${gpuPct}%${label ? `  [${label}]` : ''}`);
     } else {
       setText('.gpu-detail', 'N/A — no supported GPU detected');

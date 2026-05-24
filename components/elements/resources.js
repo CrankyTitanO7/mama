@@ -6,7 +6,6 @@
  *
  * Dependencies:
  *  - window.electron.runSystemCommand (IPC) for CLI-based resource queries
- *  - window.electron.runOSDetect / runGPUDetect for system info
  */
 
 'use strict';
@@ -55,123 +54,95 @@ function initResourcesWidget(container) {
 
   // ── Query functions ────────────────────────────────────────────────────────
 
-  /** Parse a percentage from a line like "cpu: 23.5%" */
-  function parsePercent(text) {
-    const m = text.match(/(\d+(?:\.\d+)?)\s*%/);
-    return m ? parseFloat(m[1]) : 0;
-  }
-
-  /** Parse a numeric value + unit (e.g. "7.8 GiB", "512 MiB") into GB */
-  function parseMemValue(text) {
-    const m = text.match(/([\d.]+)\s*(GiB|MiB|KiB|GB|MB|KB)/i);
-    if (!m) return 0;
-    const val = parseFloat(m[1]);
-    const unit = m[2].toLowerCase();
-    switch (unit) {
-      case 'gib': return val * 1.074;  // GiB → GB approx
-      case 'mib': return val * 0.001074;
-      case 'kib': return val * 0.000001074;
-      case 'gb':  return val;
-      case 'mb':  return val * 0.001;
-      case 'kb':  return val * 0.000001;
-      default:    return val;
-    }
+  /**
+   * Extract numeric value from text that may contain \r, \n, trailing junk.
+   * Returns -1 if no number found.
+   */
+  function extractNumber(text) {
+    if (!text) return -1;
+    const clean = String(text).replace(/[^0-9.]/g, '').trim();
+    if (!clean) return -1;
+    const val = parseFloat(clean);
+    return isNaN(val) ? -1 : val;
   }
 
   /**
-   * Fetch CPU & RAM via system commands.
-   * On Windows uses wmic; on Linux/Mac uses top / vm_stat / free.
+   * Query CPU & RAM on Windows using PowerShell (reliable structured output).
    */
-  /**
-   * Clean up Windows \r\n line endings and split into non-empty lines.
-   */
-  function cleanLines(text) {
-    return (text || '')
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .split('\n')
-      .map(l => l.trim())
-      .filter(Boolean);
-  }
-
-  /**
-   * Parse a non-negative integer from a string. Returns NaN if invalid.
-   */
-  function parseIntSafe(v) {
-    const n = parseInt(String(v).trim(), 10);
-    return isNaN(n) ? NaN : Math.max(n, 0);
-  }
-
-  async function queryCPUandRAM() {
-    const isWin = navigator.platform && navigator.platform.startsWith('Win');
+  async function queryWindowsCPUandRAM() {
     let cpuUsage = 0;
     let ramTotal = 0;
     let ramUsed  = 0;
     let ramPct   = 0;
 
-    if (isWin) {
-      // CPU: wmic cpu get loadpercentage
+    // CPU via PowerShell: Win32_Processor LoadPercentage
+    try {
+      const cpuRes = await window.electron.runSystemCommand(
+        'powershell',
+        ['-Command', '(Get-CimInstance Win32_Processor).LoadPercentage']
+      );
+      const val = extractNumber(cpuRes.stdout);
+      if (val >= 0 && val <= 100) {
+        cpuUsage = val;
+      }
+    } catch (_) { /* fallback to wmic */ }
+
+    // If PowerShell failed, try wmic for CPU
+    if (cpuUsage === 0) {
       try {
         const cpuRes = await window.electron.runSystemCommand('wmic', ['cpu', 'get', 'loadpercentage']);
-        const lines = cleanLines(cpuRes.stdout);
-        // Typical output:
-        //   LoadPercentage
-        //   12
-        for (const line of lines) {
-          const val = parseFloat(line);
-          if (!isNaN(val) && val >= 0 && val <= 100) {
-            cpuUsage = val;
-            break;
-          }
+        const val = extractNumber(cpuRes.stdout);
+        if (val >= 0 && val <= 100) {
+          cpuUsage = val;
         }
       } catch (_) { /* ignore */ }
+    }
 
-      // RAM: wmic os get TotalVisibleMemorySize,FreePhysicalMemory
-      // Returns values in KB.
+    // RAM via PowerShell: Win32_OperatingSystem TotalVisibleMemorySize & FreePhysicalMemory (KB)
+    try {
+      const memRes = await window.electron.runSystemCommand(
+        'powershell',
+        [
+          '-Command',
+          '$os = Get-CimInstance Win32_OperatingSystem; ' +
+          'Write-Output ($os.TotalVisibleMemorySize.ToString() + \" \" + $os.FreePhysicalMemory.ToString())'
+        ]
+      );
+      const parts = (memRes.stdout || '').trim().split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        const totalKb = extractNumber(parts[0]);
+        const freeKb  = extractNumber(parts[1]);
+        if (totalKb > 0 && freeKb >= 0) {
+          ramTotal = totalKb * 0.000001;          // KB → GB
+          ramUsed  = (totalKb - freeKb) * 0.000001;
+          ramPct   = totalKb > 0 ? (ramUsed / ramTotal) * 100 : 0;
+        }
+      }
+    } catch (_) { /* fallback to wmic */ }
+
+    // Fallback: wmic os get for RAM
+    if (ramTotal <= 0) {
       try {
-        const memRes = await window.electron.runSystemCommand('wmic', ['os', 'get', 'TotalVisibleMemorySize,FreePhysicalMemory']);
-        const lines = cleanLines(memRes.stdout);
-        // Typical output:
-        //   TotalVisibleMemorySize  FreePhysicalMemory
-        //   16667708                8384912
+        const memRes = await window.electron.runSystemCommand(
+          'wmic',
+          ['os', 'get', 'TotalVisibleMemorySize,FreePhysicalMemory']
+        );
+        const lines = (memRes.stdout || '')
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n')
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean);
         for (const line of lines) {
           const parts = line.split(/\s+/).filter(Boolean);
           if (parts.length >= 2) {
-            const totalKb = parseIntSafe(parts[0]);
-            const freeKb  = parseIntSafe(parts[1]);
-            if (!isNaN(totalKb) && !isNaN(freeKb) && totalKb > 0) {
-              ramTotal = totalKb * 0.000001;        // KB → GB
+            const totalKb = extractNumber(parts[0]);
+            const freeKb  = extractNumber(parts[1]);
+            if (totalKb > 0 && freeKb >= 0) {
+              ramTotal = totalKb * 0.000001;
               ramUsed  = (totalKb - freeKb) * 0.000001;
               ramPct   = (ramUsed / ramTotal) * 100;
-              break;  // use first valid data row
-            }
-          }
-        }
-      } catch (_) { /* ignore */ }
-    } else {
-      // Linux/Mac: use ps + free
-      try {
-        const cpuRes = await window.electron.runSystemCommand('ps', ['-A', '-o', '%cpu', '--sort=-%cpu', '--no-headers']);
-        const lines = cleanLines(cpuRes.stdout);
-        if (lines.length > 0) {
-          const total = lines.reduce((sum, l) => sum + (parseFloat(l) || 0), 0);
-          cpuUsage = Math.min(total / lines.length, 100);
-        }
-      } catch (_) { /* ignore */ }
-
-      try {
-        const memRes = await window.electron.runSystemCommand('free', ['-m']);
-        const lines = cleanLines(memRes.stdout);
-        const memLine = lines.find(l => l.startsWith('Mem:'));
-        if (memLine) {
-          const parts = memLine.split(/\s+/).filter(Boolean);
-          if (parts.length >= 3) {
-            const totalMb = parseIntSafe(parts[1]);
-            const usedMb  = parseIntSafe(parts[2]);
-            if (!isNaN(totalMb) && !isNaN(usedMb) && totalMb > 0) {
-              ramTotal = totalMb / 1024; // MB → GB
-              ramUsed  = usedMb / 1024;
-              ramPct   = (ramUsed / ramTotal) * 100;
+              break;
             }
           }
         }
@@ -182,8 +153,58 @@ function initResourcesWidget(container) {
   }
 
   /**
+   * Query CPU & RAM on Linux/Mac using ps and free.
+   */
+  async function queryUnixCPUandRAM() {
+    let cpuUsage = 0;
+    let ramTotal = 0;
+    let ramUsed  = 0;
+    let ramPct   = 0;
+
+    try {
+      const cpuRes = await window.electron.runSystemCommand('ps', ['-A', '-o', '%cpu', '--sort=-%cpu', '--no-headers']);
+      const lines = (cpuRes.stdout || '')
+        .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+        .split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length > 0) {
+        const total = lines.reduce((sum, l) => sum + (parseFloat(l) || 0), 0);
+        cpuUsage = Math.min(total / lines.length, 100);
+      }
+    } catch (_) { /* ignore */ }
+
+    try {
+      const memRes = await window.electron.runSystemCommand('free', ['-m']);
+      const lines = (memRes.stdout || '')
+        .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+        .split('\n').map(l => l.trim()).filter(Boolean);
+      const memLine = lines.find(l => l.startsWith('Mem:'));
+      if (memLine) {
+        const parts = memLine.split(/\s+/).filter(Boolean);
+        if (parts.length >= 3) {
+          const totalMb = extractNumber(parts[1]);
+          const usedMb  = extractNumber(parts[2]);
+          if (totalMb > 0 && usedMb >= 0) {
+            ramTotal = totalMb / 1024;
+            ramUsed  = usedMb / 1024;
+            ramPct   = (ramUsed / ramTotal) * 100;
+          }
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    return { cpuUsage, ramPct, ramUsed, ramTotal };
+  }
+
+  /**
+   * Detect platform and route to appropriate query function.
+   */
+  async function queryCPUandRAM() {
+    const isWin = navigator.platform && navigator.platform.startsWith('Win');
+    return isWin ? queryWindowsCPUandRAM() : queryUnixCPUandRAM();
+  }
+
+  /**
    * Fetch GPU & VRAM usage via nvidia-smi.
-   * Returns zeros if NVIDIA driver is not available.
    */
   async function queryGPUandVRAM() {
     let gpuUsage = 0;
@@ -196,14 +217,20 @@ function initResourcesWidget(container) {
         '--query-gpu=utilization.gpu,memory.used,memory.total',
         '--format=csv,noheader,nounits'
       ]);
-      const line = (res.stdout || '').split('\n').map(l => l.trim()).filter(Boolean)[0];
+      // Clean and parse the first data line
+      const line = (res.stdout || '')
+        .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+        .split('\n').map(l => l.trim()).filter(Boolean)[0];
       if (line) {
         const parts = line.split(',').map(p => p.trim());
         if (parts.length >= 3) {
-          gpuUsage  = parseFloat(parts[0]) || 0;
-          vramUsed  = parseFloat(parts[1]) || 0;
-          vramTotal = parseFloat(parts[2]) || 1;
-          vramPct   = (vramUsed / vramTotal) * 100;
+          gpuUsage  = extractNumber(parts[0]);
+          vramUsed  = extractNumber(parts[1]);
+          vramTotal = extractNumber(parts[2]);
+          if (gpuUsage < 0) gpuUsage = 0;
+          if (vramUsed < 0) vramUsed = 0;
+          if (vramTotal <= 0) vramTotal = 1;
+          vramPct = (vramUsed / vramTotal) * 100;
         }
       }
     } catch (_) { /* nvidia-smi not available */ }
@@ -213,6 +240,7 @@ function initResourcesWidget(container) {
 
   /** Format memory in human-readable form (GB). */
   function fmtMem(gb) {
+    if (gb <= 0) return '—';
     if (gb < 1) return `${(gb * 1024).toFixed(0)} MB`;
     return `${gb.toFixed(1)} GB`;
   }
@@ -242,7 +270,15 @@ function initResourcesWidget(container) {
     // RAM
     const ramPct = Math.round(cpuRAM.ramPct);
     if (ramBar) ramBar.style.width = `${ramPct}%`;
-    if (ramDtl) ramDtl.textContent = `${fmtMem(cpuRAM.ramUsed)} / ${fmtMem(cpuRAM.ramTotal)} (${ramPct}%)`;
+    if (ramDtl) {
+      const used = cpuRAM.ramUsed;
+      const total = cpuRAM.ramTotal;
+      if (total > 0 && used >= 0) {
+        ramDtl.textContent = `${fmtMem(used)} / ${fmtMem(total)} (${ramPct}%)`;
+      } else {
+        ramDtl.textContent = `unable to read (${ramPct}%)`;
+      }
+    }
 
     // GPU
     const gpuPct = Math.round(gpuVRAM.gpuUsage);

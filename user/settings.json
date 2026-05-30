@@ -9,20 +9,20 @@
     "accent color": "default"
   },
   "hardware settings": {
-    "graphics manufacturer": "none",
-    "target card name": null,
+    "graphics manufacturer": "amd",
+    "target card name": "AMD Radeon RX550 series",
     "cuda version": null,
     "rocm version": null
   },
   "software information": {
     "operating system": "windows",
-    "OS pretty": "",
+    "OS pretty": "Windows 10 Home",
     "cmake": false,
     "gcc": false,
     "tf": false,
     "pyt": true,
-    "OS full": "",
-    "OS kernel": ""
+    "OS full": "Windows 10 Home 25H2",
+    "OS kernel": "10.0.26200"
   },
   "resource settings": {
     "cloud resources": false,

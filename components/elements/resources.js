@@ -30,58 +30,24 @@
  *
  *   GPU / VRAM
  *     NVIDIA   nvidia-smi --query-gpu (all platforms)
- *     AMD      rocm-smi --json (Linux + ROCm)
- */ //             → /sys/class/drm/card*/device/gpu_busy_percent sysfs (Linux fallback)
- //              → N/A on Windows AMD (no equivalent CLI without extra drivers)
- 
+ *  AMD      rocm-smi --json (Linux + ROCm)
+ * /   
+ //              → /sys/class/drm/card*/
+ // device/gpu_busy_percent sysfs (Linux fallback)
+ /*              → N/A on Windows AMD (no equivalent CLI without extra drivers)
+ */
 
 'use strict';
 
 // ── Platform detection ─────────────────────────────────────────────────────
 
-// const PLATFORM = (() => {
-//   const p  = (navigator.platform  || '').toLowerCase();
-//   const ua = (navigator.userAgent || '').toLowerCase();
-//   if (p.startsWith('win') || ua.includes('windows')) return 'windows';
-//   if (p.startsWith('mac') || ua.includes('macintosh') || ua.includes('mac os')) return 'macos';
-//   return 'linux';
-// })();
-
-// Platform derived from settings.json → software information.
-// Set asynchronously at widget init via initResourcesWidget().
-let PLATFORM = 'linux';   // default fallback until settings are read
-
-/**
- * Update PLATFORM from settings.json, with fallback to navigator.platform.
- * Checks fields in priority: operating system → OS full → OS pretty → navigator.
- * Call at the start of initResourcesWidget() before the first refresh.
- */
-async function loadPlatformFromSettings() {
-  let os = null;
-  try {
-    const settings = await window.electron.settingsRead();
-    const si = settings && settings['software information'];
-    if (si) {
-      os = si['operating system'] || si['OS full'] || si['OS pretty'] || null;
-    }
-  } catch (_) {
-    // fall through to navigator fallback
-  }
-
-  if (!os) {
-    // Fallback: detect from browser navigator (works even if setup not complete)
-    const p  = (navigator.platform  || '').toLowerCase();
-    const ua = (navigator.userAgent || '').toLowerCase();
-    if (p.startsWith('win') || ua.includes('windows')) os = 'windows';
-    else if (p.startsWith('mac') || ua.includes('macintosh') || ua.includes('mac os')) os = 'macos';
-    else os = 'linux';
-  }
-
-  const lc = os.toLowerCase();
-  if (lc.includes('win'))       PLATFORM = 'windows';
-  else if (lc.includes('mac'))  PLATFORM = 'macos';
-  else                          PLATFORM = 'linux';
-}
+const PLATFORM = (() => {
+  const p  = (navigator.platform  || '').toLowerCase();
+  const ua = (navigator.userAgent || '').toLowerCase();
+  if (p.startsWith('win') || ua.includes('windows')) return 'windows';
+  if (p.startsWith('mac') || ua.includes('macintosh') || ua.includes('mac os')) return 'macos';
+  return 'linux';
+})();
 
 // ── Widget entry point ─────────────────────────────────────────────────────
 
@@ -314,6 +280,36 @@ function initResourcesWidget(container) {
   }
 
   /**
+   * Linux RAM via `free -b` (bytes, so no unit conversion rounding).
+   *
+   * `free -b` columns: total used free shared buff/cache available
+   *
+   * "used" shown in htop / GNOME System Monitor =  total - available
+   * This correctly excludes reclaimable page cache and buffers,
+   * giving the memory that is actually committed to processes.
+   */
+  async function getRAMLinux() {
+    try {
+      const r = await cmd('free', ['-b']);
+      const line = (r.stdout || '')
+        .split('\n')
+        .find(l => l.trim().startsWith('Mem:'));
+      if (line) {
+        const parts = line.trim().split(/\s+/);
+        // parts: ["Mem:", total, used, free, shared, buff/cache, available]
+        const total     = parseFloat(parts[1]);
+        const available = parseFloat(parts[6]);   // ← key fix: use available, not parts[2]
+        if (!isNaN(total) && total > 0 && !isNaN(available)) {
+          const used = total - available;
+          return { total, used, pct: clampPct((used / total) * 100) };
+        }
+      }
+    } catch (_) {}
+
+    return { total: 0, used: 0, pct: 0 };
+  }
+
+  /**
    * macOS RAM via vm_stat + sysctl.
    *
    * sysctl -n hw.memsize → total bytes
@@ -366,74 +362,8 @@ function initResourcesWidget(container) {
   /**
    * GPU result shape:
    *   { gpuPct, vramUsed, vramTotal, vramPct, source, available }
-   *   source: 'nvidia' | 'rocm' | 'sysfs' | 'windows-pdh' | 'none'
+   *   source: 'nvidia' | 'rocm' | 'sysfs' | 'none'
    */
-
-  /**
-   * Windows GPU via PDH performance counters (any GPU vendor, no extra drivers).
-   *
-   * Uses verified commands:
-   *   \GPU Process Memory(*)\Local Usage       → VRAM (bytes → MB)
-   *   \GPU Engine(*engtype_3D)\Utilization Percentage  → GPU utilisation
-   */
-  async function getGPUWindows() {
-  try {
-    const r = await cmd('powershell', [
-      '-NoProfile',
-      '-Command',
-
-      // EXACT commands requested
-      '$GpuMemTotal = (((Get-Counter "\GPU Process Memory(*)\Local Usage").CounterSamples | where CookedValue).CookedValue | measure -sum).sum; ' +
-      'Write-Output "Total GPU Process Memory Local Usage: $([math]::Round($GpuMemTotal/1MB,2)) MB"; ' +
-
-      '$GpuUseTotal = (((Get-Counter "\GPU Engine(*engtype_3D)\Utilization Percentage").CounterSamples | where CookedValue).CookedValue | measure -sum).sum; ' +
-      'Write-Output "Total GPU Engine Usage: $([math]::Round($GpuUseTotal,2))%"'
-    ]);
-
-    const output = r.stdout || '';
-
-    // Parse:
-    // "Total GPU Process Memory Local Usage: 2048.32 MB"
-    // "Total GPU Engine Usage: 37.5%"
-
-    const memMatch = output.match(
-      /Total GPU Process Memory Local Usage:\s*([\d.]+)\s*MB/i
-    );
-
-    const gpuMatch = output.match(
-      /Total GPU Engine Usage:\s*([\d.]+)\s*%/i
-    );
-
-    const vramMB = memMatch
-      ? parseFloat(memMatch[1])
-      : 0;
-
-    const gpuPct = gpuMatch
-      ? parseFloat(gpuMatch[1])
-      : 0;
-
-    // Convert MB → bytes
-    const vramBytes = vramMB * 1024 * 1024;
-
-    return {
-      gpuPct: clampPct(gpuPct),
-
-      vramUsed: vramBytes,
-
-      // Unknown total VRAM using this method
-      vramTotal: 0,
-
-      // Can't compute %
-      vramPct: 0,
-
-      source: 'windows-pdh',
-      available: true,
-    };
-
-  } catch (_) {
-    return null;
-  }
-}
 
   /** NVIDIA via nvidia-smi (all platforms). */
   async function getGPUNvidia() {
@@ -544,13 +474,86 @@ function initResourcesWidget(container) {
     return null;
   }
 
-  /** Try all GPU backends in priority order. */
+  /**
+   * Windows GPU via PDH performance counters (works for AMD, NVIDIA, Intel —
+   * no vendor-specific tools required, just the standard Windows GPU driver).
+   *
+   * Counter paths (backslashes doubled for JS string literals):
+   *   \GPU Process Memory(*)\Local Usage      → current VRAM used (bytes)
+   *   \GPU Engine(*engtype_3D)\Utilization Percentage → 3D engine usage (%)
+   *
+   * `| where CookedValue` filters out zero/null samples correctly.
+   * A separate Win32_VideoController query gives total VRAM.
+   * Note: AdapterRAM is a 32-bit WMI field — it caps at ~4 GB for cards with
+   * more VRAM (e.g. RX 7900 XTX 24 GB shows as 4 GB). No reliable workaround
+   * exists without vendor SDK; the bar will still work, only the label is off.
+   */
+  async function getGPUWindows() {
+    try {
+      const script =
+        // VRAM used: sum Local Usage across all GPU process memory instances
+        '$GpuMemTotal = (((Get-Counter "\\GPU Process Memory(*)\\Local Usage").CounterSamples ' +
+          '| where CookedValue).CookedValue | measure -sum).sum; ' +
+        'Write-Output "MEM:$([math]::Round($GpuMemTotal/1MB, 4))"; ' +
+
+        // GPU utilisation: sum 3D engine utilisation across all engine instances
+        '$GpuUseTotal = (((Get-Counter "\\GPU Engine(*engtype_3D)\\Utilization Percentage").CounterSamples ' +
+          '| where CookedValue).CookedValue | measure -sum).sum; ' +
+        'Write-Output "USE:$([math]::Round($GpuUseTotal, 4))"; ' +
+
+        // Total VRAM from WMI — grab the adapter with the most dedicated RAM
+        '$vc = Get-CimInstance Win32_VideoController ' +
+          '| Where-Object { $_.Name -notmatch "Microsoft|Basic|Remote" } ' +
+          '| Sort-Object AdapterRAM -Descending ' +
+          '| Select-Object -First 1; ' +
+        'Write-Output "TOTAL:$($vc.AdapterRAM)"';
+
+      const r = await cmd('powershell', ['-NoProfile', '-Command', script]);
+      if (r.code !== 0 || !r.stdout.trim()) return null;
+
+      // Parse labeled output lines
+      const val = (prefix) => {
+        const line = (r.stdout || '').split('\n').find(l => l.trimStart().startsWith(prefix));
+        if (!line) return NaN;
+        return parseFloat(line.slice(line.indexOf(':') + 1).trim());
+      };
+
+      const vramUsedMB  = val('MEM:');    // MB
+      const gpuPct      = val('USE:');    // %
+      const vramTotalB  = val('TOTAL:'); // bytes (may be capped at ~4 GB by WMI)
+
+      // If all three failed the counters aren't available on this system
+      if (isNaN(vramUsedMB) && isNaN(gpuPct)) return null;
+
+      const vramUsed  = (vramUsedMB  || 0) * 1024 * 1024;  // MB → bytes
+      const vramTotal = isNaN(vramTotalB) ? 0 : vramTotalB; // already bytes from WMI
+
+      return {
+        gpuPct:    clampPct(gpuPct   || 0),
+        vramUsed,
+        vramTotal,
+        vramPct:   vramTotal > 0 ? clampPct((vramUsed / vramTotal) * 100) : 0,
+        source:    'windows-pdh',
+        available: true,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Try all GPU backends in priority order.
+   *
+   * Windows:  nvidia-smi (NVIDIA) → PDH counters (AMD / Intel / any)
+   * Linux:    nvidia-smi → rocm-smi → sysfs
+   * macOS:    nvidia-smi (eGPU edge case only; Apple Silicon not supported)
+   */
   async function getGPU() {
     const result =
       (await getGPUNvidia()) ||
-      (await getGPUROCm())   ||
-      (PLATFORM === 'linux'   ? await getGPUSysfs()    : null) ||
       (PLATFORM === 'windows' ? await getGPUWindows()  : null) ||
+      (PLATFORM === 'linux'   ? await getGPUROCm()     : null) ||
+      (PLATFORM === 'linux'   ? await getGPUSysfs()    : null) ||
       { gpuPct: 0, vramUsed: 0, vramTotal: 0, vramPct: 0, source: 'none', available: false };
     return result;
   }
@@ -596,7 +599,7 @@ function initResourcesWidget(container) {
       const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
                     gpu.source === 'rocm'        ? 'AMD/ROCm' :
                     gpu.source === 'sysfs'       ? 'AMD/sysfs' :
-                    gpu.source === 'windows-pdh' ? 'Windows/PDH' : '';
+                    gpu.source === 'windows-pdh' ? 'PDH' : '';
       setText('.gpu-detail', `${gpuPct}%${label ? `  [${label}]` : ''}`);
     } else {
       setText('.gpu-detail', 'N/A — no supported GPU detected');
@@ -632,8 +635,5 @@ function initResourcesWidget(container) {
   });
 
   // ── Kick off ──────────────────────────────────────────────────────────────
-  (async () => {
-    await loadPlatformFromSettings();
-    await refresh();
-  })();
+  refresh();
 }

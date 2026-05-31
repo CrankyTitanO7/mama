@@ -9,20 +9,20 @@
     "accent color": "default"
   },
   "hardware settings": {
-    "graphics manufacturer": "none",
-    "target card name": null,
+    "graphics manufacturer": "amd",
+    "target card name": "Advanced Micro Devices, Inc. [AMD/ATI] Baffin [Radeon RX 550 640SP / RX 560/560X] (rev ff)",
     "cuda version": null,
     "rocm version": null
   },
   "software information": {
     "operating system": null,
-    "OS pretty": "",
-    "cmake": false,
-    "gcc": false,
+    "OS pretty": "Arch Linux",
+    "cmake": true,
+    "gcc": true,
     "tf": false,
     "pyt": true,
-    "OS full": "",
-    "OS kernel": ""
+    "OS full": "Arch Linux (kernel 7.0.10-arch1-1)",
+    "OS kernel": "7.0.10-arch1-1"
   },
   "resource settings": {
     "cloud resources": false,

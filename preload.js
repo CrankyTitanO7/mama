@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('versions', {
 contextBridge.exposeInMainWorld('electron', {
   // ── Navigation ──────────────────────────────────────────────
   navigateTo: (page) => ipcRenderer.invoke('navigate-to', page),
+  resolvePublicUrl: (filename, query) =>
+    ipcRenderer.invoke('resolve-public-url', filename, query),
 
   // ── Settings ────────────────────────────────────────────────
   settingsRead:            ()       => ipcRenderer.invoke('settings-read'),

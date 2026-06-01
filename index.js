@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
@@ -71,6 +72,13 @@ function runPythonScript(scriptPath, args = []) {
 
 const createWindow = (page) => {
   if (mainWindow) {
+    const prefs = mainWindow.webContents.getWebPreferences?.() ?? {};
+    if (!prefs.webviewTag) {
+      mainWindow.destroy();
+      mainWindow = null;
+    }
+  }
+  if (mainWindow) {
     mainWindow.loadFile(page || 'public/index.html');
     return;
   }
@@ -108,6 +116,14 @@ app.on('ready', () => {
       mainWindow.loadFile(page);
     }
     return true;
+  });
+
+  ipcMain.handle('resolve-public-url', async (_event, filename, query = {}) => {
+    const filePath = path.join(__dirname, 'public', filename);
+    let href = pathToFileURL(filePath).href;
+    const qs = new URLSearchParams(query).toString();
+    if (qs) href += `?${qs}`;
+    return href;
   });
 
   ipcMain.handle('settings-write-with-backup', async (event, settings) => {

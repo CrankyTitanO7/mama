@@ -148,12 +148,44 @@ function renderReels() {
   }
 }
 
+/** True when settings contain a non-empty video provider string. */
+function hasVideoProvider(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * Mount a mini browser (webview). Must use createElement — innerHTML does not
+ * initialize <webview> guests in Electron.
+ */
+function mountMiniBrowser(container, src, title, iframeFallbackSrc) {
+  container.replaceChildren();
+
+  const webview = document.createElement('webview');
+  webview.className = 'embed-frame mini-browser';
+  webview.title = title;
+  webview.setAttribute('allowpopups', '');
+  webview.setAttribute('src', src);
+
+  webview.addEventListener('did-fail-load', (event) => {
+    if (event.errorCode === -3) return; // navigation aborted
+    console.error('site webview load failed:', event.errorCode, event.validatedURL);
+    if (!iframeFallbackSrc || container.querySelector('iframe.site-fallback')) return;
+    const iframe = document.createElement('iframe');
+    iframe.className = 'embed-frame site-fallback';
+    iframe.title = title;
+    iframe.setAttribute('src', iframeFallbackSrc);
+    container.replaceChildren(iframe);
+  });
+
+  container.appendChild(webview);
+}
+
 /**
  * Site box — shows video content if enabled in settings.
  * Uses an embedded webview (mini browser) when a provider URL is set;
  * otherwise loads error.html when enabled without a provider.
  */
-function renderSite() {
+async function renderSite() {
   const container = document.getElementById('site-content');
   if (!container) return;
 
@@ -165,26 +197,31 @@ function renderSite() {
     return;
   }
 
-  const provider = typeof videoProvider === 'string' ? videoProvider.trim() : '';
-  if (provider) {
-    const src = normalizeProviderUrl(provider);
-    container.innerHTML = `
-      <webview
-        class="embed-frame mini-browser"
-        src="${escapeHtmlAttr(src)}"
-        allowpopups
-        title="video content"
-      ></webview>
-    `;
-  } else {
-    const err = encodeURIComponent('no video provider specified (change in settings)');
-    container.innerHTML = `
-      <webview
-        class="embed-frame mini-browser"
-        src="error.html?error=${err}"
-        title="video error"
-      ></webview>
-    `;
+  if (hasVideoProvider(videoProvider)) {
+    mountMiniBrowser(
+      container,
+      normalizeProviderUrl(videoProvider),
+      'video content',
+      null
+    );
+    return;
+  }
+
+  const errorMessage = 'no video provider specified (change in settings)';
+  const iframeFallback = `error.html?error=${encodeURIComponent(errorMessage)}`;
+  try {
+    const errorUrl = await window.electron.resolvePublicUrl('error.html', {
+      error: errorMessage,
+    });
+    mountMiniBrowser(container, errorUrl, 'video error', iframeFallback);
+  } catch (err) {
+    console.error('home.js: could not resolve error.html URL', err);
+    container.replaceChildren();
+    const iframe = document.createElement('iframe');
+    iframe.className = 'embed-frame site-fallback';
+    iframe.title = 'video error';
+    iframe.setAttribute('src', iframeFallback);
+    container.appendChild(iframe);
   }
 }
 
@@ -235,5 +272,5 @@ function escapeHtmlAttr(str) {
   renderResources();
   renderQuickActions();
   renderReels();
-  renderSite();
+  await renderSite();
 })();

@@ -39,12 +39,11 @@
         "browser access": false                     // autoapprove browser actions
     },
     "qol settings": {
-        "reels enable": false,                      // enable reels
+        "reels enable": false,                      // reels widget
         "reels provider": null,
-        "video enable": false,                      // enable videos
-        "video provider": null,                     // URL provider, ie youtube or hianime (rest in peace)
-        
-        "task manager": "ask",                      // defaults to ask for task manager permissions
+        "site enable": false,                       // site widget
+        "site provider": null,
+        "resources": "ask",                         // resources widget: true, false, or "ask"
 
         "database provider": null                   // eg huggingface
     }

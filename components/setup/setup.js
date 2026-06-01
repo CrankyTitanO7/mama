@@ -905,21 +905,21 @@
           </div>
           <div class="setup-field">
             <label class="setup-checkbox-label">
-              <input type="checkbox" id="setup-video" ${qol['video enable'] ? 'checked' : ''}>
-              Enable Video
+              <input type="checkbox" id="setup-site" ${(qol['site enable'] ?? qol['video enable']) ? 'checked' : ''}>
+              Enable Site
             </label>
           </div>
           <div class="setup-field">
-            <label>Video Provider:</label>
-            <input type="text" id="setup-video-provider" class="setup-input"
-              placeholder="e.g. youtube" value="${escapeHtml(qol['video provider'] || '')}">
+            <label>Site Provider:</label>
+            <input type="text" id="setup-site-provider" class="setup-input"
+              placeholder="e.g. youtube" value="${escapeHtml(qol['site provider'] || qol['video provider'] || '')}">
           </div>
           <div class="setup-field">
-            <label>Task Manager:</label>
-            <select id="setup-task-manager" class="setup-select">
-              <option value="ask"    ${qol['task manager'] === 'ask'    ? 'selected' : ''}>Ask</option>
-              <option value="always" ${qol['task manager'] === 'always' ? 'selected' : ''}>Always Show</option>
-              <option value="never"  ${qol['task manager'] === 'never'  ? 'selected' : ''}>Never</option>
+            <label>Resources:</label>
+            <select id="setup-resources" class="setup-select">
+              <option value="ask"  ${(qol['resources'] ?? qol['task manager']) === 'ask'  ? 'selected' : ''}>Ask</option>
+              <option value="true" ${(qol['resources'] ?? qol['task manager']) === true || (qol['resources'] ?? qol['task manager']) === 'always' ? 'selected' : ''}>Enabled</option>
+              <option value="false" ${(qol['resources'] ?? qol['task manager']) === false || (qol['resources'] ?? qol['task manager']) === 'never' ? 'selected' : ''}>Disabled</option>
             </select>
           </div>
           <div class="setup-field">
@@ -932,9 +932,14 @@
       collect: () => ({
         'reels enable':      document.getElementById('setup-reels')?.checked          || false,
         'reels provider':    document.getElementById('setup-reels-provider')?.value   || null,
-        'video enable':      document.getElementById('setup-video')?.checked          || false,
-        'video provider':    document.getElementById('setup-video-provider')?.value   || null,
-        'task manager':      document.getElementById('setup-task-manager')?.value     || 'ask',
+        'site enable':       document.getElementById('setup-site')?.checked           || false,
+        'site provider':     document.getElementById('setup-site-provider')?.value     || null,
+        'resources':         (() => {
+          const v = document.getElementById('setup-resources')?.value;
+          if (v === 'true') return true;
+          if (v === 'false') return false;
+          return 'ask';
+        })(),
         'database provider': document.getElementById('setup-db-provider')?.value      || null
       })
     },
@@ -1055,8 +1060,8 @@
       },
       'qol settings': {
         'reels enable': false, 'reels provider': null,
-        'video enable': false, 'video provider': null,
-        'task manager': 'ask', 'database provider': null
+        'site enable': false, 'site provider': null,
+        'resources': 'ask', 'database provider': null
       }
     };
   }

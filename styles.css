@@ -747,57 +747,44 @@ body.embed-fullscreen-active {
   pointer-events: auto;
 }
 
-.embed-fullscreen-panel {
+.embed-fullscreen-stage {
   position: fixed;
   z-index: 10001;
-  overflow: hidden;
-  background: #1a1a2e;
-  border: 1px solid #0f3460;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
   transition:
     top 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     left 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    border-radius 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.embed-fullscreen-topbar {
+.embed-fullscreen-panel {
   position: absolute;
-  top: 0;
+  top: 52px;
   left: 0;
   right: 0;
-  height: 56px;
-  z-index: 18;
-  pointer-events: none;
-  opacity: 0;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  background: linear-gradient(
-    to bottom,
-    rgba(12, 14, 28, 0.88) 0%,
-    rgba(12, 14, 28, 0.45) 55%,
-    transparent 100%
-  );
-  transition: opacity 0.28s ease;
-}
-
-.embed-fullscreen-panel:hover .embed-fullscreen-topbar {
-  opacity: 1;
+  bottom: 0;
+  overflow: hidden;
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
 }
 
 .embed-fullscreen-close {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
   z-index: 25;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
   padding: 0;
-  border: 2px solid rgba(224, 224, 224, 0.55);
+  border: 2px solid rgba(239, 83, 80, 0.45);
   border-radius: 50%;
   background: rgba(22, 33, 62, 0.95);
-  color: #fff;
+  color: #ef5350;
   font-size: 28px;
   font-weight: 600;
   line-height: 1;
@@ -814,15 +801,10 @@ body.embed-fullscreen-active {
     box-shadow 0.2s;
 }
 
-.embed-fullscreen-panel:hover .embed-fullscreen-close {
-  border-color: #00d4ff;
-  background: rgba(15, 52, 96, 0.98);
-  box-shadow: 0 4px 20px rgba(0, 212, 255, 0.35);
-}
-
 .embed-fullscreen-close:hover {
-  background: #0f3460;
-  color: #00d4ff;
+  background: #c62828;
+  color: #ff8a80;
+  border-color: #ff5252;
   transform: scale(1.08);
 }
 

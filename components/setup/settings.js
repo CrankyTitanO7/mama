@@ -28,8 +28,19 @@
     return snapshotSettings() !== savedSnapshot;
   }
 
+  function migrateQolSettingKeys() {
+    const qol = settingsCache?.['qol settings'];
+    if (!qol) return;
+    if ('site enable' in qol) {
+      delete qol['video enable'];
+      delete qol['video provider'];
+    }
+    if ('resources' in qol) delete qol['task manager'];
+  }
+
   async function saveSettings() {
     if (!settingsCache) return false;
+    migrateQolSettingKeys();
     try {
       await window.electron.settingsWrite(settingsCache);
       markClean();
@@ -81,17 +92,34 @@
         resolve(result);
       };
 
-      overlay.querySelector('#unsaved-discard')?.addEventListener('click', () => close('discard'));
-      overlay.querySelector('#unsaved-cancel')?.addEventListener('click', () => close('cancel'));
-      overlay.querySelector('#unsaved-save')?.addEventListener('click', async () => {
+      const dialog = overlay.querySelector('.settings-unsaved-dialog');
+      dialog?.addEventListener('click', (e) => e.stopPropagation());
+
+      overlay.querySelector('#unsaved-discard')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close('discard');
+      });
+      overlay.querySelector('#unsaved-cancel')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close('cancel');
+      });
+      overlay.querySelector('#unsaved-save')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const ok = await saveSettings();
         if (ok) close('save');
       });
 
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) close('cancel');
-      });
+      overlay.addEventListener('click', () => close('cancel'));
     });
+  }
+
+  async function revertToSaved() {
+    try {
+      settingsCache = await window.electron.settingsRead();
+      markClean();
+    } catch (e) {
+      console.error('Failed to reload settings from disk:', e);
+    }
   }
 
   async function navigateAway(page) {
@@ -101,9 +129,15 @@
     }
 
     const action = await showUnsavedDialog();
+    if (action === 'cancel' || !action) return;
+
     if (action === 'discard') {
+      await revertToSaved();
       await window.electron.navigateTo(page);
-    } else if (action === 'save') {
+      return;
+    }
+
+    if (action === 'save') {
       await window.electron.navigateTo(page);
     }
   }
@@ -127,7 +161,7 @@
     });
   }
 
-  function renderTaskManagerField(fieldId, groupKey, key, value) {
+  function renderResourcesField(fieldId, groupKey, key, value) {
     const current =
       value === true ? 'true' :
       value === false ? 'false' :
@@ -154,12 +188,18 @@
 
       if (typeof groupValue === 'object' && groupValue !== null) {
         for (const [key, value] of Object.entries(groupValue)) {
+          if (groupKey === 'qol settings') {
+            if (key === 'task manager' && 'resources' in groupValue) continue;
+            if (key === 'video enable' && 'site enable' in groupValue) continue;
+            if (key === 'video provider' && 'site provider' in groupValue) continue;
+          }
+
           const fieldId = `setting-${groupKey}-${key}`.replace(/\s+/g, '-').toLowerCase();
           html += `<div class="settings-field">`;
           html += `<label class="settings-label" for="${fieldId}">${key.replace(/(^\w|\s\w)/g, m => m.toUpperCase())}</label>`;
 
-          if (groupKey === 'qol settings' && key === 'task manager') {
-            html += renderTaskManagerField(fieldId, groupKey, key, value);
+          if (groupKey === 'qol settings' && (key === 'resources' || key === 'task manager')) {
+            html += renderResourcesField(fieldId, groupKey, 'resources', value);
           } else if (typeof value === 'boolean') {
             html += `<input type="checkbox" id="${fieldId}" class="settings-checkbox" data-group="${groupKey}" data-key="${key}" ${value ? 'checked' : ''}>`;
           } else if (typeof value === 'number') {
@@ -193,8 +233,9 @@
     document.getElementById('settings-reload-btn')?.addEventListener('click', async () => {
       if (isDirty()) {
         const action = await showUnsavedDialog();
-        if (action === 'cancel') return;
-        if (action === 'save') await saveSettings();
+        if (action === 'cancel' || !action) return;
+        if (action === 'discard') await revertToSaved();
+        else if (action === 'save') await saveSettings();
       }
       await loadSettings();
       renderSettings();

@@ -29,6 +29,14 @@ function getSetting(...keys) {
   return obj;
 }
 
+/** QoL setting with optional legacy key (pre-widget rename). */
+function getQolSetting(key, legacyKey) {
+  const val = getSetting('qol settings', key);
+  if (val !== undefined) return val;
+  if (legacyKey) return getSetting('qol settings', legacyKey);
+  return undefined;
+}
+
 /**
  * Generate disabled message with "enable?" link that navigates to settings.
  */
@@ -79,6 +87,7 @@ function showTaskManagerPrompt(container) {
           <button type="button" class="nav-btn task-manager-enable">Enable</button>
           <button type="button" class="nav-btn task-manager-skip">Not now</button>
         </div>
+        <p class="task-manager-prompt-text"><i>You are seeing this because <code>resources</code> is set to "ask" in settings.</i></p>
       </div>
     `;
     container.querySelector('.task-manager-enable')?.addEventListener('click', () => resolve(true));
@@ -87,13 +96,13 @@ function showTaskManagerPrompt(container) {
 }
 
 /**
- * Resources box — gated by qol settings → task manager (true / false / ask).
+ * Resources box — gated by qol settings → resources (true / false / ask).
  */
 async function renderResources() {
   const container = document.getElementById('resources-content');
   if (!container) return;
 
-  const mode = resolveTaskManagerMode(getSetting('qol settings', 'task manager'));
+  const mode = resolveTaskManagerMode(getQolSetting('resources', 'task manager'));
 
   if (mode === 'disabled') {
     container.innerHTML = disabledMsg('Resource monitoring is disabled in settings.');
@@ -162,44 +171,75 @@ function hasProviderUrl(value) {
 
 let activeFullscreen = null;
 
-function computeFullscreenTarget(orientation) {
-  const margin = 24;
+const FULLSCREEN_MARGIN = 16;
+const FULLSCREEN_CLOSE_SIZE = 44;
+const FULLSCREEN_CLOSE_GAP = 8;
+/** Header row above the panel (close button lives here, inside the stage). */
+const FULLSCREEN_HEADER = FULLSCREEN_CLOSE_SIZE + FULLSCREEN_CLOSE_GAP;
 
-  if (orientation === 'portrait') {
-    const maxH = window.innerHeight - margin * 2;
-    const maxW = window.innerWidth - margin * 2;
-    let height = Math.min(maxH, (maxW * 16) / 9);
-    let width = (height * 9) / 16;
-    if (width > maxW) {
-      width = maxW;
-      height = (width * 16) / 9;
-    }
-    return {
-      top: (window.innerHeight - height) / 2,
-      left: (window.innerWidth - width) / 2,
-      width,
-      height,
-      borderRadius: 20,
-    };
-  }
-
-  const width = window.innerWidth - margin * 2;
-  const height = window.innerHeight - margin * 2;
-  return {
-    top: (window.innerHeight - height) / 2,
-    left: (window.innerWidth - width) / 2,
-    width,
-    height,
-    borderRadius: 20,
-  };
+function clampStageRect(rect) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const width = Math.max(FULLSCREEN_CLOSE_SIZE, Math.min(rect.width, vw - FULLSCREEN_MARGIN * 2));
+  const height = Math.max(
+    FULLSCREEN_HEADER + 80,
+    Math.min(rect.height, vh - FULLSCREEN_MARGIN * 2)
+  );
+  let top = Math.max(FULLSCREEN_MARGIN, rect.top);
+  let left = Math.max(FULLSCREEN_MARGIN, rect.left);
+  top = Math.min(top, vh - FULLSCREEN_MARGIN - height);
+  left = Math.min(left, vw - FULLSCREEN_MARGIN - width);
+  return { top, left, width, height };
 }
 
-function applyPanelRect(panel, rect) {
-  panel.style.top = `${rect.top}px`;
-  panel.style.left = `${rect.left}px`;
-  panel.style.width = `${rect.width}px`;
-  panel.style.height = `${rect.height}px`;
-  panel.style.borderRadius = `${rect.borderRadius}px`;
+/**
+ * Fullscreen stage rect (panel + header row), centered and clamped inside the window.
+ */
+function computeFullscreenStageRect(orientation) {
+  const maxW = window.innerWidth - FULLSCREEN_MARGIN * 2;
+  const maxContentH = window.innerHeight - FULLSCREEN_MARGIN * 2 - FULLSCREEN_HEADER;
+
+  let contentW;
+  let contentH;
+
+  if (orientation === 'portrait') {
+    contentH = Math.min(maxContentH, (maxW * 16) / 9);
+    contentW = (contentH * 9) / 16;
+    if (contentW > maxW) {
+      contentW = maxW;
+      contentH = (contentW * 16) / 9;
+    }
+  } else {
+    contentW = maxW;
+    contentH = maxContentH;
+  }
+
+  const stageW = contentW;
+  const stageH = contentH + FULLSCREEN_HEADER;
+
+  return clampStageRect({
+    top: (window.innerHeight - stageH) / 2,
+    left: (window.innerWidth - stageW) / 2,
+    width: stageW,
+    height: stageH,
+  });
+}
+
+/** Stage rect when animating from the inline embed slot. */
+function stageRectFromSlot(slotRect) {
+  return clampStageRect({
+    top: slotRect.top,
+    left: slotRect.left,
+    width: slotRect.width,
+    height: slotRect.height + FULLSCREEN_HEADER,
+  });
+}
+
+function applyStageRect(stage, rect) {
+  stage.style.top = `${rect.top}px`;
+  stage.style.left = `${rect.left}px`;
+  stage.style.width = `${rect.width}px`;
+  stage.style.height = `${rect.height}px`;
 }
 
 function onFullscreenKeyDown(event) {
@@ -218,10 +258,15 @@ function enterEmbedFullscreen(widgetRoot) {
 
   const startRect = embed.getBoundingClientRect();
   const orientation = widgetRoot.dataset.orientation || 'landscape';
-  const target = computeFullscreenTarget(orientation);
+  const targetStage = computeFullscreenStageRect(orientation);
 
   const overlay = document.createElement('div');
   overlay.className = 'embed-fullscreen-overlay';
+  overlay.addEventListener('click', () => exitEmbedFullscreen());
+
+  const stage = document.createElement('div');
+  stage.className = 'embed-fullscreen-stage';
+  stage.addEventListener('click', (e) => e.stopPropagation());
 
   const panel = document.createElement('div');
   panel.className = 'embed-fullscreen-panel';
@@ -237,34 +282,24 @@ function enterEmbedFullscreen(widgetRoot) {
     exitEmbedFullscreen();
   });
 
-  applyPanelRect(panel, {
-    top: startRect.top,
-    left: startRect.left,
-    width: startRect.width,
-    height: startRect.height,
-    borderRadius: 8,
-  });
-
-  const topBlur = document.createElement('div');
-  topBlur.className = 'embed-fullscreen-topbar';
-  topBlur.setAttribute('aria-hidden', 'true');
+  applyStageRect(stage, stageRectFromSlot(startRect));
 
   panel.appendChild(embed);
-  panel.appendChild(topBlur);
-  panel.appendChild(closeBtn);
-  overlay.appendChild(panel);
+  stage.appendChild(closeBtn);
+  stage.appendChild(panel);
+  overlay.appendChild(stage);
   document.body.appendChild(overlay);
   document.body.classList.add('embed-fullscreen-active');
 
   const onKeyDown = onFullscreenKeyDown;
   document.addEventListener('keydown', onKeyDown, true);
 
-  activeFullscreen = { overlay, panel, slot, embed, closeBtn, onKeyDown };
+  activeFullscreen = { overlay, stage, panel, slot, embed, onKeyDown };
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       overlay.classList.add('is-visible');
-      applyPanelRect(panel, target);
+      applyStageRect(stage, targetStage);
     });
   });
 }
@@ -272,17 +307,11 @@ function enterEmbedFullscreen(widgetRoot) {
 function exitEmbedFullscreen() {
   if (!activeFullscreen) return;
 
-  const { overlay, panel, slot, embed, onKeyDown } = activeFullscreen;
+  const { overlay, stage, panel, slot, embed, onKeyDown } = activeFullscreen;
   document.removeEventListener('keydown', onKeyDown, true);
 
   const slotRect = slot.getBoundingClientRect();
-  applyPanelRect(panel, {
-    top: slotRect.top,
-    left: slotRect.left,
-    width: slotRect.width,
-    height: slotRect.height,
-    borderRadius: 8,
-  });
+  applyStageRect(stage, stageRectFromSlot(slotRect));
 
   overlay.classList.remove('is-visible');
 
@@ -296,7 +325,7 @@ function exitEmbedFullscreen() {
     activeFullscreen = null;
   };
 
-  panel.addEventListener('transitionend', (e) => {
+  stage.addEventListener('transitionend', (e) => {
     if (e.propertyName === 'width') finish();
   }, { once: true });
 
@@ -451,11 +480,11 @@ async function renderSite() {
   if (!container) return;
 
   await renderQolEmbed(container, {
-    enabled: getSetting('qol settings', 'video enable'),
-    provider: getSetting('qol settings', 'video provider'),
-    label: 'Video',
-    errorMessage: 'no video provider specified (change in settings)',
-    contentTitle: 'video content',
+    enabled: getQolSetting('site enable', 'video enable'),
+    provider: getQolSetting('site provider', 'video provider'),
+    label: 'Site',
+    errorMessage: 'no site provider specified (change in settings)',
+    contentTitle: 'site content',
     orientation: 'landscape',
   });
 }
@@ -504,8 +533,9 @@ function escapeHtmlAttr(str) {
   }
 
   renderStatus();
-  await renderResources();
   renderQuickActions();
-  await renderReels();
-  await renderSite();
+  // Each widget loads independently — do not await resources (may wait on task-manager prompt).
+  void renderResources();
+  void renderReels();
+  void renderSite();
 })();

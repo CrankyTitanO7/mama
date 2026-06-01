@@ -9,9 +9,7 @@
     <div class="error-page">
       <h2>Something went wrong</h2>
       <p id="error-message" class="error-message">An error occurred.</p>
-      <p class="error-hint">
-        <a href="#" id="error-settings-link">Open settings</a> to change this.
-      </p>
+      <p class="error-hint">Change the video provider in Settings from the top bar.</p>
     </div>
     <script>
       const params = new URLSearchParams(location.search);
@@ -19,12 +17,6 @@
       if (msg) {
         document.getElementById('error-message').textContent = msg;
       }
-      document.getElementById('error-settings-link')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (window.electron?.navigateTo) {
-          window.electron.navigateTo('public/settings.html');
-        }
-      });
     </script>
   </body>
 </html>

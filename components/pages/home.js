@@ -115,11 +115,227 @@ function renderQuickActions() {
   }
 }
 
+/** True when settings contain a non-empty provider URL string. */
+function hasProviderUrl(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+// ── Embed fullscreen (site = landscape, reels = portrait) ─────────────────────
+
+let activeFullscreen = null;
+
+function computeFullscreenTarget(orientation) {
+  const margin = 24;
+
+  if (orientation === 'portrait') {
+    const maxH = window.innerHeight - margin * 2;
+    const maxW = window.innerWidth - margin * 2;
+    let height = Math.min(maxH, (maxW * 16) / 9);
+    let width = (height * 9) / 16;
+    if (width > maxW) {
+      width = maxW;
+      height = (width * 16) / 9;
+    }
+    return {
+      top: (window.innerHeight - height) / 2,
+      left: (window.innerWidth - width) / 2,
+      width,
+      height,
+      borderRadius: 20,
+    };
+  }
+
+  const width = window.innerWidth - margin * 2;
+  const height = window.innerHeight - margin * 2;
+  return {
+    top: (window.innerHeight - height) / 2,
+    left: (window.innerWidth - width) / 2,
+    width,
+    height,
+    borderRadius: 20,
+  };
+}
+
+function applyPanelRect(panel, rect) {
+  panel.style.top = `${rect.top}px`;
+  panel.style.left = `${rect.left}px`;
+  panel.style.width = `${rect.width}px`;
+  panel.style.height = `${rect.height}px`;
+  panel.style.borderRadius = `${rect.borderRadius}px`;
+}
+
+function onFullscreenKeyDown(event) {
+  if (event.key === 'Escape' && event.shiftKey) {
+    event.preventDefault();
+    exitEmbedFullscreen();
+  }
+}
+
+function enterEmbedFullscreen(widgetRoot) {
+  if (activeFullscreen) return;
+
+  const slot = widgetRoot.querySelector('.embed-widget-slot');
+  const embed = slot?.firstElementChild;
+  if (!embed) return;
+
+  const startRect = embed.getBoundingClientRect();
+  const orientation = widgetRoot.dataset.orientation || 'landscape';
+  const target = computeFullscreenTarget(orientation);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'embed-fullscreen-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'embed-fullscreen-panel';
+
+  const hint = document.createElement('div');
+  hint.className = 'embed-fullscreen-hint';
+  hint.textContent = 'Shift+Esc to exit';
+
+  applyPanelRect(panel, {
+    top: startRect.top,
+    left: startRect.left,
+    width: startRect.width,
+    height: startRect.height,
+    borderRadius: 8,
+  });
+
+  panel.appendChild(embed);
+  overlay.appendChild(panel);
+  overlay.appendChild(hint);
+  document.body.appendChild(overlay);
+  document.body.classList.add('embed-fullscreen-active');
+
+  const onKeyDown = onFullscreenKeyDown;
+  document.addEventListener('keydown', onKeyDown);
+
+  activeFullscreen = { overlay, panel, slot, widgetRoot, onKeyDown };
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      overlay.classList.add('is-visible');
+      applyPanelRect(panel, target);
+    });
+  });
+}
+
+function exitEmbedFullscreen() {
+  if (!activeFullscreen) return;
+
+  const { overlay, panel, slot, onKeyDown } = activeFullscreen;
+  document.removeEventListener('keydown', onKeyDown);
+
+  const slotRect = slot.getBoundingClientRect();
+  applyPanelRect(panel, {
+    top: slotRect.top,
+    left: slotRect.left,
+    width: slotRect.width,
+    height: slotRect.height,
+    borderRadius: 8,
+  });
+
+  overlay.classList.remove('is-visible');
+
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    const embed = panel.firstElementChild;
+    if (embed) slot.appendChild(embed);
+    overlay.remove();
+    document.body.classList.remove('embed-fullscreen-active');
+    activeFullscreen = null;
+  };
+
+  panel.addEventListener('transitionend', (e) => {
+    if (e.propertyName === 'width') finish();
+  }, { once: true });
+
+  setTimeout(finish, 480);
+}
+
+function initEmbedFullscreen(widgetRoot) {
+  const fsBtn = widgetRoot.querySelector('.embed-fullscreen-btn');
+  const slot = widgetRoot.querySelector('.embed-widget-slot');
+
+  fsBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    enterEmbedFullscreen(widgetRoot);
+  });
+
+  slot?.addEventListener('dblclick', () => {
+    enterEmbedFullscreen(widgetRoot);
+  });
+}
+
 /**
- * Reels box — shows reels content if enabled in settings.
- * Uses a BrowserWindow-like embedded view (iframe or IPC bridge).
+ * Wrap embed in chrome with fullscreen control.
+ * @param {'landscape'|'portrait'} orientation
  */
-function renderReels() {
+function createEmbedWidget(embedEl, orientation) {
+  const root = document.createElement('div');
+  root.className = 'embed-widget';
+  root.dataset.orientation = orientation;
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'embed-widget-toolbar';
+
+  const fsBtn = document.createElement('button');
+  fsBtn.type = 'button';
+  fsBtn.className = 'embed-fullscreen-btn';
+  fsBtn.title = 'Fullscreen (Shift+Esc to exit)';
+  fsBtn.setAttribute('aria-label', 'Enter fullscreen');
+  fsBtn.textContent = '⛶';
+
+  const slot = document.createElement('div');
+  slot.className = 'embed-widget-slot';
+  slot.appendChild(embedEl);
+
+  toolbar.appendChild(fsBtn);
+  root.appendChild(toolbar);
+  root.appendChild(slot);
+
+  initEmbedFullscreen(root);
+  return root;
+}
+
+/**
+ * Mount a mini browser (webview). Must use createElement — innerHTML does not
+ * initialize <webview> guests in Electron.
+ */
+function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation) {
+  container.replaceChildren();
+
+  const webview = document.createElement('webview');
+  webview.className = 'embed-frame mini-browser';
+  webview.title = title;
+  webview.setAttribute('allowpopups', '');
+  webview.setAttribute('src', src);
+
+  const widget = createEmbedWidget(webview, orientation);
+
+  webview.addEventListener('did-fail-load', (event) => {
+    if (event.errorCode === -3) return;
+    console.error('embed webview load failed:', event.errorCode, event.validatedURL);
+    if (!iframeFallbackSrc) return;
+
+    const slot = widget.querySelector('.embed-widget-slot');
+    if (!slot || slot.querySelector('iframe.site-fallback')) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.className = 'embed-frame site-fallback';
+    iframe.title = title;
+    iframe.setAttribute('src', iframeFallbackSrc);
+    slot.replaceChildren(iframe);
+  });
+
+  container.appendChild(widget);
+}
+
+/**
+ * Reels box — embedded mini browser with portrait fullscreen.
+ */
+async function renderReels() {
   const container = document.getElementById('reels-content');
   if (!container) return;
 
@@ -131,53 +347,18 @@ function renderReels() {
     return;
   }
 
-  if (reelsProvider) {
-    // Embed the provider content in an iframe (assuming URL-based provider).
-    // Future: this could use a dedicated BrowserWindow or webview tag.
-    container.innerHTML = `
-      <iframe
-        class="embed-frame"
-        src="${sanitizeUrl(reelsProvider)}"
-        frameborder="0"
-        allowfullscreen
-        title="reels content"
-      ></iframe>
-    `;
-  } else {
+  if (!hasProviderUrl(reelsProvider)) {
     container.innerHTML = disabledMsg('No reels provider configured.');
+    return;
   }
-}
 
-/** True when settings contain a non-empty video provider string. */
-function hasVideoProvider(value) {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-/**
- * Mount a mini browser (webview). Must use createElement — innerHTML does not
- * initialize <webview> guests in Electron.
- */
-function mountMiniBrowser(container, src, title, iframeFallbackSrc) {
-  container.replaceChildren();
-
-  const webview = document.createElement('webview');
-  webview.className = 'embed-frame mini-browser';
-  webview.title = title;
-  webview.setAttribute('allowpopups', '');
-  webview.setAttribute('src', src);
-
-  webview.addEventListener('did-fail-load', (event) => {
-    if (event.errorCode === -3) return; // navigation aborted
-    console.error('site webview load failed:', event.errorCode, event.validatedURL);
-    if (!iframeFallbackSrc || container.querySelector('iframe.site-fallback')) return;
-    const iframe = document.createElement('iframe');
-    iframe.className = 'embed-frame site-fallback';
-    iframe.title = title;
-    iframe.setAttribute('src', iframeFallbackSrc);
-    container.replaceChildren(iframe);
-  });
-
-  container.appendChild(webview);
+  mountMiniBrowser(
+    container,
+    normalizeProviderUrl(reelsProvider),
+    'reels content',
+    null,
+    'portrait'
+  );
 }
 
 /**
@@ -197,12 +378,13 @@ async function renderSite() {
     return;
   }
 
-  if (hasVideoProvider(videoProvider)) {
+  if (hasProviderUrl(videoProvider)) {
     mountMiniBrowser(
       container,
       normalizeProviderUrl(videoProvider),
       'video content',
-      null
+      null,
+      'landscape'
     );
     return;
   }
@@ -213,7 +395,7 @@ async function renderSite() {
     const errorUrl = await window.electron.resolvePublicUrl('error.html', {
       error: errorMessage,
     });
-    mountMiniBrowser(container, errorUrl, 'video error', iframeFallback);
+    mountMiniBrowser(container, errorUrl, 'video error', iframeFallback, 'landscape');
   } catch (err) {
     console.error('home.js: could not resolve error.html URL', err);
     container.replaceChildren();
@@ -221,7 +403,7 @@ async function renderSite() {
     iframe.className = 'embed-frame site-fallback';
     iframe.title = 'video error';
     iframe.setAttribute('src', iframeFallback);
-    container.appendChild(iframe);
+    container.appendChild(createEmbedWidget(iframe, 'landscape'));
   }
 }
 
@@ -271,6 +453,6 @@ function escapeHtmlAttr(str) {
   renderStatus();
   renderResources();
   renderQuickActions();
-  renderReels();
+  await renderReels();
   await renderSite();
 })();

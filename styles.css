@@ -703,6 +703,34 @@ body.embed-fullscreen-active {
     border-radius 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.embed-fullscreen-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 52, 96, 0.92);
+  color: #e0e0e0;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+}
+
+.embed-fullscreen-close:hover {
+  background: #0f3460;
+  color: #00d4ff;
+  transform: scale(1.06);
+}
+
 .embed-fullscreen-panel .embed-frame,
 .embed-fullscreen-panel webview.mini-browser {
   width: 100%;
@@ -712,23 +740,6 @@ body.embed-fullscreen-active {
   min-height: 0;
 }
 
-.embed-fullscreen-hint {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10002;
-  font-size: 12px;
-  color: #888;
-  letter-spacing: 0.3px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.35s ease 0.2s;
-}
-
-.embed-fullscreen-overlay.is-visible .embed-fullscreen-hint {
-  opacity: 1;
-}
 
 /* ============================================
    Error page (embedded / standalone)

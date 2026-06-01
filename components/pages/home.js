@@ -188,9 +188,16 @@ function enterEmbedFullscreen(widgetRoot) {
   const panel = document.createElement('div');
   panel.className = 'embed-fullscreen-panel';
 
-  const hint = document.createElement('div');
-  hint.className = 'embed-fullscreen-hint';
-  hint.textContent = 'Shift+Esc to exit';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'embed-fullscreen-close';
+  closeBtn.setAttribute('aria-label', 'Exit fullscreen');
+  closeBtn.title = 'Exit fullscreen';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exitEmbedFullscreen();
+  });
 
   applyPanelRect(panel, {
     top: startRect.top,
@@ -201,15 +208,15 @@ function enterEmbedFullscreen(widgetRoot) {
   });
 
   panel.appendChild(embed);
+  panel.appendChild(closeBtn);
   overlay.appendChild(panel);
-  overlay.appendChild(hint);
   document.body.appendChild(overlay);
   document.body.classList.add('embed-fullscreen-active');
 
   const onKeyDown = onFullscreenKeyDown;
-  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keydown', onKeyDown, true);
 
-  activeFullscreen = { overlay, panel, slot, widgetRoot, onKeyDown };
+  activeFullscreen = { overlay, panel, slot, embed, closeBtn, onKeyDown };
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -222,8 +229,8 @@ function enterEmbedFullscreen(widgetRoot) {
 function exitEmbedFullscreen() {
   if (!activeFullscreen) return;
 
-  const { overlay, panel, slot, onKeyDown } = activeFullscreen;
-  document.removeEventListener('keydown', onKeyDown);
+  const { overlay, panel, slot, embed, onKeyDown } = activeFullscreen;
+  document.removeEventListener('keydown', onKeyDown, true);
 
   const slotRect = slot.getBoundingClientRect();
   applyPanelRect(panel, {
@@ -240,7 +247,6 @@ function exitEmbedFullscreen() {
   const finish = () => {
     if (finished) return;
     finished = true;
-    const embed = panel.firstElementChild;
     if (embed) slot.appendChild(embed);
     overlay.remove();
     document.body.classList.remove('embed-fullscreen-active');
@@ -283,7 +289,7 @@ function createEmbedWidget(embedEl, orientation) {
   const fsBtn = document.createElement('button');
   fsBtn.type = 'button';
   fsBtn.className = 'embed-fullscreen-btn';
-  fsBtn.title = 'Fullscreen (Shift+Esc to exit)';
+  fsBtn.title = 'Fullscreen';
   fsBtn.setAttribute('aria-label', 'Enter fullscreen');
   fsBtn.textContent = '⛶';
 
@@ -333,78 +339,82 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation)
 }
 
 /**
- * Reels box — embedded mini browser with portrait fullscreen.
+ * Shared QoL embed widget (site/video and reels use the same logic).
+ * Portrait vs landscape only affects fullscreen dimensions.
  */
-async function renderReels() {
-  const container = document.getElementById('reels-content');
-  if (!container) return;
-
-  const reelsEnabled  = getSetting('qol settings', 'reels enable');
-  const reelsProvider = getSetting('qol settings', 'reels provider');
-
-  if (!reelsEnabled) {
-    container.innerHTML = disabledMsg('Reels are disabled in settings.');
+async function renderQolEmbed(container, {
+  enabled,
+  provider,
+  label,
+  errorMessage,
+  contentTitle,
+  orientation,
+}) {
+  if (!enabled) {
+    container.innerHTML = disabledMsg(`${label} is disabled in settings.`);
     return;
   }
 
-  if (!hasProviderUrl(reelsProvider)) {
-    container.innerHTML = disabledMsg('No reels provider configured.');
-    return;
-  }
-
-  mountMiniBrowser(
-    container,
-    normalizeProviderUrl(reelsProvider),
-    'reels content',
-    null,
-    'portrait'
-  );
-}
-
-/**
- * Site box — shows video content if enabled in settings.
- * Uses an embedded webview (mini browser) when a provider URL is set;
- * otherwise loads error.html when enabled without a provider.
- */
-async function renderSite() {
-  const container = document.getElementById('site-content');
-  if (!container) return;
-
-  const videoEnabled  = getSetting('qol settings', 'video enable');
-  const videoProvider = getSetting('qol settings', 'video provider');
-
-  if (!videoEnabled) {
-    container.innerHTML = disabledMsg('Video is disabled in settings.');
-    return;
-  }
-
-  if (hasProviderUrl(videoProvider)) {
+  if (hasProviderUrl(provider)) {
     mountMiniBrowser(
       container,
-      normalizeProviderUrl(videoProvider),
-      'video content',
+      normalizeProviderUrl(provider),
+      contentTitle,
       null,
-      'landscape'
+      orientation
     );
     return;
   }
 
-  const errorMessage = 'no video provider specified (change in settings)';
   const iframeFallback = `error.html?error=${encodeURIComponent(errorMessage)}`;
   try {
     const errorUrl = await window.electron.resolvePublicUrl('error.html', {
       error: errorMessage,
     });
-    mountMiniBrowser(container, errorUrl, 'video error', iframeFallback, 'landscape');
+    mountMiniBrowser(
+      container,
+      errorUrl,
+      `${contentTitle} error`,
+      iframeFallback,
+      orientation
+    );
   } catch (err) {
-    console.error('home.js: could not resolve error.html URL', err);
+    console.error(`home.js: could not resolve error.html for ${label}`, err);
     container.replaceChildren();
     const iframe = document.createElement('iframe');
     iframe.className = 'embed-frame site-fallback';
-    iframe.title = 'video error';
+    iframe.title = `${contentTitle} error`;
     iframe.setAttribute('src', iframeFallback);
-    container.appendChild(createEmbedWidget(iframe, 'landscape'));
+    container.appendChild(createEmbedWidget(iframe, orientation));
   }
+}
+
+async function renderReels() {
+  const container = document.getElementById('reels-content');
+  if (!container) return;
+
+  await renderQolEmbed(container, {
+    enabled: getSetting('qol settings', 'reels enable'),
+    provider: getSetting('qol settings', 'reels provider'),
+    label: 'Reels',
+    errorMessage: 'no reels provider specified (change in settings)',
+    contentTitle: 'reels content',
+    orientation: 'portrait',
+  });
+}
+
+async function renderSite() {
+  const container = document.getElementById('site-content');
+  if (!container) return;
+
+  await renderQolEmbed(container, {
+    enabled: getSetting('qol settings', 'video enable'),
+    provider: getSetting('qol settings', 'video provider'),
+    label: 'Video',
+    errorMessage: 'no video provider specified (change in settings)',
+    contentTitle: 'video content',
+    orientation: 'landscape',
+  });
 }
 
 // ── Sanitize URL helper ───────────────────────────────────────────────────────

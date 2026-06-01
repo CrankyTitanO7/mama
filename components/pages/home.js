@@ -57,21 +57,59 @@ function renderStatus() {
 }
 
 /**
- * Resources box — shows top tasks / resource consumption
- * (only if enabled in settings → qol settings → task manager != "disabled").
+ * Normalize task manager setting to enabled | disabled | ask.
+ * Accepts true/false/"ask" and legacy always/never/disabled/enabled strings.
  */
-function renderResources() {
+function resolveTaskManagerMode(raw) {
+  if (raw === true || raw === 'true' || raw === 'enabled' || raw === 'always') {
+    return 'enabled';
+  }
+  if (raw === false || raw === 'false' || raw === 'disabled' || raw === 'never') {
+    return 'disabled';
+  }
+  return 'ask';
+}
+
+function showTaskManagerPrompt(container) {
+  return new Promise((resolve) => {
+    container.innerHTML = `
+      <div class="task-manager-prompt">
+        <p class="task-manager-prompt-text">Enable resource monitoring for this visit?</p>
+        <div class="task-manager-prompt-actions">
+          <button type="button" class="nav-btn task-manager-enable">Enable</button>
+          <button type="button" class="nav-btn task-manager-skip">Not now</button>
+        </div>
+      </div>
+    `;
+    container.querySelector('.task-manager-enable')?.addEventListener('click', () => resolve(true));
+    container.querySelector('.task-manager-skip')?.addEventListener('click', () => resolve(false));
+  });
+}
+
+/**
+ * Resources box — gated by qol settings → task manager (true / false / ask).
+ */
+async function renderResources() {
   const container = document.getElementById('resources-content');
   if (!container) return;
 
-  const taskManager = getSetting('qol settings', 'task manager');
+  const mode = resolveTaskManagerMode(getSetting('qol settings', 'task manager'));
 
-  if (!taskManager || taskManager === 'disabled') {
+  if (mode === 'disabled') {
     container.innerHTML = disabledMsg('Resource monitoring is disabled in settings.');
     return;
   }
 
-  // Load the btop-like resource widget
+  if (mode === 'ask') {
+    const enabled = await showTaskManagerPrompt(container);
+    if (!enabled) {
+      container.innerHTML = `
+        <p class="disabled-msg">Resource monitoring skipped for this visit.</p>
+      `;
+      return;
+    }
+  }
+
   if (typeof initResourcesWidget === 'function') {
     initResourcesWidget(container);
   } else {
@@ -207,7 +245,12 @@ function enterEmbedFullscreen(widgetRoot) {
     borderRadius: 8,
   });
 
+  const topBlur = document.createElement('div');
+  topBlur.className = 'embed-fullscreen-topbar';
+  topBlur.setAttribute('aria-hidden', 'true');
+
   panel.appendChild(embed);
+  panel.appendChild(topBlur);
   panel.appendChild(closeBtn);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
@@ -461,7 +504,7 @@ function escapeHtmlAttr(str) {
   }
 
   renderStatus();
-  renderResources();
+  await renderResources();
   renderQuickActions();
   await renderReels();
   await renderSite();

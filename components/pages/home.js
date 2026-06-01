@@ -150,7 +150,8 @@ function renderReels() {
 
 /**
  * Site box — shows video content if enabled in settings.
- * Uses a BrowserWindow-like embedded view (iframe or IPC bridge).
+ * Uses an embedded webview (mini browser) when a provider URL is set;
+ * otherwise loads error.html when enabled without a provider.
  */
 function renderSite() {
   const container = document.getElementById('site-content');
@@ -164,20 +165,26 @@ function renderSite() {
     return;
   }
 
-  if (videoProvider) {
-    // Embed the provider content in an iframe.
-    // Future: this could use a dedicated BrowserWindow or webview tag.
+  const provider = typeof videoProvider === 'string' ? videoProvider.trim() : '';
+  if (provider) {
+    const src = normalizeProviderUrl(provider);
     container.innerHTML = `
-      <iframe
-        class="embed-frame"
-        src="${sanitizeUrl(videoProvider)}"
-        frameborder="0"
-        allowfullscreen
+      <webview
+        class="embed-frame mini-browser"
+        src="${escapeHtmlAttr(src)}"
+        allowpopups
         title="video content"
-      ></iframe>
+      ></webview>
     `;
   } else {
-    container.innerHTML = disabledMsg('No video provider configured.');
+    const err = encodeURIComponent('no video provider specified (change in settings)');
+    container.innerHTML = `
+      <webview
+        class="embed-frame mini-browser"
+        src="error.html?error=${err}"
+        title="video error"
+      ></webview>
+    `;
   }
 }
 
@@ -194,6 +201,25 @@ function sanitizeUrl(url) {
     return trimmed;
   }
   return 'about:blank';
+}
+
+/** Normalize video provider to a loadable http(s) URL. */
+function normalizeProviderUrl(url) {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) return 'about:blank';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
+
+/** Escape a string for use inside an HTML attribute value. */
+function escapeHtmlAttr(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

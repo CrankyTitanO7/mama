@@ -614,6 +614,42 @@ body {
   background: #1a1a2e;
 }
 
+webview.mini-browser {
+  display: inline-flex;
+  min-height: 200px;
+}
+
+/* ============================================
+   Error page (embedded / standalone)
+   ============================================ */
+.error-page-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.error-page {
+  text-align: center;
+  max-width: 420px;
+}
+
+.error-page h2 {
+  margin-bottom: 12px;
+}
+
+.error-message {
+  color: #ff9800;
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+
+.error-hint {
+  font-size: 13px;
+  color: #888;
+}
+
 /* ============================================
    Disabled message
    ============================================ */

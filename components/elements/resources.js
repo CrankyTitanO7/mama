@@ -573,66 +573,99 @@ function initResourcesWidget(container) {
   // ── Refresh loop ─────────────────────────────────────────────────────────
 
   let refreshTimer = null;
+  let refreshInFlight = false;
 
-  async function refresh() {
-    const [cpu, ram, gpu] = await Promise.all([getCPU(), getRAM(), getGPU()]);
+  function getRefreshSeconds() {
+    const input = container.querySelector('#res-interval-input');
+    const parsed = parseInt(input?.value, 10);
+    return Math.min(60, Math.max(1, Number.isFinite(parsed) ? parsed : 3));
+  }
 
-    // CPU
-    const cpuPct = Math.round(cpu);
-    setBar('.cpu-bar', cpuPct);
-    setText('.cpu-detail', `${cpuPct}%`);
-
-    // RAM
-    const ramPct = Math.round(ram.pct);
-    setBar('.ram-bar', ramPct);
-    if (ram.total > 0) {
-      setText('.ram-detail',
-        `${fmtBytes(ram.used)} / ${fmtBytes(ram.total)} (${ramPct}%)`);
-    } else {
-      setText('.ram-detail', 'unavailable');
+  function clearRefreshTimer() {
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
     }
-
-    // GPU
-    const gpuPct = Math.round(gpu.gpuPct);
-    setBar('.gpu-bar', gpuPct);
-    if (gpu.available) {
-      const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
-                    gpu.source === 'rocm'        ? 'AMD/ROCm' :
-                    gpu.source === 'sysfs'       ? 'AMD/sysfs' :
-                    gpu.source === 'windows-pdh' ? 'PDH' : '';
-      setText('.gpu-detail', `${gpuPct}%${label ? `  [${label}]` : ''}`);
-    } else {
-      setText('.gpu-detail', 'N/A — no supported GPU detected');
-    }
-
-    // VRAM
-    const vramPct = Math.round(gpu.vramPct);
-    setBar('.vram-bar', vramPct);
-    if (gpu.available && gpu.vramTotal > 0) {
-      setText('.vram-detail',
-        `${fmtBytes(gpu.vramUsed)} / ${fmtBytes(gpu.vramTotal)} (${vramPct}%)`);
-    } else {
-      setText('.vram-detail', 'N/A');
-    }
-
-    // Timestamp
-    setText('.resource-update-msg',
-      `updated ${new Date().toLocaleTimeString()}`);
-
-    scheduleRefresh();
   }
 
   function scheduleRefresh() {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    const input    = container.querySelector('#res-interval-input');
-    const seconds  = Math.min(60, Math.max(1, parseInt(input?.value) || 3));
-    refreshTimer   = setTimeout(refresh, seconds * 1000);
+    clearRefreshTimer();
+    const seconds = getRefreshSeconds();
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null;
+      refresh();
+    }, seconds * 1000);
   }
 
-  // Wire up the interval input: restart the timer immediately on change
-  container.querySelector('#res-interval-input')?.addEventListener('change', () => {
-    scheduleRefresh();
-  });
+  function restartRefreshTimer() {
+    clearRefreshTimer();
+    if (!refreshInFlight) {
+      refresh();
+    }
+    // If a refresh is in flight, its finally block schedules with the new interval.
+  }
+
+  async function refresh() {
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    clearRefreshTimer();
+
+    try {
+      const [cpu, ram, gpu] = await Promise.all([getCPU(), getRAM(), getGPU()]);
+
+      // CPU
+      const cpuPct = Math.round(cpu);
+      setBar('.cpu-bar', cpuPct);
+      setText('.cpu-detail', `${cpuPct}%`);
+
+      // RAM
+      const ramPct = Math.round(ram.pct);
+      setBar('.ram-bar', ramPct);
+      if (ram.total > 0) {
+        setText('.ram-detail',
+          `${fmtBytes(ram.used)} / ${fmtBytes(ram.total)} (${ramPct}%)`);
+      } else {
+        setText('.ram-detail', 'unavailable');
+      }
+
+      // GPU
+      const gpuPct = Math.round(gpu.gpuPct);
+      setBar('.gpu-bar', gpuPct);
+      if (gpu.available) {
+        const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
+                      gpu.source === 'rocm'        ? 'AMD/ROCm' :
+                      gpu.source === 'sysfs'       ? 'AMD/sysfs' :
+                      gpu.source === 'windows-pdh' ? 'PDH' : '';
+        setText('.gpu-detail', `${gpuPct}%${label ? `  [${label}]` : ''}`);
+      } else {
+        setText('.gpu-detail', 'N/A — no supported GPU detected');
+      }
+
+      // VRAM
+      const vramPct = Math.round(gpu.vramPct);
+      setBar('.vram-bar', vramPct);
+      if (gpu.available && gpu.vramTotal > 0) {
+        setText('.vram-detail',
+          `${fmtBytes(gpu.vramUsed)} / ${fmtBytes(gpu.vramTotal)} (${vramPct}%)`);
+      } else {
+        setText('.vram-detail', 'N/A');
+      }
+
+      // Timestamp
+      setText('.resource-update-msg',
+        `updated ${new Date().toLocaleTimeString()} · every ${getRefreshSeconds()}s`);
+    } catch (err) {
+      console.error('resources widget refresh failed:', err);
+      setText('.resource-update-msg', 'refresh failed — retrying…');
+    } finally {
+      refreshInFlight = false;
+      scheduleRefresh();
+    }
+  }
+
+  const intervalInput = container.querySelector('#res-interval-input');
+  intervalInput?.addEventListener('input', restartRefreshTimer);
+  intervalInput?.addEventListener('change', restartRefreshTimer);
 
   // ── Kick off ──────────────────────────────────────────────────────────────
   refresh();

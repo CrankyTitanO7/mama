@@ -1134,6 +1134,7 @@
       await window.electron.settingsWriteNonbackup(current);
 
       await window.electron.setupComplete();
+      await window.electron.navigateTo('public/index.html');
     } catch (e) {
       console.error('Failed to save settings:', e);
     }

@@ -81,6 +81,7 @@ const createWindow = (page) => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      webviewTag: true,
     }
   });
   mainWindow.loadFile(page || 'public/index.html');
@@ -92,6 +93,12 @@ app.on('ready', () => {
   //   run-install (GPU-variant aware), run-import-test (enhanced),
   //   settings-read, settings-write, settings-write-nonbackup, setup-complete
   registerIPCHandlers(app, SETTINGS_PATH);
+
+  app.on('frank:setup-complete', () => {
+    if (mainWindow) {
+      mainWindow.loadFile('public/index.html');
+    }
+  });
 
   // ── Additional index.js-specific IPC handlers ──
   // (These do NOT overlap with what registerIPCHandlers registered)

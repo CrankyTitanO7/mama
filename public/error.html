@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>mama — Error</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body class="error-page-body">
+    <div class="error-page">
+      <h2>Something went wrong</h2>
+      <p id="error-message" class="error-message">An error occurred.</p>
+      <p class="error-hint">
+        <a href="#" id="error-settings-link">Open settings</a> to change this.
+      </p>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const msg = params.get('error') || params.get('message');
+      if (msg) {
+        document.getElementById('error-message').textContent = msg;
+      }
+      document.getElementById('error-settings-link')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (window.electron?.navigateTo) {
+          window.electron.navigateTo('public/settings.html');
+        }
+      });
+    </script>
+  </body>
+</html>

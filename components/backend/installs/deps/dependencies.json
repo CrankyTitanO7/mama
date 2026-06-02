@@ -1,0 +1,53 @@
+{
+    "metadata" : {
+        "title" : "dependency install command list", 
+        "description": "a json file for every possible python install command. the idea is it is flexible and super easy to modify"
+    },
+
+    "windows" : {
+        "chocolatey": "choco install python -y"
+    }, 
+
+    "mac" : {
+        "homebrew" : "brew install python"
+    }, 
+
+    "linux" : {
+        "arch" : "sudo pacman -S python python-pip", 
+        "debian" : "sudo apt install python3 python3-pip -y",
+        "fedora" : "sudo dnf install python3 python3-pip -y", 
+        "alpine" : "apk add python3 py3-pip", 
+        "gentoo" : "emerge dev-lang/python", 
+        "opensuse" : "sudo zypper install python3 python3-pip -y", 
+        "redhat" : "sudo yum install python3 python3-pip -y", 
+        "slackware" : "slackpkg install python3", 
+        "solaris" : "pkg install python3", 
+        "ubuntu" : "sudo apt install python3 python3-pip -y", 
+        "voidlinux" : "xbps-install -S python3 python3-pip",
+
+        "manjaro" : "# arch", 
+        "popos" : "# ubuntu",
+        "linuxmint" : "# ubuntu",
+        "elementaryos" : "# ubuntu",
+        "kali" : "# debian",
+        "parrot" : "# debian",
+        "opensuseleap" : "# opensuse",
+        "redhatenterprise" : "# redhat",
+        "rockylinux" : "# redhat", 
+        "almalinux" : "# redhat", 
+        "centos" : "# redhat", 
+        "oraclelinux" : "# redhat", 
+        "mageia" : "# opensuse",
+        "zorin" : "# ubuntu",
+        "linuxlite" : "# ubuntu",
+        "peppermint" : "# ubuntu",
+        "deepin" : "# debian",
+        "endeavouros" : "# arch",
+        "arcolinux" : "# arch",
+        "antergos" : "# arch",
+        "garuda" : "# arch",
+        "solus" : "# solus"
+    }
+    
+
+}

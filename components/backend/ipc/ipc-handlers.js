@@ -158,6 +158,55 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     return runScript(SCRIPT.gpuDetect, [], { timeout: 30_000 });
   });
 
+  // ── OS info helper ─────────────────────────────────────────────────────────
+  // Quick OS detection for passing to install script (avoids re-detection in Python)
+  let _osInfo = null;
+  function getOsInfo() {
+    if (_osInfo) return _osInfo;
+
+    const platform = process.platform;
+    let osFamily = 'unknown';
+    let distro = 'unknown';
+
+    if (platform === 'win32') {
+      osFamily = 'windows';
+      distro = 'unknown';
+    } else if (platform === 'darwin') {
+      osFamily = 'macos';
+      // Check for Homebrew
+      try {
+        const { execSync } = require('child_process');
+        execSync('which brew', { stdio: 'pipe', timeout: 5000 });
+        distro = 'homebrew';
+      } catch (_) {
+        distro = 'unknown';
+      }
+    } else if (platform === 'linux') {
+      osFamily = 'linux';
+      // Read /etc/os-release for distro info
+      try {
+        const fs = require('fs');
+        const content = fs.readFileSync('/etc/os-release', 'utf8').toLowerCase();
+        if (content.includes('ubuntu') || content.includes('debian')) {
+          distro = 'debian-based';
+        } else if (content.includes('fedora') || content.includes('rhel') || content.includes('centos')) {
+          distro = 'fedora-based';
+        } else if (content.includes('arch') || content.includes('manjaro')) {
+          distro = 'arch-based';
+        } else if (content.includes('opensuse') || content.includes('suse')) {
+          distro = 'suse-based';
+        } else if (content.includes('alpine')) {
+          distro = 'alpine';
+        }
+      } catch (_) {
+        distro = 'unknown';
+      }
+    }
+
+    _osInfo = { osFamily, distro };
+    return _osInfo;
+  }
+
   // ── Install ──────────────────────────────────────────────────────────────
   // fw:            'torch' | 'tf'
   // gpuVariant:    'cuda'  | 'rocm' | 'cpu'
@@ -171,6 +220,12 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
   ipcMain.handle('run-install', async (_event, fw, gpuVariant, accelVersion = '') => {
     const args = [fw, gpuVariant];
     if (accelVersion) args.push(accelVersion);
+
+    // Pass OS info to avoid re-detection in Python
+    const osInfo = getOsInfo();
+    args.push('--os-family', osInfo.osFamily);
+    args.push('--distro', osInfo.distro);
+
     // Long install — allow 20 minutes
     return runScript(SCRIPT.install, args, { timeout: 20 * 60_000 });
   });

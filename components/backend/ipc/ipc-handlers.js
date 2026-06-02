@@ -122,14 +122,10 @@ function runScript(scriptPath, args = [], opts = {}) {
 
 // ── Settings helpers ──────────────────────────────────────────────────────────
 
-function readSettings(filePath) {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch (_) {
-    return null;
-  }
-}
+const {
+  readSettings: readSettingsFromStore,
+  readDescriptions,
+} = require('../settings-store');
 
 function writeSettings(filePath, settings, backup = true) {
   if (backup && fs.existsSync(filePath)) {
@@ -188,7 +184,11 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
   // ── Settings ─────────────────────────────────────────────────────────────
 
   ipcMain.handle('settings-read', async () => {
-    return readSettings(settingsFilePath);
+    return readSettingsFromStore(settingsFilePath);
+  });
+
+  ipcMain.handle('settings-descriptions-read', async () => {
+    return readDescriptions();
   });
 
   ipcMain.handle('settings-write', async (_event, settings) => {

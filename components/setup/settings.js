@@ -1,8 +1,35 @@
 // Settings page — full settings editor
 (function () {
   let settingsCache = null;
+  let descriptionsCache = null;
   let savedSnapshot = null;
   let navigationWired = false;
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function getFieldDescription(groupKey, key) {
+    const group = descriptionsCache?.[groupKey];
+    if (!group || typeof group !== 'object') return '';
+    if (key === 'task manager' && group.resources) return group.resources;
+    if (key === 'video enable' && group['site enable']) return group['site enable'];
+    if (key === 'video provider' && group['site provider']) return group['site provider'];
+    return group[key] || '';
+  }
+
+  async function loadDescriptions() {
+    try {
+      descriptionsCache = await window.electron.settingsDescriptionsRead();
+    } catch (e) {
+      console.error('Failed to load setting descriptions:', e);
+      descriptionsCache = null;
+    }
+  }
 
   async function loadSettings() {
     try {
@@ -195,21 +222,30 @@
           }
 
           const fieldId = `setting-${groupKey}-${key}`.replace(/\s+/g, '-').toLowerCase();
-          html += `<div class="settings-field">`;
-          html += `<label class="settings-label" for="${fieldId}">${key.replace(/(^\w|\s\w)/g, m => m.toUpperCase())}</label>`;
+          const label = key.replace(/(^\w|\s\w)/g, m => m.toUpperCase());
+          const desc = getFieldDescription(groupKey, key);
 
+          let control = '';
           if (groupKey === 'qol settings' && (key === 'resources' || key === 'task manager')) {
-            html += renderResourcesField(fieldId, groupKey, 'resources', value);
+            control = renderResourcesField(fieldId, groupKey, 'resources', value);
           } else if (typeof value === 'boolean') {
-            html += `<input type="checkbox" id="${fieldId}" class="settings-checkbox" data-group="${groupKey}" data-key="${key}" ${value ? 'checked' : ''}>`;
+            control = `<input type="checkbox" id="${fieldId}" class="settings-checkbox" data-group="${groupKey}" data-key="${key}" ${value ? 'checked' : ''}>`;
           } else if (typeof value === 'number') {
-            html += `<input type="number" id="${fieldId}" class="settings-input" data-group="${groupKey}" data-key="${key}" value="${value}" step="any">`;
+            control = `<input type="number" id="${fieldId}" class="settings-input" data-group="${groupKey}" data-key="${key}" value="${value}" step="any">`;
           } else if (value === null) {
-            html += `<input type="text" id="${fieldId}" class="settings-input" data-group="${groupKey}" data-key="${key}" placeholder="null">`;
+            control = `<input type="text" id="${fieldId}" class="settings-input" data-group="${groupKey}" data-key="${key}" placeholder="null">`;
           } else {
-            html += `<input type="text" id="${fieldId}" class="settings-input" data-group="${groupKey}" data-key="${key}" value="${String(value).replace(/"/g, '&quot;')}">`;
+            control = `<input type="text" id="${fieldId}" class="settings-input" data-group="${groupKey}" data-key="${key}" value="${escapeHtml(value)}">`;
           }
 
+          html += `<div class="settings-field">`;
+          html += `<div class="settings-field-meta">`;
+          html += `<label class="settings-label" for="${fieldId}">${escapeHtml(label)}</label>`;
+          if (desc) {
+            html += `<p class="settings-field-desc">${escapeHtml(desc)}</p>`;
+          }
+          html += `</div>`;
+          html += `<div class="settings-field-control">${control}</div>`;
           html += `</div>`;
         }
       }
@@ -237,7 +273,7 @@
         if (action === 'discard') await revertToSaved();
         else if (action === 'save') await saveSettings();
       }
-      await loadSettings();
+      await Promise.all([loadSettings(), loadDescriptions()]);
       renderSettings();
     });
   }
@@ -265,7 +301,7 @@
 
   async function init() {
     wireNavigationGuards();
-    await loadSettings();
+    await Promise.all([loadSettings(), loadDescriptions()]);
     renderSettings();
   }
 

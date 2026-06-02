@@ -6,6 +6,7 @@ const fs = require('fs');
 
 // ── Modular IPC handlers (detection, install, settings, etc.) ────
 const { registerIPCHandlers } = require('./components/backend/ipc/ipc-handlers');
+const { readSettings: readSettingsFromStore } = require('./components/backend/settings-store');
 
 let mainWindow;
 
@@ -15,12 +16,7 @@ const SETTINGS_BACKUP_PATH = path.join(__dirname, 'user', 'backup', 'settings.js
 // ========== Settings helpers ==========
 
 function loadSettings() {
-  try {
-    const raw = fs.readFileSync(SETTINGS_PATH, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return readSettingsFromStore(SETTINGS_PATH);
 }
 
 function saveSettings(settings, skipBackup = false) {

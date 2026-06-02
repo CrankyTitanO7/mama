@@ -1,50 +1,65 @@
 {
+    // ── General ─────────────────────────────────────────────────────────────
     "general settings": {
-        "setup": true,                              // tutorial enabled
-        "language": "eng"                           // change when support works
+        "setup": true,                              // true → open setup wizard on first launch
+        "language": "eng"                           // interface language (eng only for now)
     },
+
+    // ── Appearance ──────────────────────────────────────────────────────────
     "aesthetic settings": {
-        "appearance": "dark",                       // dark mode vs light mode
-        "scaling factor": 1,                        // scaling factor, especially for WMs
-        "accent color": "default"                   // theming baseline
+        "appearance": "dark",                       // "dark" | "light"
+        "scaling factor": 1,                        // UI scale (useful on tiling WMs)
+        "accent color": "default"                   // theme accent token
     },
+
+    // ── Hardware (filled by setup wizard / detection) ─────────────────────────
     "hardware settings": {
-        "graphics manufacturer": "unscanned",       // unscanned, undetected, amd, nvidia, [...]
-        "target card name": null                    // default target card
+        "graphics manufacturer": null,            // null | "unscanned" | "amd" | "nvidia" | ...
+        "target card name": null,                   // detected GPU name string
+        "cuda version": null,                       // NVIDIA CUDA version if applicable
+        "rocm version": null                        // AMD ROCm version if applicable
     },
+
+    // ── Software (filled by setup wizard / detection) ─────────────────────────
     "software information": {
-        "operating system": null,                   // OS full name     (uname -r)
-        "OS pretty": null,                          // OS pretty name   (cat /etc/fedora-release)
-
-        "cmake": false,                             // ctools, for custom programs
+        "OS full": null,                            // full OS string
+        "OS pretty": null,                          // human-readable OS name
+        "OS kernel": null,                          // kernel release
+        "cmake": false,
         "gcc": false,
-
-        "tf" : false,                               // tensorflow or pytorch
-        "pyt" : false
+        "tf": false,                                // TensorFlow selected/installed
+        "pyt": false                                // PyTorch selected/installed
     },
+
+    // ── Training resources ────────────────────────────────────────────────────
     "resource settings": {
-        "cloud resources": false,                   // ie openai cloud api
-        "cloud provider name": null,                
-        "local hostname": null,                     // eg ollama
-        "trainer browser": "default"                // ai browser use (defaults to default browser)
+        "cloud resources": false,                   // use remote/cloud training APIs
+        "cloud provider name": null,
+        "local hostname": null,                     // e.g. local Ollama host
+        "trainer browser": "default"                // browser profile for trainer UI
     },
+
+    // ── Security prompts ──────────────────────────────────────────────────────
     "security settings": {
-        "local key file path": "default",           // defaults to ./user/.env.local
+        "local key file path": "default",           // path to secrets file (default: ./user/.env.local)
 
-        // security confirmation checks
-        "project mod": false,                       // autoapprove modifying project files enable/disable
-        "cloud mod": false,                         // autoapprove modifying cloud files enable/disable
-        "all files": false,                         // autoapprove modifying all (local) files enable/disable
-        "sudo": false,                              // autoapprove sudo actions
-        "browser access": false                     // autoapprove browser actions
+        "project mod": false,                       // auto-approve project file changes
+        "cloud mod": false,                         // auto-approve cloud-side changes
+        "all files": false,                         // auto-approve all local file changes
+        "sudo": false,                              // auto-approve elevated commands
+        "browser access": false                     // auto-approve browser / web access
     },
-    "qol settings": {
-        "reels enable": false,                      // reels widget
-        "reels provider": null,
-        "site enable": false,                       // site widget
-        "site provider": null,
-        "resources": "ask",                         // resources widget: true, false, or "ask"
 
-        "database provider": null                   // eg huggingface
+    // ── Home page widgets (reels, site, resources) ───────────────────────────
+    "qol settings": {
+        "reels enable": false,                      // reels widget (portrait mini-browser)
+        "reels provider": null,                     // URL for reels content
+
+        "site enable": false,                       // site widget (landscape mini-browser)
+        "site provider": null,                      // URL for site content
+
+        "resources": "ask",                         // resources widget: true | false | "ask"
+
+        "database provider": null                   // e.g. huggingface dataset URL
     }
 }

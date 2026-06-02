@@ -1,0 +1,48 @@
+{
+    "general settings": {
+      "setup": "open setup wizard on launch?",
+      "language": "language of the interface"
+    },
+    "aesthetic settings": {
+      "appearance": "dark mode vs light mode",
+      "scaling factor": "scaling factor, especially for window managers",
+      "accent color": "accent color of the interface"
+    },
+    "hardware settings": {
+      "graphics manufacturer": "graphics manufacturer of the system (ie Intel, AMD, NVIDIA)",
+      "target card name": "name of the target training card",
+      "cuda version": "cuda version of the system",
+      "rocm version": "rocm version of the system"
+    },
+    "software information": {
+      "OS full": "full name of the operating system",
+      "OS pretty": "\"pretty\" name of the operating system",
+      "OS kernel": "kernel version of the operating system",
+      "cmake": "cmake is available (for custom programs)",
+      "gcc": "gcc is available (for custom programs)",
+      "tf": "tensorflow is available (for custom programs)",
+      "pyt": "pytorch is available (for custom programs)"
+    },
+    "resource settings": {
+      "cloud resources": "use cloud resources for training?",
+      "cloud provider name": "name of the cloud provider (if applicable)",
+      "local hostname": "hostname of the local machine (if applicable)",
+      "trainer browser": "browser to use for training (defaults to default browser) (if applicable)"
+    },
+    "security settings": {
+      "local key file path": "path to the local key file (if applicable)",
+      "project mod": "allow project file modifications without asking",
+      "cloud mod": "allow cloud modifications without asking",
+      "all files": "allow all file modifications without asking",
+      "sudo": "allow sudo / system-level access",
+      "browser access": "allow model / web access"
+    },
+    "qol settings": {
+      "reels enable": "enable reels widget",
+      "reels provider": "provider of the reels widget in URL format (if applicable)",
+      "site enable": "enable site widget",
+      "site provider": "provider of the site widget in URL format (if applicable)",
+      "resources": "resources widget: true (on), false (off), or \"ask\" (prompt each visit)",
+      "database provider": "name of the database provider in URL format (if applicable)"
+    }
+  }

@@ -347,7 +347,7 @@ function initEmbedFullscreen(widgetRoot) {
 }
 
 /**
- * Wrap embed in chrome with fullscreen control.
+ * Wrap embed in chrome with fullscreen and mute controls.
  * @param {'landscape'|'portrait'} orientation
  */
 function createEmbedWidget(embedEl, orientation) {
@@ -357,6 +357,13 @@ function createEmbedWidget(embedEl, orientation) {
 
   const toolbar = document.createElement('div');
   toolbar.className = 'embed-widget-toolbar';
+
+  const muteBtn = document.createElement('button');
+  muteBtn.type = 'button';
+  muteBtn.className = 'embed-mute-btn';
+  muteBtn.title = 'Mute';
+  muteBtn.setAttribute('aria-label', 'Mute');
+  muteBtn.textContent = '🔊';
 
   const fsBtn = document.createElement('button');
   fsBtn.type = 'button';
@@ -369,19 +376,44 @@ function createEmbedWidget(embedEl, orientation) {
   slot.className = 'embed-widget-slot';
   slot.appendChild(embedEl);
 
+  toolbar.appendChild(muteBtn);
   toolbar.appendChild(fsBtn);
   root.appendChild(toolbar);
   root.appendChild(slot);
 
   initEmbedFullscreen(root);
+  initMuteButton(root, embedEl, muteBtn);
   return root;
+}
+
+/**
+ * Wire up the mute button to toggle audio on the embedded webview/iframe.
+ */
+function initMuteButton(widgetRoot, embedEl, muteBtn) {
+  let isMuted = false;
+
+  muteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    isMuted = !isMuted;
+
+    // For webview elements, use setAudioMuted
+    if (embedEl && typeof embedEl.setAudioMuted === 'function') {
+      embedEl.setAudioMuted(isMuted);
+    }
+
+    // Update button appearance
+    muteBtn.textContent = isMuted ? '🔇' : '🔊';
+    muteBtn.title = isMuted ? 'Unmute' : 'Mute';
+    muteBtn.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
+    muteBtn.classList.toggle('is-muted', isMuted);
+  });
 }
 
 /**
  * Mount a mini browser (webview). Must use createElement — innerHTML does not
  * initialize <webview> guests in Electron.
  */
-function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation) {
+function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation, partitionName) {
   container.replaceChildren();
 
   const webview = document.createElement('webview');
@@ -389,6 +421,11 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation)
   webview.title = title;
   webview.setAttribute('allowpopups', '');
   webview.setAttribute('src', src);
+
+  // Persistent partition keeps cookies/auth across app restarts (e.g. Google sign-in)
+  if (partitionName) {
+    webview.setAttribute('partition', `persist:${partitionName}`);
+  }
 
   const widget = createEmbedWidget(webview, orientation);
 
@@ -421,6 +458,7 @@ async function renderQolEmbed(container, {
   errorMessage,
   contentTitle,
   orientation,
+  partition,
 }) {
   if (!enabled) {
     container.innerHTML = disabledMsg(`${label} is disabled in settings.`);
@@ -433,7 +471,8 @@ async function renderQolEmbed(container, {
       normalizeProviderUrl(provider),
       contentTitle,
       null,
-      orientation
+      orientation,
+      partition
     );
     return;
   }
@@ -448,7 +487,8 @@ async function renderQolEmbed(container, {
       errorUrl,
       `${contentTitle} error`,
       iframeFallback,
-      orientation
+      orientation,
+      partition
     );
   } catch (err) {
     console.error(`home.js: could not resolve error.html for ${label}`, err);
@@ -472,6 +512,7 @@ async function renderReels() {
     errorMessage: 'no reels provider specified (change in settings)',
     contentTitle: 'reels content',
     orientation: 'portrait',
+    partition: 'reels',
   });
 }
 
@@ -486,6 +527,7 @@ async function renderSite() {
     errorMessage: 'no site provider specified (change in settings)',
     contentTitle: 'site content',
     orientation: 'landscape',
+    partition: 'site',
   });
 }
 

@@ -698,6 +698,7 @@ body {
   justify-content: flex-end;
 }
 
+.embed-mute-btn,
 .embed-fullscreen-btn {
   background: #16213e;
   color: #b0b0b0;
@@ -710,10 +711,25 @@ body {
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
+.embed-mute-btn:hover,
 .embed-fullscreen-btn:hover {
   background: #0f3460;
   color: #00d4ff;
   border-color: #00d4ff;
+}
+
+.embed-mute-btn.is-muted {
+  color: #ef5350;
+  border-color: rgba(239, 83, 80, 0.45);
+}
+
+.embed-mute-btn.is-muted:hover {
+  color: #ff8a80;
+  border-color: #ff5252;
+}
+
+.embed-widget-toolbar {
+  gap: 6px;
 }
 
 .embed-widget-slot {

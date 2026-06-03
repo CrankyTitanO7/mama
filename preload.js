@@ -1,6 +1,13 @@
 // Preload script for secure context — mama
 const { contextBridge, ipcRenderer } = require('electron');
 
+// ── Streaming install state (internal, not exposed) ─────────────────────────
+let _installChunkCallback = null;
+
+ipcRenderer.on('install-chunk', (_event, chunk) => {
+  if (_installChunkCallback) _installChunkCallback(chunk);
+});
+
 contextBridge.exposeInMainWorld('versions', {
   node: () => process.versions.node,
   chrome: () => process.versions.chrome,
@@ -30,6 +37,13 @@ contextBridge.exposeInMainWorld('electron', {
   // ── Python: Install framework (GPU-variant aware) ──────────
   runInstall: (fw, gpuVariant = 'cpu', accelVersion = '') =>
                  ipcRenderer.invoke('run-install', fw, gpuVariant, accelVersion),
+
+  // ── Python: Streaming install (real-time output) ──────────
+  runInstallStream: (fw, gpuVariant, accelVersion, onChunk) => {
+    _installChunkCallback = onChunk || null;
+    return ipcRenderer.invoke('run-install-stream', fw, gpuVariant, accelVersion || '')
+      .finally(() => { _installChunkCallback = null; });
+  },
 
   // ── Python: Import test ────────────────────────────────────
   runImportTest: (framework) => ipcRenderer.invoke('run-import-test', framework),

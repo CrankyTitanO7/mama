@@ -29,6 +29,13 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// ── Streaming install state (internal, not exposed) ─────────────────────────
+let _installChunkCallback = null;
+
+ipcRenderer.on('install-chunk', (_event, chunk) => {
+  if (_installChunkCallback) _installChunkCallback(chunk);
+});
+
 contextBridge.exposeInMainWorld('electron', {
 
   // ── Detection ─────────────────────────────────────────────────────────────
@@ -43,6 +50,21 @@ contextBridge.exposeInMainWorld('electron', {
   //               or empty string — installer falls back to latest stable tag.
   runInstall:      (fw, gpuVariant, accelVersion = '') =>
                      ipcRenderer.invoke('run-install', fw, gpuVariant, accelVersion),
+
+  /**
+   * Streaming install — sends output chunks to onChunk in real-time.
+   *
+   * @param {string}   fw           'torch' | 'tf'
+   * @param {string}   gpuVariant   'cuda' | 'rocm' | 'cpu'
+   * @param {string}   accelVersion e.g. '12.1', '5.7', or ''
+   * @param {function} onChunk      Called with { type: 'stdout'|'stderr'|'done', text?, code? }
+   * @returns {Promise<{code: number}>} Resolves when the process finishes.
+   */
+  runInstallStream: (fw, gpuVariant, accelVersion, onChunk) => {
+    _installChunkCallback = onChunk || null;
+    return ipcRenderer.invoke('run-install-stream', fw, gpuVariant, accelVersion)
+      .finally(() => { _installChunkCallback = null; });
+  },
 
   runImportTest:   (fw)                        => ipcRenderer.invoke('run-import-test', fw),
 

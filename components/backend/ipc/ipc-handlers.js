@@ -207,27 +207,76 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     return _osInfo;
   }
 
-  // ── Install ──────────────────────────────────────────────────────────────
-  // fw:            'torch' | 'tf'
-  // gpuVariant:    'cuda'  | 'rocm' | 'cpu'
-  // accelVersion:  CUDA version string (e.g. '12.1') or ROCm version string
-  //                (e.g. '5.7') — pass empty string if unknown.
-  //
-  // NOTE: setup.js currently calls window.electron.runInstall(fw, gv).
-  // Update that call to window.electron.runInstall(fw, gv, accelVersion) to
-  // pass the CUDA/ROCm version detected in the GPU Detection step, so the
-  // installer can pick the exact right wheel URL.
+  // ── Install (non-streaming, kept for backward compat) ────────────────────
   ipcMain.handle('run-install', async (_event, fw, gpuVariant, accelVersion = '') => {
     const args = [fw, gpuVariant];
     if (accelVersion) args.push(accelVersion);
 
-    // Pass OS info to avoid re-detection in Python
     const osInfo = getOsInfo();
     args.push('--os-family', osInfo.osFamily);
     args.push('--distro', osInfo.distro);
 
-    // Long install — allow 20 minutes
     return runScript(SCRIPT.install, args, { timeout: 20 * 60_000 });
+  });
+
+  // ── Install (streaming) ─────────────────────────────────────────────────
+  // Streams stdout/stderr chunks to the renderer in real-time via
+  //   event.sender.send('install-chunk', { type: 'stdout'|'stderr', text })
+  // and sends a final message when done:
+  //   event.sender.send('install-chunk', { type: 'done', code })
+  ipcMain.handle('run-install-stream', async (event, fw, gpuVariant, accelVersion = '') => {
+    const args = [fw, gpuVariant];
+    if (accelVersion) args.push(accelVersion);
+
+    const osInfo = getOsInfo();
+    args.push('--os-family', osInfo.osFamily);
+    args.push('--distro', osInfo.distro);
+
+    const timeout = 20 * 60_000;
+
+    return new Promise((resolve) => {
+      const python = getPython();
+      let settled = false;
+
+      const proc = spawn(python, [SCRIPT.install, ...args], {
+        env: { ...process.env },
+      });
+
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          proc.kill();
+          event.sender.send('install-chunk', { type: 'done', code: 1 });
+          resolve({ code: 1 });
+        }
+      }, timeout);
+
+      proc.stdout.on('data', (data) => {
+        event.sender.send('install-chunk', { type: 'stdout', text: data.toString() });
+      });
+
+      proc.stderr.on('data', (data) => {
+        event.sender.send('install-chunk', { type: 'stderr', text: data.toString() });
+      });
+
+      proc.on('close', (code) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          event.sender.send('install-chunk', { type: 'done', code: code ?? 0 });
+          resolve({ code: code ?? 0 });
+        }
+      });
+
+      proc.on('error', (err) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          event.sender.send('install-chunk', { type: 'done', code: 1 });
+          resolve({ code: 1 });
+        }
+      });
+    });
   });
 
   // ── Import test ──────────────────────────────────────────────────────────

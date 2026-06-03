@@ -513,6 +513,53 @@ a:hover {
   margin-bottom: 10px;
 }
 
+/* ── Install terminal output ──────────────────────────────────────────────── */
+.setup-terminal {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 14px;
+  margin-top: 10px;
+  font-family: 'Consolas', 'Courier New', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 350px;
+  min-height: 120px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.terminal-stdout {
+  color: #c9d1d9;
+}
+
+.terminal-stderr {
+  color: #f0883e;
+}
+
+.terminal-status {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.terminal-success {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4caf50;
+  border: 1px solid #4caf50;
+}
+
+.terminal-error {
+  background: rgba(244, 67, 54, 0.15);
+  color: #f44336;
+  border: 1px solid #f44336;
+}
+
 .setup-error-msg {
   background: rgba(244, 67, 54, 0.15);
   color: #f44336;

@@ -653,6 +653,7 @@
     // ============================================
     // STEP 7: Framework Install
     // GPU-aware: shows the exact pip command before running it.
+    // Streams output to a live terminal window.
     // ============================================
     {
       id: 'fw-install',
@@ -697,38 +698,65 @@
           if (!output || !btn) return;
 
           output.style.display = 'block';
-          output.innerHTML     = '<p class="setup-hint">⏳ Installing... This may take several minutes.</p>';
+          output.innerHTML     = `
+            <p class="setup-hint">⏳ Installing... Streaming output below:</p>
+            <div id="fw-install-terminal" class="setup-terminal"></div>
+          `;
+          const terminal = document.getElementById('fw-install-terminal');
           btn.disabled         = true;
           btn.textContent      = '⏳ Installing...';
 
-          const fw  = selectedFramework || 'torch';
-          const gv  = gpuVariant();
+          const fw = selectedFramework || 'torch';
+          const gv = gpuVariant();
+          let exitCode = null;
 
           try {
-            const result = await window.electron.runInstall(fw, gv);
-            const out    = result.stdout || '';
-            const err    = result.stderr || '';
+            exitCode = await window.electron.runInstallStream(fw, gv, '', (chunk) => {
+              if (chunk.type === 'stdout' || chunk.type === 'stderr') {
+                if (terminal) {
+                  const span = document.createElement('span');
+                  span.className = chunk.type === 'stderr' ? 'terminal-stderr' : 'terminal-stdout';
+                  span.textContent = chunk.text || '';
+                  terminal.appendChild(span);
+                  // Auto-scroll to bottom
+                  terminal.scrollTop = terminal.scrollHeight;
+                }
+              } else if (chunk.type === 'done') {
+                exitCode = chunk.code;
+              }
+            });
 
-            if (result.code === 0) {
-              output.innerHTML = `
-                <div class="setup-success-msg">✅ Installation complete!</div>
-                <pre class="setup-pre">${escapeHtml(out.slice(0, 1000))}</pre>
-              `;
+            // Ensure exitCode is set (from either the resolved promise or the chunk callback)
+            if (exitCode === null) exitCode = 0;
+
+            if (exitCode === 0) {
+              // Append success message inside terminal area
+              if (terminal) {
+                const msg = document.createElement('div');
+                msg.className = 'terminal-status terminal-success';
+                msg.textContent = '✅ Installation complete!';
+                terminal.appendChild(msg);
+                terminal.scrollTop = terminal.scrollHeight;
+              }
               btn.textContent = '✓ Installed';
             } else {
-              output.innerHTML = `
-                <div class="setup-error-msg">❌ Installation failed</div>
-                <pre class="setup-pre setup-pre-error">${escapeHtml(err || out || 'Unknown error')}</pre>
-                <p class="setup-hint">
-                  Check the install command above. For NVIDIA, confirm your CUDA version with
-                  <code>nvidia-smi</code>. For AMD, confirm ROCm version with <code>rocm-smi --version</code>.
-                </p>
-              `;
+              if (terminal) {
+                const msg = document.createElement('div');
+                msg.className = 'terminal-status terminal-error';
+                msg.textContent = '❌ Installation failed — check output above.';
+                terminal.appendChild(msg);
+                terminal.scrollTop = terminal.scrollHeight;
+              }
               btn.textContent = '⬇️ Retry';
               btn.disabled    = false;
             }
           } catch (e) {
-            output.innerHTML = `<p class="setup-hint">⚠️ Error: ${escapeHtml(e.message)}</p>`;
+            if (terminal) {
+              const msg = document.createElement('div');
+              msg.className = 'terminal-status terminal-error';
+              msg.textContent = `⚠️ Error: ${e.message}`;
+              terminal.appendChild(msg);
+            }
             btn.textContent  = '⬇️ Retry';
             btn.disabled     = false;
           }

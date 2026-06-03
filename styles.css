@@ -175,7 +175,13 @@ a:hover {
 #setup-actions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
+  min-height: 42px;
+}
+
+#setup-actions .setup-btn-secondary:first-child {
+  margin-right: auto;
 }
 
 .setup-btn {

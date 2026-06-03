@@ -84,6 +84,7 @@
   // ========== Module-level state ==========
 
   let selectedFramework = null; // 'torch' | 'tf'
+  let installSucceeded  = false;
 
   // Populated by detection steps; read by later steps
   const detected = {
@@ -729,7 +730,8 @@
             // Ensure exitCode is set (from either the resolved promise or the chunk callback)
             if (exitCode === null) exitCode = 0;
 
-            if (exitCode === 0) {
+    if (exitCode === 0) {
+              installSucceeded = true;
               // Append success message inside terminal area
               if (terminal) {
                 const msg = document.createElement('div');
@@ -1037,9 +1039,7 @@
       title: 'Done!',
       render: () => `
         <h2>All Set!</h2>
-        <p>Your configuration is complete.</p>
-        <p>Click <strong>Finish</strong> to save all settings and start using mama.</p>
-        <p class="setup-hint">You can change any of these settings later from the settings page.</p>
+        <p>Your configuration is complete. Click <strong>Finish</strong> to start using mama.</p>
       `
     }
   ];
@@ -1097,64 +1097,18 @@
   async function collectAndSave() {
     if (!settingsCache) return;
 
-    for (const step of STEPS) {
-      if (!step.collect) continue;
-      const data = step.collect();
-
-      switch (step.id) {
-        case 'language':
-          settingsCache['general settings'].language = data;
-          break;
-
-        case 'appearance':
-          Object.assign(settingsCache['aesthetic settings'], data);
-          break;
-
-        case 'os-detect': {
-          const si = settingsCache['software information'] = settingsCache['software information'] || {};
-          si['OS full']   = data['OS full'];
-          si['OS pretty'] = data['OS pretty'];
-          si['OS kernel'] = data['OS kernel'];
-          break;
-        }
-
-        case 'gpu-detect':
-          settingsCache['hardware settings'] = {
-            'graphics manufacturer': data['graphics manufacturer'],
-            'target card name':      data['target card name'],
-            'cuda version':          data['cuda version'],
-            'rocm version':          data['rocm version']
-          };
-          break;
-
-        case 'framework': {
-          selectedFramework = data;
-          const si = settingsCache['software information'] = settingsCache['software information'] || {};
-          si.tf  = data === 'tf';
-          si.pyt = data !== 'tf';
-          // Persist cmake/gcc from python detection step
-          si.cmake = detected.cmakeAvailable;
-          si.gcc   = detected.gccAvailable;
-          break;
-        }
-
-        case 'fw-verify':
-          // Ephemeral — not persisted
-          break;
-
-        case 'resources':
-          Object.assign(settingsCache['resource settings'], data);
-          break;
-
-        case 'qol':
-          Object.assign(settingsCache['qol settings'], data);
-          break;
-
-        case 'security':
-          Object.assign(settingsCache['security settings'], data);
-          break;
-      }
+    // All step data was already collected incrementally by applyStepData().
+    // Only need to set framework flags (based on install result) and cmake/gcc.
+    const si = settingsCache['software information'] = settingsCache['software information'] || {};
+    if (installSucceeded && selectedFramework) {
+      si.tf  = selectedFramework === 'tf';
+      si.pyt = selectedFramework !== 'tf';
+    } else {
+      si.tf  = false;
+      si.pyt = false;
     }
+    si.cmake = detected.cmakeAvailable;
+    si.gcc   = detected.gccAvailable;
 
     try {
       await window.electron.settingsWrite(settingsCache);
@@ -1198,33 +1152,58 @@
     const backBtn   = document.getElementById('setup-back');
     const nextBtn   = document.getElementById('setup-next');
     const finishBtn = document.getElementById('setup-finish');
+    const skipBtn = document.getElementById('setup-skip');
     if (backBtn)   backBtn.style.display   = currentStep === 0                ? 'none'         : 'inline-block';
     if (nextBtn)   nextBtn.style.display   = currentStep < STEPS.length - 1  ? 'inline-block' : 'none';
     if (finishBtn) finishBtn.style.display = currentStep === STEPS.length - 1 ? 'inline-block' : 'none';
+    if (skipBtn)   skipBtn.style.display   = currentStep < STEPS.length - 1  ? 'inline-block' : 'none';
+  }
+
+  /** Collect and persist step data while DOM elements still exist. */
+  function applyStepData(step) {
+    if (!step?.collect || !settingsCache) return;
+    const data = step.collect();
+    switch (step.id) {
+      case 'language':
+        settingsCache['general settings'].language = data;
+        break;
+      case 'appearance':
+        Object.assign(settingsCache['aesthetic settings'], data);
+        break;
+      case 'os-detect': {
+        const si = settingsCache['software information'] = settingsCache['software information'] || {};
+        si['OS full']   = data['OS full'];
+        si['OS pretty'] = data['OS pretty'];
+        si['OS kernel'] = data['OS kernel'];
+        break;
+      }
+      case 'gpu-detect':
+        settingsCache['hardware settings'] = {
+          'graphics manufacturer': data['graphics manufacturer'],
+          'target card name':      data['target card name'],
+          'cuda version':          data['cuda version'],
+          'rocm version':          data['rocm version']
+        };
+        break;
+      case 'framework':
+        selectedFramework = data;
+        break;
+      case 'resources':
+        Object.assign(settingsCache['resource settings'], data);
+        break;
+      case 'qol':
+        Object.assign(settingsCache['qol settings'], data);
+        break;
+      case 'security':
+        Object.assign(settingsCache['security settings'], data);
+        break;
+    }
   }
 
   async function nextStep() {
     const step = STEPS[currentStep];
-
-    // Commit framework choice immediately when leaving that step
-    if (step?.id === 'framework' && step.collect) {
-      const fw = step.collect();
-      selectedFramework = fw;
-      if (settingsCache) {
-        const si  = settingsCache['software information'] = settingsCache['software information'] || {};
-        si.tf  = fw === 'tf';
-        si.pyt = fw !== 'tf';
-        try {
-          const current = await window.electron.settingsRead() || settingsCache;
-          current['software information']     = current['software information'] || {};
-          current['software information'].tf  = si.tf;
-          current['software information'].pyt = si.pyt;
-          await window.electron.settingsWriteNonbackup(current);
-        } catch (e) {
-          console.warn('Could not save framework selection immediately:', e);
-        }
-      }
-    }
+    // Collect step data while DOM elements still exist
+    applyStepData(step);
 
     if (currentStep < STEPS.length - 1) {
       currentStep++;
@@ -1271,7 +1250,15 @@
 
     document.getElementById('setup-next')?.addEventListener('click', nextStep);
     document.getElementById('setup-back')?.addEventListener('click', prevStep);
-    document.getElementById('setup-skip')?.addEventListener('click', collectAndSave);
+    document.getElementById('setup-skip')?.addEventListener('click', async () => {
+      // Skip: mark setup complete and navigate away WITHOUT modifying any settings
+      try {
+        await window.electron.setupComplete();
+        await window.electron.navigateTo('public/index.html');
+      } catch (e) {
+        console.error('Skip failed:', e);
+      }
+    });
     document.getElementById('setup-finish')?.addEventListener('click', collectAndSave);
 
     renderStep();

@@ -321,7 +321,7 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
 
   ipcMain.handle('setup-complete', async () => {
     try {
-      const settings = readSettings(settingsFilePath) || {};
+      const settings = readSettingsFromStore(settingsFilePath) || {};
       if (!settings['general settings']) settings['general settings'] = {};
       settings['general settings'].setup = false;   // mark setup done
       writeSettings(settingsFilePath, settings, false);

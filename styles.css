@@ -484,6 +484,12 @@ a:hover {
   overflow-y: auto;
 }
 
+/* Allow install output to grow larger (terminal needs more space) */
+#fw-install-output {
+  max-height: none;
+  overflow: visible;
+}
+
 .setup-pre {
   background: #111;
   padding: 12px;
@@ -526,8 +532,7 @@ a:hover {
   color: #c9d1d9;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 350px;
-  min-height: 120px;
+  height: 500px;
   overflow-y: auto;
   scroll-behavior: smooth;
 }

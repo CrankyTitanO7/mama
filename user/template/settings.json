@@ -58,8 +58,9 @@
         "site enable": false,                       // site widget (landscape mini-browser)
         "site provider": null,                      // URL for site content
 
-        "resources": "ask",                         // resources widget: true | false | "ask"
+        "database explorer enable": true,           // database explorer widget (landscape mini-browser)
+        "database provider": null,                  // URL for database content
 
-        "database provider": null                   // e.g. huggingface dataset URL
+        "resources": "ask"                          // resources widget: true | false | "ask"
     }
 }

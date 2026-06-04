@@ -945,6 +945,17 @@
               placeholder="e.g. youtube" value="${escapeHtml(qol['site provider'] || qol['video provider'] || '')}">
           </div>
           <div class="setup-field">
+            <label class="setup-checkbox-label">
+              <input type="checkbox" id="setup-db-explorer" ${qol['database explorer enable'] ? 'checked' : ''}>
+              Enable Database Explorer
+            </label>
+          </div>
+          <div class="setup-field">
+            <label>Database Provider:</label>
+            <input type="text" id="setup-db-provider" class="setup-input"
+              placeholder="e.g. huggingface" value="${escapeHtml(qol['database provider'] || '')}">
+          </div>
+          <div class="setup-field">
             <label>Resources:</label>
             <select id="setup-resources" class="setup-select">
               <option value="ask"  ${(qol['resources'] ?? qol['task manager']) === 'ask'  ? 'selected' : ''}>Ask</option>
@@ -952,25 +963,21 @@
               <option value="false" ${(qol['resources'] ?? qol['task manager']) === false || (qol['resources'] ?? qol['task manager']) === 'never' ? 'selected' : ''}>Disabled</option>
             </select>
           </div>
-          <div class="setup-field">
-            <label>Database Provider:</label>
-            <input type="text" id="setup-db-provider" class="setup-input"
-              placeholder="e.g. huggingface" value="${escapeHtml(qol['database provider'] || '')}">
-          </div>
         `;
       },
       collect: () => ({
-        'reels enable':      document.getElementById('setup-reels')?.checked          || false,
-        'reels provider':    document.getElementById('setup-reels-provider')?.value   || null,
-        'site enable':       document.getElementById('setup-site')?.checked           || false,
-        'site provider':     document.getElementById('setup-site-provider')?.value     || null,
-        'resources':         (() => {
+        'reels enable':            document.getElementById('setup-reels')?.checked          || false,
+        'reels provider':          document.getElementById('setup-reels-provider')?.value   || null,
+        'site enable':             document.getElementById('setup-site')?.checked           || false,
+        'site provider':           document.getElementById('setup-site-provider')?.value     || null,
+        'database explorer enable': document.getElementById('setup-db-explorer')?.checked   || false,
+        'database provider':       document.getElementById('setup-db-provider')?.value      || null,
+        'resources':               (() => {
           const v = document.getElementById('setup-resources')?.value;
           if (v === 'true') return true;
           if (v === 'false') return false;
           return 'ask';
-        })(),
-        'database provider': document.getElementById('setup-db-provider')?.value      || null
+        })()
       })
     },
 

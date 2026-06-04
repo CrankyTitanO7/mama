@@ -6,41 +6,12 @@
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body>
-    <div class="topbar">
-            <span class="topbar-brand" style="cursor:pointer" onclick="window.electron.navigateTo('public/index.html')">mama</span>
-            <div class="topbar-nav">
-                <button
-                    class="topbar-btn"
-                    onclick="window.electron.navigateTo('public/setup.html')"
-                >
-                    🔧 Setup
-                </button>
-                <button
-                    class="topbar-btn"
-                    onclick="window.electron.navigateTo('public/settings.html')"
-                >
-                    ⚙️ Settings
-                </button>
-                <button
-                    class="topbar-btn"
-                    onclick="window.electron.navigateTo('public/mission_control.html')"
-                >
-                    mission control
-                </button>
-                <button
-                    class="topbar-btn"
-                    onclick="window.electron.navigateTo('public/multicon.html')"
-                >
-                    multimodel designer
-                </button>
-                <button
-                    class="topbar-btn"
-                    onclick="window.electron.navigateTo('public/export.html')"
-                >
-                    export model
-                </button>
-            </div>
-        </div>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('index');
+      });
+    </script>
 
     <div class="page-content">
       <h1>Welcome to mama</h1>

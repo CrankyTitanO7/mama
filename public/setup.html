@@ -6,8 +6,17 @@
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body>
-    <div id="setup-app">
-      <p class="loading-text">Loading setup wizard...</p>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('setup');
+      });
+    </script>
+
+    <div class="page-content">
+      <div id="setup-app">
+        <p class="loading-text">Loading setup wizard...</p>
+      </div>
     </div>
     <script src="../components/setup/setup.js"></script>
   </body>

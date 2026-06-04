@@ -6,10 +6,19 @@
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body class="error-page-body">
-    <div class="error-page">
-      <h2>Something went wrong</h2>
-      <p id="error-message" class="error-message">An error occurred.</p>
-      <!-- <p class="error-hint">Update the provider in Settings from the top bar.</p> -->
+    <!-- <script src="../components/elements/topbar.js"></script> -->
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('error');
+      });
+    </script>
+
+    <div class="page-content" style="display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 60px); padding: 24px;">
+      <div class="error-page">
+        <h2>Something went wrong</h2>
+        <p id="error-message" class="error-message">An error occurred.</p>
+        <p class="error-hint">Update the provider in Settings from the top bar.</p>
+      </div>
     </div>
     <script>
       const params = new URLSearchParams(location.search);

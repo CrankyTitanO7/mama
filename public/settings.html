@@ -6,17 +6,26 @@
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body>
-    <div id="settings-app">
-      <header id="settings-header">
-        <h1>⚙️ Settings</h1>
-        <nav>
-          <button type="button" class="nav-btn" data-settings-nav="public/index.html">🏠 Home</button>
-          <button type="button" class="nav-btn" data-settings-nav="public/setup.html">🔧 Setup Wizard</button>
-        </nav>
-      </header>
-      <div id="settings-status" class="settings-status" style="display:none"></div>
-      <div id="settings-content">
-        <p class="loading-text">Loading settings...</p>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('settings');
+      });
+    </script>
+
+    <div class="page-content">
+      <div id="settings-app">
+        <header id="settings-header">
+          <h1>⚙️ Settings</h1>
+          <nav>
+            <button type="button" class="nav-btn" data-settings-nav="public/index.html">🏠 Home</button>
+            <button type="button" class="nav-btn" data-settings-nav="public/setup.html">🔧 Setup Wizard</button>
+          </nav>
+        </header>
+        <div id="settings-status" class="settings-status" style="display:none"></div>
+        <div id="settings-content">
+          <p class="loading-text">Loading settings...</p>
+        </div>
       </div>
     </div>
     <script src="../components/setup/settings.js"></script>

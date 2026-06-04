@@ -627,6 +627,17 @@ a:hover {
   background: #1a1a2e;
 }
 
+.topbar-btn.active {
+  color: #00d4ff;
+  border-color: #00d4ff;
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.topbar-btn.active:hover {
+  color: #00d4ff;
+  background: rgba(0, 212, 255, 0.2);
+}
+
 /* Push page content below fixed topbar */
 .page-content {
   margin-top: 60px;

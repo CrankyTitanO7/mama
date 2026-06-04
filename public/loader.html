@@ -1,1 +1,30 @@
 <!-- place to hang while model works. -->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>mama - Loading</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('loader');
+      });
+    </script>
+
+    <div class="page-content" style="text-align: center; padding-top: 100px;">
+      <h1>Loading...</h1>
+      <p>Please wait while the model processes.</p>
+      <div class="loading-spinner" style="margin: 40px auto; width: 40px; height: 40px; border: 4px solid #0f3460; border-top-color: #00d4ff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+    </div>
+
+    <style>
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </body>
+</html>

@@ -15,6 +15,7 @@ class Topbar {
       { label: '⚙️ Settings', page: 'settings.html', key: 'settings' },
       { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
       { label: 'multimodel designer', page: 'multicon.html', key: 'multicon' },
+      { label: 'database explorer', page: 'db_explorer.html', key: 'db_explorer' },
       { label: 'export model', page: 'export.html', key: 'export' }
     ];
   }
@@ -23,7 +24,7 @@ class Topbar {
     // Map page keys that don't have nav items to their parent section
     const keyMap = {
       'loader': 'mission_control',
-      'db_explorer': 'settings',
+      'db_explorer': 'db_explorer',
       'error': 'settings'
     };
     return keyMap[this.currentPage] || this.currentPage;

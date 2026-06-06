@@ -25,5 +25,8 @@
   "type": "commonjs",
   "devDependencies": {
     "electron": "latest"
+  },
+  "allowScripts": {
+    "electron@41.3.0": true
   }
 }

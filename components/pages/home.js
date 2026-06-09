@@ -1,25 +1,11 @@
 /**
  * home.js — Front-end controller for public/index.html
- *
- * Handles dynamic content for the home page flex-box layout:
- *  - status:        terminal output / model learning visualization
- *  - resources:     top tasks / resource consumption (if enabled in settings)
- *  - quick actions: pause/play, cancel, open folder
- *  - reels:         embedded BrowserWindow content (if enabled in settings)
- *  - site:          embedded BrowserWindow content (if enabled in settings)
- *
- * This script is loaded by public/index.html via <script> tag.
- * Communicates with main process through window.electron IPC.
  */
 
 'use strict';
 
-// ── State ────────────────────────────────────────────────────────────────────
 let settings = null;
 
-// ── Utility ───────────────────────────────────────────────────────────────────
-
-/** Safely query a nested key from settings, returning fallback if missing. */
 function getSetting(...keys) {
   let obj = settings;
   for (const key of keys) {
@@ -29,7 +15,6 @@ function getSetting(...keys) {
   return obj;
 }
 
-/** QoL setting with optional legacy key (pre-widget rename). */
 function getQolSetting(key, legacyKey) {
   const val = getSetting('qol settings', key);
   if (val !== undefined) return val;
@@ -37,25 +22,13 @@ function getQolSetting(key, legacyKey) {
   return undefined;
 }
 
-/**
- * Generate disabled message with "enable?" link that navigates to settings.
- */
 function disabledMsg(text) {
   return `<p class="disabled-msg">${text} <a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/settings.html')">enable?</a></p>`;
 }
 
-// ── Box renderers ─────────────────────────────────────────────────────────────
-
-/**
- * Status box — placeholder for terminal output / model learning visualization.
- * Future: this could stream logs from a running training process via IPC.
- */
 function renderStatus() {
   const container = document.getElementById('status-content');
   if (!container) return;
-
-  // Static placeholder for now. In the future this will be populated
-  // by IPC events emitting model training logs / loss curves.
   container.innerHTML = `
     <div class="status-placeholder">
       <p>No active training session.</p>
@@ -64,17 +37,9 @@ function renderStatus() {
   `;
 }
 
-/**
- * Normalize task manager setting to enabled | disabled | ask.
- * Accepts true/false/"ask" and legacy always/never/disabled/enabled strings.
- */
 function resolveTaskManagerMode(raw) {
-  if (raw === true || raw === 'true' || raw === 'enabled' || raw === 'always') {
-    return 'enabled';
-  }
-  if (raw === false || raw === 'false' || raw === 'disabled' || raw === 'never') {
-    return 'disabled';
-  }
+  if (raw === true || raw === 'true' || raw === 'enabled' || raw === 'always') return 'enabled';
+  if (raw === false || raw === 'false' || raw === 'disabled' || raw === 'never') return 'disabled';
   return 'ask';
 }
 
@@ -95,9 +60,6 @@ function showTaskManagerPrompt(container) {
   });
 }
 
-/**
- * Resources box — gated by qol settings → resources (true / false / ask).
- */
 async function renderResources() {
   const container = document.getElementById('resources-content');
   if (!container) return;
@@ -112,9 +74,7 @@ async function renderResources() {
   if (mode === 'ask') {
     const enabled = await showTaskManagerPrompt(container);
     if (!enabled) {
-      container.innerHTML = `
-        <p class="disabled-msg">Resource monitoring skipped for this visit.</p>
-      `;
+      container.innerHTML = `<p class="disabled-msg">Resource monitoring skipped for this visit.</p>`;
       return;
     }
   }
@@ -126,119 +86,75 @@ async function renderResources() {
   }
 }
 
-/**
- * Quick actions box — pause/play, cancel, open folder buttons.
- * Buttons are already present in the HTML; this wires up click handlers.
- */
 function renderQuickActions() {
   const container = document.getElementById('quick-actions-content');
   if (!container) return;
 
-  // Buttons are static in HTML, but we can add dynamic wiring here.
-  // Example: attach IPC calls to each button.
-  const pausePlayBtn = container.querySelector('.qa-pause-play');
-  const cancelBtn    = container.querySelector('.qa-cancel');
+  const pausePlayBtn  = container.querySelector('.qa-pause-play');
+  const cancelBtn     = container.querySelector('.qa-cancel');
   const openFolderBtn = container.querySelector('.qa-open-folder');
 
-  if (pausePlayBtn) {
-    pausePlayBtn.addEventListener('click', () => {
-      // Future: IPC call to pause/resume the current training job.
-      console.log('pause/play toggled');
-    });
-  }
-
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      // Future: IPC call to cancel the current training job.
-      console.log('cancel requested');
-    });
-  }
-
-  if (openFolderBtn) {
-    openFolderBtn.addEventListener('click', () => {
-      // Future: IPC call to open the project folder in file explorer.
-      console.log('open folder requested');
-    });
-  }
+  pausePlayBtn?.addEventListener('click',  () => console.log('pause/play toggled'));
+  cancelBtn?.addEventListener('click',     () => console.log('cancel requested'));
+  openFolderBtn?.addEventListener('click', () => console.log('open folder requested'));
 }
 
-/** True when settings contain a non-empty provider URL string. */
 function hasProviderUrl(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-// ── Embed fullscreen (site = landscape, reels = portrait) ─────────────────────
+// ── Embed fullscreen ──────────────────────────────────────────────────────────
 
 let activeFullscreen = null;
 
-const FULLSCREEN_MARGIN = 16;
+const FULLSCREEN_MARGIN     = 16;
 const FULLSCREEN_CLOSE_SIZE = 44;
-const FULLSCREEN_CLOSE_GAP = 8;
-/** Header row above the panel (close button lives here, inside the stage). */
-const FULLSCREEN_HEADER = FULLSCREEN_CLOSE_SIZE + FULLSCREEN_CLOSE_GAP;
+const FULLSCREEN_CLOSE_GAP  = 8;
+const FULLSCREEN_HEADER     = FULLSCREEN_CLOSE_SIZE + FULLSCREEN_CLOSE_GAP;
 
 function clampStageRect(rect) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const width = Math.max(FULLSCREEN_CLOSE_SIZE, Math.min(rect.width, vw - FULLSCREEN_MARGIN * 2));
-  const height = Math.max(
-    FULLSCREEN_HEADER + 80,
-    Math.min(rect.height, vh - FULLSCREEN_MARGIN * 2)
-  );
-  let top = Math.max(FULLSCREEN_MARGIN, rect.top);
-  let left = Math.max(FULLSCREEN_MARGIN, rect.left);
-  top = Math.min(top, vh - FULLSCREEN_MARGIN - height);
-  left = Math.min(left, vw - FULLSCREEN_MARGIN - width);
+  const height = Math.max(FULLSCREEN_HEADER + 80, Math.min(rect.height, vh - FULLSCREEN_MARGIN * 2));
+  let top  = Math.min(Math.max(FULLSCREEN_MARGIN, rect.top),  vh - FULLSCREEN_MARGIN - height);
+  let left = Math.min(Math.max(FULLSCREEN_MARGIN, rect.left), vw - FULLSCREEN_MARGIN - width);
   return { top, left, width, height };
 }
 
-/**
- * Fullscreen stage rect (panel + header row), centered and clamped inside the window.
- */
 function computeFullscreenStageRect(orientation) {
-  const maxW = window.innerWidth - FULLSCREEN_MARGIN * 2;
+  const maxW        = window.innerWidth  - FULLSCREEN_MARGIN * 2;
   const maxContentH = window.innerHeight - FULLSCREEN_MARGIN * 2 - FULLSCREEN_HEADER;
 
-  let contentW;
-  let contentH;
-
+  let contentW, contentH;
   if (orientation === 'portrait') {
     contentH = Math.min(maxContentH, (maxW * 16) / 9);
     contentW = (contentH * 9) / 16;
-    if (contentW > maxW) {
-      contentW = maxW;
-      contentH = (contentW * 16) / 9;
-    }
+    if (contentW > maxW) { contentW = maxW; contentH = (contentW * 16) / 9; }
   } else {
     contentW = maxW;
     contentH = maxContentH;
   }
 
-  const stageW = contentW;
-  const stageH = contentH + FULLSCREEN_HEADER;
-
   return clampStageRect({
-    top: (window.innerHeight - stageH) / 2,
-    left: (window.innerWidth - stageW) / 2,
-    width: stageW,
-    height: stageH,
+    top:    (window.innerHeight - contentH - FULLSCREEN_HEADER) / 2,
+    left:   (window.innerWidth  - contentW) / 2,
+    width:  contentW,
+    height: contentH + FULLSCREEN_HEADER,
   });
 }
 
-/** Stage rect when animating from the inline embed slot. */
 function stageRectFromSlot(slotRect) {
   return clampStageRect({
-    top: slotRect.top,
-    left: slotRect.left,
-    width: slotRect.width,
-    height: slotRect.height + FULLSCREEN_HEADER,
+    top: slotRect.top, left: slotRect.left,
+    width: slotRect.width, height: slotRect.height + FULLSCREEN_HEADER,
   });
 }
 
 function applyStageRect(stage, rect) {
-  stage.style.top = `${rect.top}px`;
-  stage.style.left = `${rect.left}px`;
-  stage.style.width = `${rect.width}px`;
+  stage.style.top    = `${rect.top}px`;
+  stage.style.left   = `${rect.left}px`;
+  stage.style.width  = `${rect.width}px`;
   stage.style.height = `${rect.height}px`;
 }
 
@@ -252,11 +168,11 @@ function onFullscreenKeyDown(event) {
 function enterEmbedFullscreen(widgetRoot) {
   if (activeFullscreen) return;
 
-  const slot = widgetRoot.querySelector('.embed-widget-slot');
+  const slot  = widgetRoot.querySelector('.embed-widget-slot');
   const embed = slot?.firstElementChild;
   if (!embed) return;
 
-  const startRect = embed.getBoundingClientRect();
+  const startRect   = embed.getBoundingClientRect();
   const orientation = widgetRoot.dataset.orientation || 'landscape';
   const targetStage = computeFullscreenStageRect(orientation);
 
@@ -264,22 +180,38 @@ function enterEmbedFullscreen(widgetRoot) {
   overlay.className = 'embed-fullscreen-overlay';
   overlay.addEventListener('click', () => exitEmbedFullscreen());
 
+  // Stage: flex column so closeBtn + panel divide the pixel height correctly
   const stage = document.createElement('div');
   stage.className = 'embed-fullscreen-stage';
+  Object.assign(stage.style, {
+    display:        'flex',
+    flexDirection:  'column',
+    overflow:       'hidden',
+  });
   stage.addEventListener('click', (e) => e.stopPropagation());
 
-  const panel = document.createElement('div');
-  panel.className = 'embed-fullscreen-panel';
-
+  // Close button: fixed-height row at the top
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'embed-fullscreen-close';
   closeBtn.setAttribute('aria-label', 'Exit fullscreen');
   closeBtn.title = 'Exit fullscreen';
   closeBtn.textContent = '×';
-  closeBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    exitEmbedFullscreen();
+  Object.assign(closeBtn.style, {
+    flexShrink: '0',
+    height:     `${FULLSCREEN_CLOSE_SIZE}px`,
+  });
+  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); exitEmbedFullscreen(); });
+
+  // Panel: takes all remaining height after the close button
+  const panel = document.createElement('div');
+  panel.className = 'embed-fullscreen-panel';
+  Object.assign(panel.style, {
+    flex:          '1',
+    minHeight:     '0',
+    display:       'flex',
+    flexDirection: 'column',
+    overflow:      'hidden',
   });
 
   applyStageRect(stage, stageRectFromSlot(startRect));
@@ -293,7 +225,6 @@ function enterEmbedFullscreen(widgetRoot) {
 
   const onKeyDown = onFullscreenKeyDown;
   document.addEventListener('keydown', onKeyDown, true);
-
   activeFullscreen = { overlay, stage, panel, slot, embed, onKeyDown };
 
   requestAnimationFrame(() => {
@@ -312,7 +243,6 @@ function exitEmbedFullscreen() {
 
   const slotRect = slot.getBoundingClientRect();
   applyStageRect(stage, stageRectFromSlot(slotRect));
-
   overlay.classList.remove('is-visible');
 
   let finished = false;
@@ -328,22 +258,15 @@ function exitEmbedFullscreen() {
   stage.addEventListener('transitionend', (e) => {
     if (e.propertyName === 'width') finish();
   }, { once: true });
-
   setTimeout(finish, 480);
 }
 
 function initEmbedFullscreen(widgetRoot) {
   const fsBtn = widgetRoot.querySelector('.embed-fullscreen-btn');
-  const slot = widgetRoot.querySelector('.embed-widget-slot');
+  const slot  = widgetRoot.querySelector('.embed-widget-slot');
 
-  fsBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    enterEmbedFullscreen(widgetRoot);
-  });
-
-  slot?.addEventListener('dblclick', () => {
-    enterEmbedFullscreen(widgetRoot);
-  });
+  fsBtn?.addEventListener('click', (e) => { e.stopPropagation(); enterEmbedFullscreen(widgetRoot); });
+  slot?.addEventListener('dblclick', () => enterEmbedFullscreen(widgetRoot));
 }
 
 /**
@@ -354,9 +277,19 @@ function createEmbedWidget(embedEl, orientation) {
   const root = document.createElement('div');
   root.className = 'embed-widget';
   root.dataset.orientation = orientation;
+  // flex:1 stretches in a flex parent; height:100% fills when parent is block
+  Object.assign(root.style, {
+    display:       'flex',
+    flexDirection: 'column',
+    flex:          '1',
+    height:        '100%',
+    minHeight:     '0',
+    overflow:      'hidden',
+  });
 
   const toolbar = document.createElement('div');
   toolbar.className = 'embed-widget-toolbar';
+  toolbar.style.flexShrink = '0';   // never let the toolbar get squeezed away
 
   const muteBtn = document.createElement('button');
   muteBtn.type = 'button';
@@ -374,6 +307,14 @@ function createEmbedWidget(embedEl, orientation) {
 
   const slot = document.createElement('div');
   slot.className = 'embed-widget-slot';
+  // slot must be a flex column so the webview/iframe inside can use flex:1
+  Object.assign(slot.style, {
+    display:       'flex',
+    flexDirection: 'column',
+    flex:          '1',
+    minHeight:     '0',
+    overflow:      'hidden',
+  });
   slot.appendChild(embedEl);
 
   toolbar.appendChild(muteBtn);
@@ -386,22 +327,15 @@ function createEmbedWidget(embedEl, orientation) {
   return root;
 }
 
-/**
- * Wire up the mute button to toggle audio on the embedded webview/iframe.
- */
 function initMuteButton(widgetRoot, embedEl, muteBtn) {
   let isMuted = false;
 
   muteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     isMuted = !isMuted;
-
-    // For webview elements, use setAudioMuted
     if (embedEl && typeof embedEl.setAudioMuted === 'function') {
       embedEl.setAudioMuted(isMuted);
     }
-
-    // Update button appearance
     muteBtn.textContent = isMuted ? '🔇' : '🔊';
     muteBtn.title = isMuted ? 'Unmute' : 'Mute';
     muteBtn.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
@@ -414,6 +348,17 @@ function initMuteButton(widgetRoot, embedEl, muteBtn) {
  * initialize <webview> guests in Electron.
  */
 function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation, partitionName) {
+  // Give the container a flex column so the embed widget can stretch into it.
+  // Without this, flex:1 on the widget has nothing to measure against.
+  Object.assign(container.style, {
+    display:       'flex',
+    flexDirection: 'column',
+    flex:          '1',
+    height:        '100%',
+    minHeight:     '0',
+    overflow:      'hidden',
+  });
+
   container.replaceChildren();
 
   const webview = document.createElement('webview');
@@ -421,8 +366,16 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
   webview.title = title;
   webview.setAttribute('allowpopups', '');
   webview.setAttribute('src', src);
+  // flex:1 + align-self:stretch fills the flex column correctly.
+  // height:100% alone is circular inside a flex container and collapses.
+  Object.assign(webview.style, {
+    flex:      '1',
+    alignSelf: 'stretch',
+    width:     '100%',
+    minHeight: '0',
+    display:   'flex',
+  });
 
-  // Persistent partition keeps cookies/auth across app restarts (e.g. Google sign-in)
   if (partitionName) {
     webview.setAttribute('partition', `persist:${partitionName}`);
   }
@@ -441,24 +394,22 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
     iframe.className = 'embed-frame site-fallback';
     iframe.title = title;
     iframe.setAttribute('src', iframeFallbackSrc);
+    Object.assign(iframe.style, {
+      flex:      '1',
+      alignSelf: 'stretch',
+      width:     '100%',
+      minHeight: '0',
+      border:    'none',
+      height:    '100%',
+    });
     slot.replaceChildren(iframe);
   });
 
   container.appendChild(widget);
 }
 
-/**
- * Shared QoL embed widget (site/video and reels use the same logic).
- * Portrait vs landscape only affects fullscreen dimensions.
- */
 async function renderQolEmbed(container, {
-  enabled,
-  provider,
-  label,
-  errorMessage,
-  contentTitle,
-  orientation,
-  partition,
+  enabled, provider, label, errorMessage, contentTitle, orientation, partition,
 }) {
   if (!enabled) {
     container.innerHTML = disabledMsg(`${label} is disabled in settings.`);
@@ -466,30 +417,14 @@ async function renderQolEmbed(container, {
   }
 
   if (hasProviderUrl(provider)) {
-    mountMiniBrowser(
-      container,
-      normalizeProviderUrl(provider),
-      contentTitle,
-      null,
-      orientation,
-      partition
-    );
+    mountMiniBrowser(container, normalizeProviderUrl(provider), contentTitle, null, orientation, partition);
     return;
   }
 
   const iframeFallback = `error.html?error=${encodeURIComponent(errorMessage)}`;
   try {
-    const errorUrl = await window.electron.resolvePublicUrl('error.html', {
-      error: errorMessage,
-    });
-    mountMiniBrowser(
-      container,
-      errorUrl,
-      `${contentTitle} error`,
-      iframeFallback,
-      orientation,
-      partition
-    );
+    const errorUrl = await window.electron.resolvePublicUrl('error.html', { error: errorMessage });
+    mountMiniBrowser(container, errorUrl, `${contentTitle} error`, iframeFallback, orientation, partition);
   } catch (err) {
     console.error(`home.js: could not resolve error.html for ${label}`, err);
     container.replaceChildren();
@@ -497,6 +432,13 @@ async function renderQolEmbed(container, {
     iframe.className = 'embed-frame site-fallback';
     iframe.title = `${contentTitle} error`;
     iframe.setAttribute('src', iframeFallback);
+    Object.assign(iframe.style, {
+      flex:      '1',
+      alignSelf: 'stretch',
+      width:     '100%',
+      minHeight: '0',
+      border:    'none',
+    });
     container.appendChild(createEmbedWidget(iframe, orientation));
   }
 }
@@ -504,65 +446,47 @@ async function renderQolEmbed(container, {
 async function renderReels() {
   const container = document.getElementById('reels-content');
   if (!container) return;
-
   await renderQolEmbed(container, {
-    enabled: getSetting('qol settings', 'reels enable'),
-    provider: getSetting('qol settings', 'reels provider'),
-    label: 'Reels',
+    enabled:      getSetting('qol settings', 'reels enable'),
+    provider:     getSetting('qol settings', 'reels provider'),
+    label:        'Reels',
     errorMessage: 'no reels provider specified (change in settings)',
     contentTitle: 'reels content',
-    orientation: 'portrait',
-    partition: 'reels',
+    orientation:  'portrait',
+    partition:    'reels',
   });
 }
 
 async function renderSite() {
   const container = document.getElementById('site-content');
   if (!container) return;
-
   await renderQolEmbed(container, {
-    enabled: getQolSetting('site enable', 'video enable'),
-    provider: getQolSetting('site provider', 'video provider'),
-    label: 'Site',
+    enabled:      getQolSetting('site enable', 'video enable'),
+    provider:     getQolSetting('site provider', 'video provider'),
+    label:        'Site',
     errorMessage: 'no site provider specified (change in settings)',
     contentTitle: 'site content',
-    orientation: 'landscape',
-    partition: 'site',
+    orientation:  'landscape',
+    partition:    'site',
   });
 }
 
-// ── Sanitize URL helper ───────────────────────────────────────────────────────
-
-/**
- * Basic URL sanitizer to prevent XSS via iframe src.
- * Only allows http/https URLs. Returns 'about:blank' for invalid input.
- */
 function sanitizeUrl(url) {
   if (typeof url !== 'string') return 'about:blank';
   const trimmed = url.trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
-  }
-  return 'about:blank';
+  return (trimmed.startsWith('http://') || trimmed.startsWith('https://')) ? trimmed : 'about:blank';
 }
 
-/** Normalize video provider to a loadable http(s) URL. */
 function normalizeProviderUrl(url) {
   const trimmed = String(url || '').trim();
   if (!trimmed) return 'about:blank';
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
-  }
-  return `https://${trimmed}`;
+  return (trimmed.startsWith('http://') || trimmed.startsWith('https://')) ? trimmed : `https://${trimmed}`;
 }
 
-/** Escape a string for use inside an HTML attribute value. */
 function escapeHtmlAttr(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -576,7 +500,6 @@ function escapeHtmlAttr(str) {
 
   renderStatus();
   renderQuickActions();
-  // Each widget loads independently — do not await resources (may wait on task-manager prompt).
   void renderResources();
   void renderReels();
   void renderSite();

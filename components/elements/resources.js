@@ -69,12 +69,12 @@ function initResourcesWidget(container) {
           Refresh every
           <input
             id="res-interval-input"
-            class="resources-interval-input"
-            type="number"
+            class="resources-interval-slider"
+            type="range"
             min="1" max="60" step="1"
             value="3"
           >
-          s
+          <span id="res-interval-value" class="resources-interval-value">3s</span>
         </label>
       </div>
 
@@ -664,8 +664,25 @@ function initResourcesWidget(container) {
   }
 
   const intervalInput = container.querySelector('#res-interval-input');
-  intervalInput?.addEventListener('input', restartRefreshTimer);
-  intervalInput?.addEventListener('change', restartRefreshTimer);
+  const intervalValue = container.querySelector('#res-interval-value');
+
+  function updateIntervalDisplay() {
+    if (intervalValue) {
+      intervalValue.textContent = `${getRefreshSeconds()}s`;
+    }
+  }
+
+  intervalInput?.addEventListener('input', () => {
+    updateIntervalDisplay();
+    restartRefreshTimer();
+  });
+  intervalInput?.addEventListener('change', () => {
+    updateIntervalDisplay();
+    restartRefreshTimer();
+  });
+
+  // Initialize display
+  updateIntervalDisplay();
 
   // ── Kick off ──────────────────────────────────────────────────────────────
   refresh();

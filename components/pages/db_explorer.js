@@ -228,7 +228,9 @@ function createEmbedWidget(embedEl, orientation) {
   root.style.display = 'flex';
   root.style.flexDirection = 'column';
   root.style.flex = '1';
+  root.style.height = '100%';     // fills container when parent is not a flex context
   root.style.minHeight = '0';
+  root.style.overflow = 'hidden';
 
   const toolbar = document.createElement('div');
   toolbar.className = 'embed-widget-toolbar';
@@ -294,6 +296,18 @@ function initMuteButton(widgetRoot, embedEl, muteBtn) {
  * initialize <webview> guests in Electron.
  */
 function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation, partitionName) {
+  // Ensure the container itself forms a full-height flex column.
+  // Without this, flex:1 on the embed widget has nothing to stretch against
+  // and the webview collapses to its intrinsic (near-zero) height.
+  Object.assign(container.style, {
+    display:       'flex',
+    flexDirection: 'column',
+    flex:          '1',
+    height:        '100%',
+    minHeight:     '0',
+    overflow:      'hidden',
+  });
+
   container.replaceChildren();
 
   const webview = document.createElement('webview');
@@ -301,6 +315,14 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
   webview.title = title;
   webview.setAttribute('allowpopups', '');
   webview.setAttribute('src', src);
+  // In a flex column, flex:1 + align-self:stretch fills available space.
+  // height:100% alone doesn't work inside a flex container whose height
+  // is determined by its children — it creates a circular dependency.
+  webview.style.flex        = '1';
+  webview.style.alignSelf   = 'stretch';
+  webview.style.width       = '100%';
+  webview.style.minHeight   = '0';
+  webview.style.display     = 'flex';
 
   // Persistent partition keeps cookies/auth across app restarts
   if (partitionName) {
@@ -321,6 +343,11 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
     iframe.className = 'embed-frame site-fallback';
     iframe.title = title;
     iframe.setAttribute('src', iframeFallbackSrc);
+    iframe.style.flex      = '1';
+    iframe.style.alignSelf = 'stretch';
+    iframe.style.width     = '100%';
+    iframe.style.minHeight = '0';
+    iframe.style.border    = 'none';
     slot.replaceChildren(iframe);
   });
 
@@ -381,6 +408,11 @@ async function renderDbExplorer() {
     iframe.className = 'embed-frame site-fallback';
     iframe.title = 'Database Explorer error';
     iframe.setAttribute('src', iframeFallback);
+    iframe.style.flex      = '1';
+    iframe.style.alignSelf = 'stretch';
+    iframe.style.width     = '100%';
+    iframe.style.minHeight = '0';
+    iframe.style.border    = 'none';
     container.appendChild(createEmbedWidget(iframe, 'landscape'));
   }
 }

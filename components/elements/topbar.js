@@ -15,6 +15,7 @@ class Topbar {
       { label: '⚙️ Settings', page: 'settings.html', key: 'settings' },
       { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
       { label: 'multimodel designer', page: 'multicon.html', key: 'multicon' },
+      { label: '✏️ whiteboard', page: 'whiteboard.html', key: 'whiteboard' },
       { label: 'database explorer', page: 'db_explorer.html', key: 'db_explorer' },
       { label: 'export model', page: 'export.html', key: 'export' }
     ];

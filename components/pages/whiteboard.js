@@ -13,8 +13,8 @@ class Whiteboard {
     this.selectedObjects = [];
     this.currentTool = 'select';
     this.selectedWidget = null;
-    this.widgetWidth = 180;
-    this.widgetHeight = 110;
+    this.widgetWidth = 240;
+    this.widgetHeight = 260;
     this.nextObjectId = 1;
     this.snapThreshold = 25;
 
@@ -306,7 +306,16 @@ class Whiteboard {
         width: this.widgetWidth,
         height: this.widgetHeight,
         color: this.selectedWidget === 'model' ? '#4a90e2' : '#34a853',
-        opacity: 1
+        opacity: 1,
+        fields: [
+          { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
+          { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
+        ],
+        params: this.selectedWidget === 'model' ? [
+          { key: 'learningRate', type: 'param', label: 'LR', value: '0.001' },
+          { key: 'epochs', type: 'param', label: 'Epochs', value: '10' },
+          { key: 'batchSize', type: 'param', label: 'Batch', value: '32' }
+        ] : []
       };
       this.selectedObjects = [this.currentWidget];
       this.render();
@@ -314,9 +323,21 @@ class Whiteboard {
     }
 
     if (this.currentTool === 'select') {
-      // Check if clicking on an object
       const hit = this.hitTest(world.x, world.y);
       if (hit) {
+        if (hit.type === 'widget') {
+          const fieldHit = this.getWidgetFieldAt(hit, world.x, world.y);
+          if (fieldHit) {
+            this.saveState();
+            const newValue = window.prompt(`Edit ${fieldHit.label}`, fieldHit.field.value);
+            if (newValue !== null) {
+              fieldHit.field.value = newValue;
+              this.render();
+            }
+            return;
+          }
+        }
+
         this.isDragging = true;
         this.dragOffset = { x: world.x - hit.x, y: world.y - hit.y };
         this.selectedObjects = [hit];
@@ -399,26 +420,68 @@ class Whiteboard {
 
   getWidgetAnchors(widget) {
     return [
-      { x: widget.x + widget.width / 2, y: widget.y, anchor: 'top' },
-      { x: widget.x + widget.width / 2, y: widget.y + widget.height, anchor: 'bottom' },
-      { x: widget.x, y: widget.y + widget.height / 2, anchor: 'left' },
-      { x: widget.x + widget.width, y: widget.y + widget.height / 2, anchor: 'right' }
+      { x: widget.x, y: widget.y + widget.height / 2, anchor: 'input' },
+      { x: widget.x + widget.width, y: widget.y + widget.height / 2, anchor: 'output' }
     ];
   }
 
   getWidgetAnchorPosition(widget, anchor) {
     switch (anchor) {
-      case 'top':
-        return { x: widget.x + widget.width / 2, y: widget.y };
-      case 'bottom':
-        return { x: widget.x + widget.width / 2, y: widget.y + widget.height };
-      case 'left':
+      case 'input':
         return { x: widget.x, y: widget.y + widget.height / 2 };
-      case 'right':
+      case 'output':
         return { x: widget.x + widget.width, y: widget.y + widget.height / 2 };
       default:
         return { x: widget.x + widget.width / 2, y: widget.y + widget.height / 2 };
     }
+  }
+
+  getWidgetFieldRects(widget) {
+    const fieldHeight = 24;
+    const spacing = 8;
+    const innerWidth = widget.width - 24;
+    let rowY = widget.y + 40;
+    const rects = [];
+
+    (widget.fields || []).forEach(field => {
+      rects.push({
+        widget,
+        field,
+        key: field.key,
+        type: field.type,
+        label: field.label,
+        x: widget.x + 12,
+        y: rowY,
+        width: innerWidth,
+        height: fieldHeight
+      });
+      rowY += fieldHeight + spacing;
+    });
+
+    if (widget.widgetType === 'model') {
+      rowY += 12;
+      (widget.params || []).forEach(param => {
+        rects.push({
+          widget,
+          field: param,
+          key: param.key,
+          type: param.type,
+          label: param.label,
+          x: widget.x + 12,
+          y: rowY,
+          width: innerWidth,
+          height: fieldHeight
+        });
+        rowY += fieldHeight + spacing;
+      });
+    }
+
+    return rects;
+  }
+
+  getWidgetFieldAt(widget, wx, wy) {
+    const rects = this.getWidgetFieldRects(widget);
+    return rects.find(r => wx >= r.x && wx <= r.x + r.width && wy >= r.y && wy <= r.y + r.height) || null;
   }
 
   getSnapPoint(wx, wy) {
@@ -460,7 +523,7 @@ class Whiteboard {
     const x = wx - this.widgetWidth / 2;
     const y = wy - this.widgetHeight / 2;
     const color = this.selectedWidget === 'model' ? '#4a90e2' : '#34a853';
-    this.objects.push({
+    const widget = {
       id: this.generateId(),
       type: 'widget',
       widgetType: this.selectedWidget,
@@ -469,8 +532,18 @@ class Whiteboard {
       width: this.widgetWidth,
       height: this.widgetHeight,
       color,
-      opacity: 1
-    });
+      opacity: 1,
+      fields: [
+        { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
+        { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
+      ],
+      params: this.selectedWidget === 'model' ? [
+        { key: 'learningRate', type: 'param', label: 'LR', value: '0.001' },
+        { key: 'epochs', type: 'param', label: 'Epochs', value: '10' },
+        { key: 'batchSize', type: 'param', label: 'Batch', value: '32' }
+      ] : []
+    };
+    this.objects.push(widget);
     this.updateObjectCount();
     this.render();
   }
@@ -1216,16 +1289,75 @@ class Whiteboard {
     ctx.font = `${16}px 'Segoe UI', sans-serif`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    const label = obj.widgetType === 'model' ? 'Model' : 'Script';
-    ctx.fillText(label, obj.x + 16, obj.y + obj.height / 2);
+    const title = obj.widgetType === 'model' ? 'Model' : 'Script';
+    ctx.fillText(title, obj.x + 14, obj.y + 20);
 
-    // widget anchor indicators
+    // Input/output nodes
+    const nodeRadius = 8 / this.viewport.zoom;
+    const inputPos = this.getWidgetAnchorPosition(obj, 'input');
+    const outputPos = this.getWidgetAnchorPosition(obj, 'output');
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(inputPos.x, inputPos.y, nodeRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(outputPos.x, outputPos.y, nodeRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    for (const anchor of this.getWidgetAnchors(obj)) {
-      ctx.beginPath();
-      ctx.arc(anchor.x, anchor.y, 5 / this.viewport.zoom, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+    ctx.font = `${11}px 'Segoe UI', sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillText('Input', obj.x + 12, obj.y + obj.height / 2 - 16);
+    ctx.textAlign = 'right';
+    ctx.fillText('Output', obj.x + obj.width - 12, obj.y + obj.height / 2 - 16);
+
+    // Widget field boxes
+    const fieldYStart = obj.y + 45;
+    const fieldHeight = 26;
+    const fieldSpacing = 8;
+    const innerWidth = obj.width - 24;
+    let rowY = fieldYStart;
+    ctx.font = `${12}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'left';
+    (obj.fields || []).forEach(field => {
+      const boxX = obj.x + 12;
+      const boxY = rowY;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(boxX, boxY, innerWidth, fieldHeight);
+      ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+      ctx.strokeRect(boxX, boxY, innerWidth, fieldHeight);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${field.label}:`, boxX + 8, boxY + fieldHeight / 2);
+      ctx.textAlign = 'right';
+      ctx.fillText(field.value, boxX + innerWidth - 8, boxY + fieldHeight / 2);
+      ctx.textAlign = 'left';
+      rowY += fieldHeight + fieldSpacing;
+    });
+
+    if (obj.widgetType === 'model' && obj.params && obj.params.length > 0) {
+      const titleBoxY = rowY + 4;
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.font = `${11}px 'Segoe UI', sans-serif`;
+      ctx.fillText('Training params', obj.x + 12, titleBoxY);
+      rowY += 20;
+      ctx.font = `${12}px 'Segoe UI', sans-serif`;
+      obj.params.forEach(param => {
+        const boxX = obj.x + 12;
+        const boxY = rowY;
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillRect(boxX, boxY, innerWidth, fieldHeight);
+        ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+        ctx.strokeRect(boxX, boxY, innerWidth, fieldHeight);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${param.label}:`, boxX + 8, boxY + fieldHeight / 2);
+        ctx.textAlign = 'right';
+        ctx.fillText(param.value, boxX + innerWidth - 8, boxY + fieldHeight / 2);
+        rowY += fieldHeight + fieldSpacing;
+      });
     }
   }
 

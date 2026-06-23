@@ -183,17 +183,9 @@ class Whiteboard {
 
   setupPropertiesPanel() {
     const colorInput = document.getElementById('wb-color');
-    const fontSizeInput = document.getElementById('wb-font-size');
-    const fontSizeLabel = document.getElementById('wb-font-size-label');
 
     colorInput.addEventListener('input', () => {
       this.props.color = colorInput.value;
-      this.updateSelectedProps();
-    });
-
-    fontSizeInput.addEventListener('input', () => {
-      this.props.fontSize = parseInt(fontSizeInput.value);
-      fontSizeLabel.textContent = this.props.fontSize;
       this.updateSelectedProps();
     });
   }
@@ -289,7 +281,6 @@ class Whiteboard {
         width: this.widgetWidth,
         height: this.widgetHeight,
         color: this.selectedWidget === 'model' ? '#4a90e2' : '#34a853',
-        opacity: 1,
         fields: [
           { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
           { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
@@ -360,7 +351,6 @@ class Whiteboard {
         endY: startY,
         color: this.props.color,
         size: this.props.size,
-        opacity: 1,
         fromWidgetId: startSnap.widget?.id || null,
         fromAnchor: startSnap.anchor || null,
         toWidgetId: null,
@@ -374,8 +364,7 @@ class Whiteboard {
         type: 'path',
         points: [{ x: world.x, y: world.y }],
         color: this.props.color,
-        size: this.props.size,
-        opacity: this.props.opacity
+        size: this.props.size
       };
     } else if (this.currentTool === 'text') {
       this.startTextInput(world.x, world.y);
@@ -391,8 +380,7 @@ class Whiteboard {
         endX: world.x,
         endY: world.y,
         color: this.props.color,
-        size: this.props.size,
-        opacity: this.props.opacity
+        size: this.props.size
       };
     }
   }
@@ -502,6 +490,16 @@ class Whiteboard {
     return this.objects.find(o => o.id === id) || null;
   }
 
+  getContrastColor(color) {
+    if (!color || color[0] !== '#') return '#ffffff';
+    const c = color.slice(1);
+    const r = parseInt(c.slice(0, 2), 16);
+    const g = parseInt(c.slice(2, 4), 16);
+    const b = parseInt(c.slice(4, 6), 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.6 ? '#111111' : '#ffffff';
+  }
+
   placeWidgetAt(wx, wy) {
     const x = wx - this.widgetWidth / 2;
     const y = wy - this.widgetHeight / 2;
@@ -515,7 +513,6 @@ class Whiteboard {
       width: this.widgetWidth,
       height: this.widgetHeight,
       color,
-      opacity: 1,
       fields: [
         { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
         { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
@@ -797,7 +794,6 @@ class Whiteboard {
       padding: 4px 8px;
       font-size: ${this.props.fontSize}px;
       color: ${this.props.color};
-      opacity: ${this.props.opacity};
       background: rgba(255,255,255,0.1);
       border: 1px dashed rgba(100,100,255,0.5);
       outline: none;
@@ -846,8 +842,7 @@ class Whiteboard {
         y: y,
         text: text,
         color: this.props.color,
-        fontSize: this.props.fontSize,
-        opacity: this.props.opacity
+        fontSize: this.props.fontSize
       });
       this.updateObjectCount();
       this.render();
@@ -962,16 +957,6 @@ class Whiteboard {
     if (this.selectedObjects.length > 0) {
       const obj = this.selectedObjects[0];
       document.getElementById('wb-color').value = obj.color || '#1a1a2e';
-      if (obj.type !== 'text') {
-        document.getElementById('wb-size').value = obj.size || 3;
-        document.getElementById('wb-size-label').textContent = obj.size || 3;
-      }
-      document.getElementById('wb-opacity').value = obj.opacity || 1;
-      document.getElementById('wb-opacity-label').textContent = (obj.opacity || 1).toFixed(1);
-      if (obj.type === 'text') {
-        document.getElementById('wb-font-size').value = obj.fontSize || 24;
-        document.getElementById('wb-font-size-label').textContent = obj.fontSize || 24;
-      }
     }
   }
 
@@ -1196,7 +1181,6 @@ class Whiteboard {
 
   drawObject(ctx, obj) {
     ctx.save();
-    ctx.globalAlpha = obj.opacity || 1;
 
     switch (obj.type) {
       case 'path':
@@ -1267,7 +1251,8 @@ class Whiteboard {
     ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
     ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
 
-    ctx.fillStyle = '#ffffff';
+    const textColor = this.getContrastColor(obj.color);
+    ctx.fillStyle = textColor;
     ctx.font = `${16}px 'Segoe UI', sans-serif`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
@@ -1288,7 +1273,7 @@ class Whiteboard {
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = textColor;
     ctx.font = `${11}px 'Segoe UI', sans-serif`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
@@ -1311,7 +1296,7 @@ class Whiteboard {
       ctx.fillRect(boxX, boxY, innerWidth, fieldHeight);
       ctx.strokeStyle = 'rgba(255,255,255,0.24)';
       ctx.strokeRect(boxX, boxY, innerWidth, fieldHeight);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = textColor;
       ctx.fillText(`${field.label}:`, boxX + 8, boxY + fieldHeight / 2);
       ctx.textAlign = 'right';
       ctx.fillText(field.value, boxX + innerWidth - 8, boxY + fieldHeight / 2);
@@ -1333,7 +1318,7 @@ class Whiteboard {
         ctx.fillRect(boxX, boxY, innerWidth, fieldHeight);
         ctx.strokeStyle = 'rgba(255,255,255,0.24)';
         ctx.strokeRect(boxX, boxY, innerWidth, fieldHeight);
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = textColor;
         ctx.textAlign = 'left';
         ctx.fillText(`${param.label}:`, boxX + 8, boxY + fieldHeight / 2);
         ctx.textAlign = 'right';

@@ -60,6 +60,11 @@ class Whiteboard {
     this.resizeStart = null;
     this.resizeOriginalBounds = null;
 
+    // Cursor tooltip and widget placement
+    this.cursorTooltip = null;
+    this.currentWidget = null;
+    this.isPlacingWidget = false;
+
     this.init();
   }
 
@@ -68,6 +73,7 @@ class Whiteboard {
     this.setupEventListeners();
     this.setupKeyboardShortcuts();
     this.setupPropertiesPanel();
+    this.cursorTooltip = document.getElementById('wb-cursor-tooltip');
     this.render();
     window.addEventListener('resize', () => this.resizeCanvas());
   }
@@ -116,6 +122,9 @@ class Whiteboard {
     // Widget buttons
     document.querySelectorAll('.wb-widget-btn[data-widget]').forEach(btn => {
       btn.addEventListener('click', () => this.selectWidget(btn.dataset.widget));
+    });
+    document.querySelectorAll('.wb-tool-btn[data-tool]').forEach(btn => {
+      btn.addEventListener('click', () => this.setTool(btn.dataset.tool));
     });
 
     // Zoom controls
@@ -222,7 +231,8 @@ class Whiteboard {
 
     this.canvas.style.cursor = tool === 'select' ? 'default' :
                                tool === 'text' ? 'text' :
-                               tool === 'eraser' ? 'not-allowed' : 'crosshair';
+                               'crosshair';
+    this.updateCursorTooltip();
   }
 
   selectWidget(widget) {
@@ -250,11 +260,52 @@ class Whiteboard {
       return;
     }
 
+    if (e.button === 2) {
+      const hit = this.hitTest(world.x, world.y);
+      if (hit) {
+        if (hit.type === 'widget') {
+          if (this.selectedWidget) {
+            if (hit.widgetType !== this.selectedWidget) {
+              return;
+            }
+          }
+          this.saveState();
+          this.objects = this.objects.filter(o => o !== hit);
+          this.deselectAll();
+          this.updateObjectCount();
+          this.render();
+          return;
+        }
+
+        if (hit.type === 'line' || hit.type === 'path') {
+          this.saveState();
+          this.objects = this.objects.filter(o => o !== hit);
+          this.deselectAll();
+          this.updateObjectCount();
+          this.render();
+        }
+      }
+      return;
+    }
+
     if (e.button !== 0) return;
 
     if (this.currentTool === 'select' && this.selectedWidget) {
       this.saveState();
-      this.placeWidgetAt(world.x, world.y);
+      this.isPlacingWidget = true;
+      this.currentWidget = {
+        id: this.generateId(),
+        type: 'widget',
+        widgetType: this.selectedWidget,
+        x: world.x - this.widgetWidth / 2,
+        y: world.y - this.widgetHeight / 2,
+        width: this.widgetWidth,
+        height: this.widgetHeight,
+        color: this.selectedWidget === 'model' ? '#4a90e2' : '#34a853',
+        opacity: 1
+      };
+      this.selectedObjects = [this.currentWidget];
+      this.render();
       return;
     }
 
@@ -321,47 +372,7 @@ class Whiteboard {
     } else if (this.currentTool === 'text') {
       this.startTextInput(world.x, world.y);
       this.isDrawing = false;
-    } else {
-      this.currentPath = {
-        type: this.currentTool,
-        x: world.x,
-        y: world.y,
-        width: 0,
-        height: 0,
-        endX: world.x,
-        endY: world.y,
-        color: this.props.color,
-        size: this.props.size,
-        opacity: this.props.opacity
-      };
-    }
-
-    if (this.currentTool === 'eraser') {
-      const hit = this.hitTest(world.x, world.y);
-      if (hit) {
-        this.saveState();
-        this.objects = this.objects.filter(o => o !== hit);
-        this.deselectAll();
-        this.render();
-      }
       return;
-    }
-
-    // Start drawing
-    this.isDrawing = true;
-    this.saveState();
-
-    if (this.currentTool === 'pen') {
-      this.currentPath = {
-        type: 'path',
-        points: [{ x: world.x, y: world.y }],
-        color: this.props.color,
-        size: this.props.size,
-        opacity: this.props.opacity
-      };
-    } else if (this.currentTool === 'text') {
-      this.startTextInput(world.x, world.y);
-      this.isDrawing = false;
     } else {
       this.currentPath = {
         type: this.currentTool,
@@ -469,12 +480,20 @@ class Whiteboard {
     // Update coordinates in status bar
     document.getElementById('wb-coords').textContent =
       `X: ${Math.round(world.x)}  Y: ${Math.round(world.y)}`;
+    this.updateCursorTooltip(world);
 
     if (this.isPanning) {
       const dx = (sx - this.panStart.x) / this.viewport.zoom;
       const dy = (sy - this.panStart.y) / this.viewport.zoom;
       this.viewport.x = this.panStart.vx + dx;
       this.viewport.y = this.panStart.vy + dy;
+      this.render();
+      return;
+    }
+
+    if (this.isPlacingWidget && this.currentWidget) {
+      this.currentWidget.x = world.x - this.currentWidget.width / 2;
+      this.currentWidget.y = world.y - this.currentWidget.height / 2;
       this.render();
       return;
     }
@@ -536,6 +555,17 @@ class Whiteboard {
 
     if (this.isDragging) {
       this.isDragging = false;
+      return;
+    }
+
+    if (this.isPlacingWidget) {
+      this.isPlacingWidget = false;
+      if (this.currentWidget) {
+        this.objects.push(this.currentWidget);
+        this.currentWidget = null;
+        this.updateObjectCount();
+        this.render();
+      }
       return;
     }
 
@@ -849,6 +879,42 @@ class Whiteboard {
     this.render();
   }
 
+  updateCursorTooltip(world) {
+    if (!this.cursorTooltip) return;
+    let text = 'Left click: move';
+    if (this.currentTool === 'line') text = 'Left click: draw line';
+    else if (this.currentTool === 'pen') text = 'Left click: draw path';
+    else if (this.currentTool === 'eraser') text = 'Left click: erase';
+    else if (this.currentTool === 'text') text = 'Left click: type text';
+    if (this.currentTool === 'select' && this.selectedWidget) {
+      text = `Left click: place ${this.selectedWidget}`;
+    }
+    this.cursorTooltip.textContent = text;
+    if (world) {
+      const screen = this.worldToScreen(world.x, world.y);
+      this.cursorTooltip.style.left = `${screen.x}px`;
+      this.cursorTooltip.style.top = `${screen.y - 10}px`;
+    }
+  }
+
+  updateCursorTooltip(world) {
+    if (!this.cursorTooltip) return;
+    let text = 'Left click: move';
+    if (this.currentTool === 'line') text = 'Left click: draw line';
+    else if (this.currentTool === 'pen') text = 'Left click: draw path';
+    else if (this.currentTool === 'eraser') text = 'Left click: erase';
+    else if (this.currentTool === 'text') text = 'Left click: type text';
+    if (this.currentTool === 'select' && this.selectedWidget) {
+      text = `Left click: place ${this.selectedWidget}`;
+    }
+    this.cursorTooltip.textContent = text;
+    if (world) {
+      const screen = this.worldToScreen(world.x, world.y);
+      this.cursorTooltip.style.left = `${screen.x}px`;
+      this.cursorTooltip.style.top = `${screen.y - 10}px`;
+    }
+  }
+
   updateSelectionUI() {
     // Update property panel to reflect selected object's properties
     if (this.selectedObjects.length > 0) {
@@ -1028,6 +1094,10 @@ class Whiteboard {
     // Draw current path being drawn
     if (this.currentPath) {
       this.drawObject(ctx, this.currentPath);
+    }
+
+    if (this.currentWidget) {
+      this.drawObject(ctx, this.currentWidget);
     }
 
     // Draw selection handles

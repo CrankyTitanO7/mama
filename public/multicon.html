@@ -16,6 +16,20 @@
     <div id="whiteboard-app">
       <!-- Left Toolbar -->
       <div id="wb-toolbar">
+        <div class="wb-tool-group">
+          <button class="wb-tool-btn active" data-tool="select" title="Cursor tool">
+            <span class="wb-widget-icon">⌖</span>
+            <span class="wb-widget-label">Cursor</span>
+          </button>
+          <button class="wb-tool-btn" data-tool="line" title="Pen tool">
+            <span class="wb-widget-icon">✎</span>
+            <span class="wb-widget-label">Pen</span>
+          </button>
+          <button class="wb-tool-btn" data-tool="eraser" title="Eraser">
+            <span class="wb-widget-icon">⟲</span>
+            <span class="wb-widget-label">Eraser</span>
+          </button>
+        </div>
         <button class="wb-widget-btn active" data-widget="model" title="Model widget">
           <span class="wb-widget-icon">M</span>
           <span class="wb-widget-label">Model</span>
@@ -60,6 +74,7 @@
       <!-- Canvas Container -->
       <div id="wb-canvas-container">
         <canvas id="wb-canvas"></canvas>
+        <div id="wb-cursor-tooltip">Left click: move</div>
       </div>
 
       <!-- Status Bar -->

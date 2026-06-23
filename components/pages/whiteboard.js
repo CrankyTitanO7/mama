@@ -223,6 +223,10 @@ class Whiteboard {
       btn.classList.toggle('active', btn.dataset.tool === tool);
     });
 
+    if (tool !== 'select') {
+      this.clearWidgetSelection();
+    }
+
     // Show/hide font size control
     const fontGroup = document.getElementById('wb-font-group');
     if (fontGroup) {
@@ -237,8 +241,21 @@ class Whiteboard {
 
   selectWidget(widget) {
     this.selectedWidget = widget;
+    this.currentTool = 'widget';
     document.querySelectorAll('.wb-widget-btn[data-widget]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.widget === widget);
+    });
+    document.querySelectorAll('.wb-tool-btn[data-tool]').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    this.canvas.style.cursor = 'crosshair';
+    this.updateCursorTooltip();
+  }
+
+  clearWidgetSelection() {
+    this.selectedWidget = null;
+    document.querySelectorAll('.wb-widget-btn[data-widget]').forEach(btn => {
+      btn.classList.remove('active');
     });
   }
 
@@ -263,12 +280,7 @@ class Whiteboard {
     if (e.button === 2) {
       const hit = this.hitTest(world.x, world.y);
       if (hit) {
-        if (hit.type === 'widget') {
-          if (this.selectedWidget) {
-            if (hit.widgetType !== this.selectedWidget) {
-              return;
-            }
-          }
+        if (hit.type === 'widget' || hit.type === 'line' || hit.type === 'path') {
           this.saveState();
           this.objects = this.objects.filter(o => o !== hit);
           this.deselectAll();
@@ -276,21 +288,13 @@ class Whiteboard {
           this.render();
           return;
         }
-
-        if (hit.type === 'line' || hit.type === 'path') {
-          this.saveState();
-          this.objects = this.objects.filter(o => o !== hit);
-          this.deselectAll();
-          this.updateObjectCount();
-          this.render();
-        }
       }
       return;
     }
 
     if (e.button !== 0) return;
 
-    if (this.currentTool === 'select' && this.selectedWidget) {
+    if (this.currentTool === 'widget' && this.selectedWidget && !this.isPlacingWidget) {
       this.saveState();
       this.isPlacingWidget = true;
       this.currentWidget = {
@@ -563,6 +567,7 @@ class Whiteboard {
       if (this.currentWidget) {
         this.objects.push(this.currentWidget);
         this.currentWidget = null;
+        this.setTool('select');
         this.updateObjectCount();
         this.render();
       }
@@ -886,25 +891,7 @@ class Whiteboard {
     else if (this.currentTool === 'pen') text = 'Left click: draw path';
     else if (this.currentTool === 'eraser') text = 'Left click: erase';
     else if (this.currentTool === 'text') text = 'Left click: type text';
-    if (this.currentTool === 'select' && this.selectedWidget) {
-      text = `Left click: place ${this.selectedWidget}`;
-    }
-    this.cursorTooltip.textContent = text;
-    if (world) {
-      const screen = this.worldToScreen(world.x, world.y);
-      this.cursorTooltip.style.left = `${screen.x}px`;
-      this.cursorTooltip.style.top = `${screen.y - 10}px`;
-    }
-  }
-
-  updateCursorTooltip(world) {
-    if (!this.cursorTooltip) return;
-    let text = 'Left click: move';
-    if (this.currentTool === 'line') text = 'Left click: draw line';
-    else if (this.currentTool === 'pen') text = 'Left click: draw path';
-    else if (this.currentTool === 'eraser') text = 'Left click: erase';
-    else if (this.currentTool === 'text') text = 'Left click: type text';
-    if (this.currentTool === 'select' && this.selectedWidget) {
+    else if (this.currentTool === 'widget' && this.selectedWidget) {
       text = `Left click: place ${this.selectedWidget}`;
     }
     this.cursorTooltip.textContent = text;

@@ -47,7 +47,6 @@ class Whiteboard {
     this.props = {
       color: '#1a1a2e',
       size: 3,
-      opacity: 1,
       fontSize: 24
     };
 
@@ -184,27 +183,11 @@ class Whiteboard {
 
   setupPropertiesPanel() {
     const colorInput = document.getElementById('wb-color');
-    const sizeInput = document.getElementById('wb-size');
-    const sizeLabel = document.getElementById('wb-size-label');
-    const opacityInput = document.getElementById('wb-opacity');
-    const opacityLabel = document.getElementById('wb-opacity-label');
     const fontSizeInput = document.getElementById('wb-font-size');
     const fontSizeLabel = document.getElementById('wb-font-size-label');
 
     colorInput.addEventListener('input', () => {
       this.props.color = colorInput.value;
-      this.updateSelectedProps();
-    });
-
-    sizeInput.addEventListener('input', () => {
-      this.props.size = parseInt(sizeInput.value);
-      sizeLabel.textContent = this.props.size;
-      this.updateSelectedProps();
-    });
-
-    opacityInput.addEventListener('input', () => {
-      this.props.opacity = parseFloat(opacityInput.value);
-      opacityLabel.textContent = this.props.opacity.toFixed(1);
       this.updateSelectedProps();
     });
 
@@ -377,7 +360,7 @@ class Whiteboard {
         endY: startY,
         color: this.props.color,
         size: this.props.size,
-        opacity: this.props.opacity,
+        opacity: 1,
         fromWidgetId: startSnap.widget?.id || null,
         fromAnchor: startSnap.anchor || null,
         toWidgetId: null,
@@ -950,7 +933,6 @@ class Whiteboard {
     if (obj.type !== 'text') {
       obj.size = this.props.size;
     }
-    obj.opacity = this.props.opacity;
     if (obj.type === 'text') {
       obj.fontSize = this.props.fontSize;
     }

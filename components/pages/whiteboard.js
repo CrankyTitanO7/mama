@@ -12,6 +12,12 @@ class Whiteboard {
     this.objects = [];
     this.selectedObjects = [];
     this.currentTool = 'select';
+    this.selectedWidget = null;
+    this.widgetWidth = 180;
+    this.widgetHeight = 110;
+    this.nextObjectId = 1;
+    this.snapThreshold = 25;
+
     this.isDrawing = false;
     this.isPanning = false;
     this.isDragging = false;
@@ -107,15 +113,10 @@ class Whiteboard {
     // Context menu
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // Tool buttons
-    document.querySelectorAll('.wb-tool-btn[data-tool]').forEach(btn => {
-      btn.addEventListener('click', () => this.setTool(btn.dataset.tool));
+    // Widget buttons
+    document.querySelectorAll('.wb-widget-btn[data-widget]').forEach(btn => {
+      btn.addEventListener('click', () => this.selectWidget(btn.dataset.widget));
     });
-
-    // Undo/Redo/Clear
-    document.getElementById('wb-undo').addEventListener('click', () => this.undo());
-    document.getElementById('wb-redo').addEventListener('click', () => this.redo());
-    document.getElementById('wb-clear').addEventListener('click', () => this.clearCanvas());
 
     // Zoom controls
     document.getElementById('wb-zoom-in').addEventListener('click', () => this.zoomIn());
@@ -215,11 +216,20 @@ class Whiteboard {
 
     // Show/hide font size control
     const fontGroup = document.getElementById('wb-font-group');
-    fontGroup.style.display = tool === 'text' ? 'flex' : 'none';
+    if (fontGroup) {
+      fontGroup.style.display = tool === 'text' ? 'flex' : 'none';
+    }
 
     this.canvas.style.cursor = tool === 'select' ? 'default' :
                                tool === 'text' ? 'text' :
                                tool === 'eraser' ? 'not-allowed' : 'crosshair';
+  }
+
+  selectWidget(widget) {
+    this.selectedWidget = widget;
+    document.querySelectorAll('.wb-widget-btn[data-widget]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.widget === widget);
+    });
   }
 
   // ---- Drawing Actions ----
@@ -242,6 +252,12 @@ class Whiteboard {
 
     if (e.button !== 0) return;
 
+    if (this.currentTool === 'select' && this.selectedWidget) {
+      this.saveState();
+      this.placeWidgetAt(world.x, world.y);
+      return;
+    }
+
     if (this.currentTool === 'select') {
       // Check if clicking on an object
       const hit = this.hitTest(world.x, world.y);
@@ -255,6 +271,69 @@ class Whiteboard {
         this.deselectAll();
       }
       return;
+    }
+
+    if (this.currentTool === 'eraser') {
+      const hit = this.hitTest(world.x, world.y);
+      if (hit) {
+        this.saveState();
+        this.objects = this.objects.filter(o => o !== hit);
+        this.deselectAll();
+        this.render();
+      }
+      return;
+    }
+
+    // Start drawing
+    this.isDrawing = true;
+    this.saveState();
+
+    if (this.currentTool === 'line') {
+      const startSnap = this.getSnapPoint(world.x, world.y);
+      const startX = startSnap.widget ? startSnap.x : world.x;
+      const startY = startSnap.widget ? startSnap.y : world.y;
+      this.currentPath = {
+        id: this.generateId(),
+        type: 'line',
+        x: startX,
+        y: startY,
+        endX: startX,
+        endY: startY,
+        color: this.props.color,
+        size: this.props.size,
+        opacity: this.props.opacity,
+        fromWidgetId: startSnap.widget?.id || null,
+        fromAnchor: startSnap.anchor || null,
+        toWidgetId: null,
+        toAnchor: null
+      };
+      return;
+    }
+
+    if (this.currentTool === 'pen') {
+      this.currentPath = {
+        type: 'path',
+        points: [{ x: world.x, y: world.y }],
+        color: this.props.color,
+        size: this.props.size,
+        opacity: this.props.opacity
+      };
+    } else if (this.currentTool === 'text') {
+      this.startTextInput(world.x, world.y);
+      this.isDrawing = false;
+    } else {
+      this.currentPath = {
+        type: this.currentTool,
+        x: world.x,
+        y: world.y,
+        width: 0,
+        height: 0,
+        endX: world.x,
+        endY: world.y,
+        color: this.props.color,
+        size: this.props.size,
+        opacity: this.props.opacity
+      };
     }
 
     if (this.currentTool === 'eraser') {
@@ -297,6 +376,88 @@ class Whiteboard {
         opacity: this.props.opacity
       };
     }
+  }
+
+  generateId() {
+    return `obj-${this.nextObjectId++}`;
+  }
+
+  getWidgetAnchors(widget) {
+    return [
+      { x: widget.x + widget.width / 2, y: widget.y, anchor: 'top' },
+      { x: widget.x + widget.width / 2, y: widget.y + widget.height, anchor: 'bottom' },
+      { x: widget.x, y: widget.y + widget.height / 2, anchor: 'left' },
+      { x: widget.x + widget.width, y: widget.y + widget.height / 2, anchor: 'right' }
+    ];
+  }
+
+  getWidgetAnchorPosition(widget, anchor) {
+    switch (anchor) {
+      case 'top':
+        return { x: widget.x + widget.width / 2, y: widget.y };
+      case 'bottom':
+        return { x: widget.x + widget.width / 2, y: widget.y + widget.height };
+      case 'left':
+        return { x: widget.x, y: widget.y + widget.height / 2 };
+      case 'right':
+        return { x: widget.x + widget.width, y: widget.y + widget.height / 2 };
+      default:
+        return { x: widget.x + widget.width / 2, y: widget.y + widget.height / 2 };
+    }
+  }
+
+  getSnapPoint(wx, wy) {
+    let best = { x: wx, y: wy, widget: null, anchor: null, dist: this.snapThreshold + 1 };
+    for (const obj of this.objects) {
+      if (obj.type !== 'widget') continue;
+      for (const anchor of this.getWidgetAnchors(obj)) {
+        const dx = anchor.x - wx;
+        const dy = anchor.y - wy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < best.dist) {
+          best = { x: anchor.x, y: anchor.y, widget: obj, anchor: anchor.anchor, dist };
+        }
+      }
+    }
+    return best;
+  }
+
+  getLinePoint(line, side) {
+    if (side === 'from' && line.fromWidgetId) {
+      const widget = this.getObjectById(line.fromWidgetId);
+      if (widget) return this.getWidgetAnchorPosition(widget, line.fromAnchor);
+    }
+    if (side === 'to' && line.toWidgetId) {
+      const widget = this.getObjectById(line.toWidgetId);
+      if (widget) return this.getWidgetAnchorPosition(widget, line.toAnchor);
+    }
+    if (side === 'from') {
+      return { x: line.x, y: line.y };
+    }
+    return { x: line.endX, y: line.endY };
+  }
+
+  getObjectById(id) {
+    return this.objects.find(o => o.id === id) || null;
+  }
+
+  placeWidgetAt(wx, wy) {
+    const x = wx - this.widgetWidth / 2;
+    const y = wy - this.widgetHeight / 2;
+    const color = this.selectedWidget === 'model' ? '#4a90e2' : '#34a853';
+    this.objects.push({
+      id: this.generateId(),
+      type: 'widget',
+      widgetType: this.selectedWidget,
+      x,
+      y,
+      width: this.widgetWidth,
+      height: this.widgetHeight,
+      color,
+      opacity: 1
+    });
+    this.updateObjectCount();
+    this.render();
   }
 
   onMouseMove(e) {
@@ -345,8 +506,16 @@ class Whiteboard {
     if (this.currentTool === 'pen') {
       this.currentPath.points.push({ x: world.x, y: world.y });
     } else if (this.currentTool === 'line') {
-      this.currentPath.endX = world.x;
-      this.currentPath.endY = world.y;
+      const endSnap = this.getSnapPoint(world.x, world.y);
+      this.currentPath.endX = endSnap.widget ? endSnap.x : world.x;
+      this.currentPath.endY = endSnap.widget ? endSnap.y : world.y;
+      if (endSnap.widget) {
+        this.currentPath.toWidgetId = endSnap.widget.id;
+        this.currentPath.toAnchor = endSnap.anchor;
+      } else {
+        this.currentPath.toWidgetId = null;
+        this.currentPath.toAnchor = null;
+      }
     } else if (this.currentTool === 'rect') {
       this.currentPath.width = world.x - this.currentPath.x;
       this.currentPath.height = world.y - this.currentPath.y;
@@ -374,8 +543,18 @@ class Whiteboard {
     this.isDrawing = false;
 
     if (this.currentPath) {
-      // Don't add tiny shapes
-      if (this.currentPath.type !== 'path' && this.currentPath.type !== 'text') {
+      if (this.currentPath.type === 'line') {
+        const fromPoint = this.getLinePoint(this.currentPath, 'from');
+        const toPoint = this.getLinePoint(this.currentPath, 'to');
+        const dx = toPoint.x - fromPoint.x;
+        const dy = toPoint.y - fromPoint.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 8) {
+          this.undoStack.pop();
+          this.currentPath = null;
+          this.render();
+          return;
+        }
+      } else if (this.currentPath.type !== 'path' && this.currentPath.type !== 'text') {
         const w = Math.abs(this.currentPath.width || 0);
         const h = Math.abs(this.currentPath.height || 0);
         if (w < 2 && h < 2) {
@@ -598,7 +777,7 @@ class Whiteboard {
           const dist = Math.sqrt((p.x - wx) ** 2 + (p.y - wy) ** 2);
           if (dist < threshold + obj.size / 2) return obj;
         }
-      } else if (obj.type === 'rect') {
+      } else if (obj.type === 'rect' || obj.type === 'widget') {
         const x1 = Math.min(obj.x, obj.x + obj.width);
         const x2 = Math.max(obj.x, obj.x + obj.width);
         const y1 = Math.min(obj.y, obj.y + obj.height);
@@ -923,6 +1102,9 @@ class Whiteboard {
       case 'text':
         this.drawText(ctx, obj);
         break;
+      case 'widget':
+        this.drawWidget(ctx, obj);
+        break;
     }
 
     ctx.restore();
@@ -964,6 +1146,30 @@ class Whiteboard {
     ctx.beginPath();
     ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  drawWidget(ctx, obj) {
+    ctx.fillStyle = obj.color;
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth = 2 / this.viewport.zoom;
+    ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+    ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${16}px 'Segoe UI', sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    const label = obj.widgetType === 'model' ? 'Model' : 'Script';
+    ctx.fillText(label, obj.x + 16, obj.y + obj.height / 2);
+
+    // widget anchor indicators
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    for (const anchor of this.getWidgetAnchors(obj)) {
+      ctx.beginPath();
+      ctx.arc(anchor.x, anchor.y, 5 / this.viewport.zoom, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
   }
 
   drawText(ctx, obj) {

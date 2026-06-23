@@ -1205,49 +1205,82 @@ body.embed-fullscreen-active {
   z-index: 50;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 12px;
   background: rgba(255,255,255,0.95);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 12px;
-  padding: 6px;
+  border-radius: 18px;
+  padding: 16px 18px 16px 28px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
 }
 
-.wb-tool-btn {
-  width: 40px;
-  height: 40px;
+#wb-toolbar::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 20px;
+  bottom: 20px;
+  width: 2px;
+  background: rgba(66, 133, 244, 0.18);
+  border-radius: 1px;
+}
+
+.wb-widget-btn {
+  width: 150px;
+  min-height: 56px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1a1a2e;
   cursor: pointer;
-  color: #5f6368;
-  transition: all 0.15s ease;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.2;
   position: relative;
+  transition: all 0.18s ease;
 }
 
-.wb-tool-btn:hover {
+.wb-widget-btn::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(66, 133, 244, 0.7);
+}
+
+.wb-widget-btn:hover {
   background: rgba(66, 133, 244, 0.08);
-  color: #1a73e8;
 }
 
-.wb-tool-btn.active {
+.wb-widget-btn.active {
+  background: rgba(66, 133, 244, 0.12);
+  border-color: rgba(66, 133, 244, 0.4);
+}
+
+.wb-widget-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
   background: rgba(66, 133, 244, 0.12);
   color: #1a73e8;
-  box-shadow: inset 0 0 0 1px rgba(66, 133, 244, 0.3);
+  font-size: 14px;
+  font-weight: 700;
 }
 
-.wb-tool-btn svg {
-  display: block;
-}
-
-.wb-tool-separator {
-  height: 1px;
-  background: rgba(0,0,0,0.06);
-  margin: 4px 0;
+.wb-widget-label {
+  flex: 1;
 }
 
 /* Top Properties Bar */

@@ -7,7 +7,7 @@
 
     // ── Appearance ──────────────────────────────────────────────────────────
     "aesthetic settings": {
-        "appearance": "dark",                       // "dark" | "light"
+        "appearance": "system",                    // "system" | "dark" | "light"
         "scaling factor": 1,                        // UI scale (useful on tiling WMs)
         "accent color": "default"                   // theme accent token
     },

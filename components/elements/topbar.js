@@ -36,12 +36,12 @@ class Topbar {
     
     const topbarHTML = `
       <div class="topbar">
-        <span class="topbar-brand" style="cursor:pointer" onclick="window.electron.navigateTo('public/index.html')">mama</span>
+        <span class="topbar-brand" style="cursor:pointer" data-topbar-nav="public/index.html">mama</span>
         <div class="topbar-nav">
           ${navItems.map(item => `
             <button
               class="topbar-btn ${activeKey === item.key ? 'active' : ''}"
-              onclick="window.electron.navigateTo('public/${item.page}')"
+              data-topbar-nav="public/${item.page}"
             >
               ${item.label}
             </button>
@@ -52,6 +52,18 @@ class Topbar {
 
     // Insert at the beginning of body
     this.container.insertAdjacentHTML('afterbegin', topbarHTML);
+
+    this.container.querySelectorAll('[data-topbar-nav]').forEach((el) => {
+      el.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const target = el.getAttribute('data-topbar-nav');
+        if (typeof window.handleSettingsNavigation === 'function') {
+          await window.handleSettingsNavigation(target);
+        } else {
+          await window.electron.navigateTo(target);
+        }
+      });
+    });
   }
 
   static init(currentPage) {

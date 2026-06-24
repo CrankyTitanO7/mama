@@ -4,7 +4,7 @@
       "language": "language of the interface"
     },
     "aesthetic settings": {
-      "appearance": "dark mode vs light mode",
+      "appearance": "system, light, or dark mode",
       "scaling factor": "scaling factor, especially for window managers",
       "accent color": "accent color of the interface"
     },

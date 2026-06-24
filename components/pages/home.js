@@ -393,6 +393,11 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
     const iframe = document.createElement('iframe');
     iframe.className = 'embed-frame site-fallback';
     iframe.title = title;
+    iframe.addEventListener('load', () => {
+      if (window.ThemeManager?.applyThemeToWindow) {
+        window.ThemeManager.applyThemeToWindow(iframe.contentWindow, window.ThemeManager.getActiveTheme?.() || 'system');
+      }
+    });
     iframe.setAttribute('src', iframeFallbackSrc);
     Object.assign(iframe.style, {
       flex:      '1',

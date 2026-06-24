@@ -48,11 +48,19 @@
 
   function markClean() {
     savedSnapshot = snapshotSettings();
+    updateUnsavedState();
   }
 
   function isDirty() {
     if (!settingsCache || savedSnapshot === null) return false;
     return snapshotSettings() !== savedSnapshot;
+  }
+
+  function updateUnsavedState() {
+    const dirty = isDirty();
+    document.querySelectorAll('.settings-label').forEach((label) => {
+      label.classList.toggle('is-unsaved', dirty);
+    });
   }
 
   function migrateQolSettingKeys() {
@@ -71,6 +79,11 @@
     try {
       await window.electron.settingsWrite(settingsCache);
       markClean();
+      window.__themeApplyDeferred = false;
+      if (window.ThemeManager) {
+        const appearance = settingsCache?.['aesthetic settings']?.appearance;
+        window.ThemeManager.applyTheme(appearance || 'system');
+      }
       showStatus('Settings saved!', 'success');
       return true;
     } catch (e) {
@@ -143,6 +156,7 @@
   async function revertToSaved() {
     try {
       settingsCache = await window.electron.settingsRead();
+      window.__themeApplyDeferred = false;
       markClean();
     } catch (e) {
       console.error('Failed to reload settings from disk:', e);
@@ -165,7 +179,10 @@
     }
 
     if (action === 'save') {
-      await window.electron.navigateTo(page);
+      const saved = await saveSettings();
+      if (saved) {
+        await window.electron.navigateTo(page);
+      }
     }
   }
 
@@ -180,6 +197,11 @@
         if (page) navigateAway(page);
       });
     });
+
+    window.handleSettingsNavigation = async (page) => {
+      if (!page) return;
+      await navigateAway(page);
+    };
 
     window.addEventListener('beforeunload', (e) => {
       if (!isDirty()) return;
@@ -226,7 +248,16 @@
           const desc = getFieldDescription(groupKey, key);
 
           let control = '';
-          if (groupKey === 'qol settings' && (key === 'resources' || key === 'task manager')) {
+          if (groupKey === 'aesthetic settings' && key === 'appearance') {
+            const normalizedValue = String(value || 'system');
+            control = `
+              <select id="${fieldId}" class="settings-input settings-select" data-group="${groupKey}" data-key="${key}">
+                <option value="system" ${normalizedValue === 'system' ? 'selected' : ''}>System</option>
+                <option value="light" ${normalizedValue === 'light' ? 'selected' : ''}>Light</option>
+                <option value="dark" ${normalizedValue === 'dark' ? 'selected' : ''}>Dark</option>
+              </select>
+            `;
+          } else if (groupKey === 'qol settings' && (key === 'resources' || key === 'task manager')) {
             control = renderResourcesField(fieldId, groupKey, 'resources', value);
           } else if (typeof value === 'boolean') {
             control = `<input type="checkbox" id="${fieldId}" class="settings-checkbox" data-group="${groupKey}" data-key="${key}" ${value ? 'checked' : ''}>`;
@@ -261,8 +292,14 @@
     container.innerHTML = html;
 
     container.querySelectorAll('[data-group][data-key]').forEach(el => {
-      el.addEventListener('change', () => updateCacheFromField(el));
-      el.addEventListener('input', () => updateCacheFromField(el));
+      el.addEventListener('change', () => {
+        updateCacheFromField(el);
+        updateUnsavedState();
+      });
+      el.addEventListener('input', () => {
+        updateCacheFromField(el);
+        updateUnsavedState();
+      });
     });
 
     document.getElementById('settings-save-btn')?.addEventListener('click', saveSettings);
@@ -300,6 +337,7 @@
   }
 
   async function init() {
+    window.__themeApplyDeferred = true;
     wireNavigationGuards();
     await Promise.all([loadSettings(), loadDescriptions()]);
     renderSettings();

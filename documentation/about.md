@@ -1,5 +1,5 @@
 # about
-
+a short about page on the project's goals and aims
 
 ## introduction
 

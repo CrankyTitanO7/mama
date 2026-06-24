@@ -3,6 +3,47 @@
   <head>
     <meta charset="UTF-8">
     <title>mama — Error</title>
+    <script src="../components/styling/theme.js"></script>
+    <script>
+      function syncErrorPageTheme(sourceWindow) {
+        if (!sourceWindow || !sourceWindow.document) return;
+
+        const sourceRoot = sourceWindow.document.documentElement;
+        const targetRoot = document.documentElement;
+        const styles = sourceWindow.getComputedStyle(sourceRoot);
+        const variables = [
+          '--highlight-color', '--main-color', '--shadow-color', '--heading-color', '--body-color',
+          '--page-bg', '--page-text', '--page-muted', '--panel-bg', '--panel-border',
+          '--widget-bg', '--widget-border', '--topbar-bg', '--topbar-border', '--topbar-text',
+          '--topbar-muted', '--topbar-active', '--input-bg', '--input-text', '--input-border',
+          '--button-secondary-bg', '--button-secondary-text'
+        ];
+
+        variables.forEach((name) => {
+          const value = styles.getPropertyValue(name).trim();
+          if (value) {
+            targetRoot.style.setProperty(name, value);
+          }
+        });
+
+        const resolvedTheme = styles.getPropertyValue('--theme-mode').trim() || sourceRoot.dataset.theme || 'dark';
+        targetRoot.style.setProperty('--theme-mode', resolvedTheme);
+        targetRoot.style.colorScheme = sourceRoot.style.colorScheme || (resolvedTheme === 'dark' ? 'dark' : 'light');
+        targetRoot.dataset.theme = sourceRoot.dataset.theme || resolvedTheme;
+      }
+
+      function initErrorPageTheme() {
+        const sourceWindow = window.parent && window.parent !== window ? window.parent : window;
+        syncErrorPageTheme(sourceWindow);
+      }
+
+      document.addEventListener('DOMContentLoaded', initErrorPageTheme);
+      window.addEventListener('load', initErrorPageTheme);
+      window.addEventListener('message', (event) => {
+        if (!event?.data || event.data.type !== 'mama-theme-update') return;
+        syncErrorPageTheme(event.source && event.source !== window ? event.source : (window.parent && window.parent !== window ? window.parent : window));
+      });
+    </script>
     <link rel="stylesheet" href="../styles.css">
   </head>
   <body class="error-page-body">
@@ -13,7 +54,7 @@
       });
     </script>
 
-    <div class="page-content" style="display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 60px); padding: 24px;">
+    <div class="page-content error-page-shell">
       <div class="error-page">
         <h2>Something went wrong</h2>
         <p id="error-message" class="error-message">An error occurred.</p>

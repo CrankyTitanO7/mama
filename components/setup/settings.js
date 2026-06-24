@@ -7,10 +7,10 @@
 
   function escapeHtml(str) {
     return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/"/g, '"');
   }
 
   function getFieldDescription(groupKey, key) {
@@ -225,7 +225,48 @@
     `;
   }
 
-  function renderSettings() {
+  async function buildAppearanceOptions(normalizedValue) {
+    // Start with system — always present
+    let options =
+      `<option value="system" ${normalizedValue === 'system' ? 'selected' : ''}>System</option>`;
+
+    // Load custom themes from disk via IPC
+    try {
+      const customThemes = await window.electron.themesRead();
+      if (Array.isArray(customThemes) && customThemes.length > 0) {
+        const seenNames = new Set();
+        const titleCount = {};
+        for (const t of customThemes) {
+          // Skip if duplicate name (same value would conflict)
+          if (seenNames.has(t.name)) continue;
+          seenNames.add(t.name);
+
+          // Deduplicate display title
+          let displayTitle = t.title;
+          if (titleCount[t.title] !== undefined) {
+            titleCount[t.title]++;
+            displayTitle = `${t.title} (${titleCount[t.title]})`;
+          } else {
+            titleCount[t.title] = 0;
+          }
+
+          const sel = normalizedValue === t.name ? 'selected' : '';
+          options += `<option value="${t.name}" ${sel}>${escapeHtml(displayTitle)}</option>`;
+        }
+      } else {
+        // No custom themes — show the hidden fallback option
+        const sel = normalizedValue === '__default__' ? 'selected' : '';
+        options += `<option value="__default__" ${sel}>Fallback</option>`;
+      }
+    } catch (_) {
+      // IPC not available
+      const sel = normalizedValue === '__default__' ? 'selected' : '';
+      options += `<option value="__default__" ${sel}>Fallback</option>`;
+    }
+    return options;
+  }
+
+  async function renderSettings() {
     const container = document.getElementById('settings-content');
     if (!container || !settingsCache) return;
 
@@ -250,18 +291,7 @@
           let control = '';
           if (groupKey === 'aesthetic settings' && key === 'appearance') {
             const normalizedValue = String(value || 'system');
-            let themeOptions = `
-              <option value="system" ${normalizedValue === 'system' ? 'selected' : ''}>System</option>
-              <option value="light" ${normalizedValue === 'light' ? 'selected' : ''}>Light</option>
-              <option value="dark" ${normalizedValue === 'dark' ? 'selected' : ''}>Dark</option>
-            `;
-            // Append custom themes from ThemeManager
-            const customThemes = window.ThemeManager?.getCustomThemeList?.() || [];
-            for (const t of customThemes) {
-              if (t.name === 'light' || t.name === 'dark' || t.name === 'system') continue;
-              const sel = normalizedValue === t.name ? 'selected' : '';
-              themeOptions += `<option value="${t.name}" ${sel}>${t.title}</option>`;
-            }
+            const themeOptions = await buildAppearanceOptions(normalizedValue);
             control = `
               <select id="${fieldId}" class="settings-input settings-select" data-group="${groupKey}" data-key="${key}">
                 ${themeOptions}
@@ -321,7 +351,7 @@
         else if (action === 'save') await saveSettings();
       }
       await Promise.all([loadSettings(), loadDescriptions()]);
-      renderSettings();
+      await renderSettings();
     });
   }
 
@@ -350,7 +380,7 @@
     window.__themeApplyDeferred = true;
     wireNavigationGuards();
     await Promise.all([loadSettings(), loadDescriptions()]);
-    renderSettings();
+    await renderSettings();
   }
 
   if (document.readyState === 'loading') {

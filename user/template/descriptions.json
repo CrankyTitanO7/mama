@@ -4,7 +4,7 @@
       "language": "language of the interface"
     },
     "aesthetic settings": {
-      "appearance": "system, light, or dark mode",
+      "appearance": "change app theme. custom themes may need app refresh/save to appear",
       "scaling factor": "scaling factor, especially for window managers"
     },
     "hardware settings": {

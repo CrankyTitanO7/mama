@@ -40,20 +40,46 @@ a page designed to walk a user through exporting a model for any use case. futur
 
 ### general settings 
 
-#### setup 
-do you want to run the setup on startup of the app?
-#### language 
-what language do you speak
+#### setup
 
-### aesthetic settings
+## themes
 
-#### appearance 
-dark mode or light mode?
+the app uses a file-based theme system. themes are JSON files placed in `user/themes/`. each file adds an option to the appearance dropdown in settings.
 
-#### scaling factor
-how zoomed should the app be? typically designed for an unforgiving window manager.
+### built-in themes
 
-#### accent color 
-accent color of the interface
+the app ships with no built-in theme visible in the dropdown. the only hardcoded palette is a dark fallback that activates automatically when `user/themes/` is empty. if the folder has any valid JSON themes, the fallback is replaced.
 
-### 
+### adding a theme
+
+create a new `.json` file in `user/themes/` with this structure:
+
+```json
+{
+  "name": "my-theme",
+  "title": "My Theme",
+  "variables": {
+    "--page-bg": "#ffffff",
+    "--page-text": "#000000"
+  }
+}
+```
+
+- **name** — a short identifier (no spaces recommended). used internally and stored in settings.
+- **title** — what appears in the dropdown menu.
+- **variables** — CSS custom properties that change the app colours.
+
+once saved, open **Settings → Appearance** and your theme will appear in the dropdown. no restart needed — just navigate to settings or reload the page.
+
+### example themes
+
+the repo includes three example themes in `user/themes/`:
+- `light.json` — light mode
+- `dark.json` — dark mode
+- `dark-green.json` — dark mode with green accents
+
+you can enable or disable any theme by adding or removing its `.json` file.
+
+### fallback
+
+if you remove all `.json` files from `user/themes/`, the dropdown will show only **System** and **Fallback**. the fallback is a default dark palette built into the app.

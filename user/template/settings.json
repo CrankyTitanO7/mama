@@ -8,8 +8,7 @@
     // ── Appearance ──────────────────────────────────────────────────────────
     "aesthetic settings": {
         "appearance": "system",                    // "system" | "dark" | "light"
-        "scaling factor": 1,                        // UI scale (useful on tiling WMs)
-        "accent color": "default"                   // theme accent token
+        "scaling factor": 1                        // UI scale (useful on tiling WMs)
     },
 
     // ── Hardware (filled by setup wizard / detection) ─────────────────────────

@@ -5,8 +5,7 @@
     },
     "aesthetic settings": {
       "appearance": "system, light, or dark mode",
-      "scaling factor": "scaling factor, especially for window managers",
-      "accent color": "accent color of the interface"
+      "scaling factor": "scaling factor, especially for window managers"
     },
     "hardware settings": {
       "graphics manufacturer": "graphics manufacturer of the system (ie Intel, AMD, NVIDIA)",

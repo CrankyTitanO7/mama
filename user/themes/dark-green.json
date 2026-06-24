@@ -1,0 +1,28 @@
+{
+  "name": "dark-green",
+  "title": "Dark Green",
+  "variables": {
+    "--highlight-color": "#4ade80",
+    "--main-color": "#0a1f0a",
+    "--shadow-color": "rgba(0, 0, 0, 0.45)",
+    "--heading-color": "#4ade80",
+    "--body-color": "#a7d8a7",
+    "--page-bg": "#0a1f0a",
+    "--page-text": "#d4edda",
+    "--page-muted": "#a7d8a7",
+    "--panel-bg": "#0f2b0f",
+    "--panel-border": "#1b4d1b",
+    "--widget-bg": "#0f2b0f",
+    "--widget-border": "#1b4d1b",
+    "--topbar-bg": "#0f2b0f",
+    "--topbar-border": "#1b4d1b",
+    "--topbar-text": "#d4edda",
+    "--topbar-muted": "#a7d8a7",
+    "--topbar-active": "#4ade80",
+    "--input-bg": "#0a1f0a",
+    "--input-text": "#d4edda",
+    "--input-border": "#1b4d1b",
+    "--button-secondary-bg": "#143014",
+    "--button-secondary-text": "#d4edda"
+  }
+}

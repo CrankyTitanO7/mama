@@ -8,4 +8,8 @@ for in depth explanations of each component, refer to the developer's guide.
 
 the user folder, located at mama/user, holds most of everything the user will need. it is here that most files are, including for custom editing. 
 
-### custom themeing
+### custom theming
+
+themes are set as css variables. each theme is represented as a .json file in user/themes. each json should automatically be added as an entry. additionally, duplicates will be ignored. 
+
+the values of said themes can be any css accepted color value, in quotations. 

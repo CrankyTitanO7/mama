@@ -210,17 +210,43 @@
     {
       id: 'appearance',
       title: 'Appearance',
-      render: (settings) => {
-        const appearance   = settings['aesthetic settings']?.appearance       || 'dark';
+      render: async (settings) => {
+        const appearance   = settings['aesthetic settings']?.appearance       || 'system';
         const accent       = settings['aesthetic settings']?.['accent color'] || 'default';
         const accentColors = ['default', 'blue', 'green', 'purple', 'orange', 'red'];
+
+        // Build theme dropdown options — try custom themes first, then fallback
+        let themeOptions =
+          `<option value="system" ${appearance === 'system' ? 'selected' : ''}>System</option>`;
+
+        // Access themes from ThemeManager if loaded, or try direct IPC as fallback
+        let customThemes = window.ThemeManager?.getCustomThemeList?.() || [];
+        if (customThemes.length === 0 && window.electron?.themesRead) {
+          try {
+            const themes = await window.electron.themesRead();
+            if (Array.isArray(themes) && themes.length > 0) {
+              customThemes = themes;
+            }
+          } catch (_) {}
+        }
+
+        if (customThemes.length > 0) {
+          for (const t of customThemes) {
+            const sel = appearance === t.name ? 'selected' : '';
+            themeOptions += `<option value="${t.name}" ${sel}>${escapeHtml(t.title)}</option>`;
+          }
+        } else {
+          // No custom themes available — show fallback option
+          const sel = appearance === '__default__' ? 'selected' : '';
+          themeOptions += `<option value="__default__" ${sel}>Fallback</option>`;
+        }
+
         return `
           <h2>Appearance</h2>
           <div class="setup-field">
             <label>Theme:</label>
             <select id="setup-appearance" class="setup-select">
-              <option value="dark"  ${appearance === 'dark'  ? 'selected' : ''}>Dark</option>
-              <option value="light" ${appearance === 'light' ? 'selected' : ''}>Light</option>
+              ${themeOptions}
             </select>
           </div>
           <div class="setup-field">
@@ -240,7 +266,7 @@
         `;
       },
       collect: () => ({
-        appearance:       document.getElementById('setup-appearance')?.value || 'dark',
+        appearance:       document.getElementById('setup-appearance')?.value || 'system',
         'accent color':   document.getElementById('setup-accent')?.value    || 'default',
         'scaling factor': parseFloat(document.getElementById('setup-scaling')?.value) || 1
       })
@@ -1136,14 +1162,14 @@
 
   // ========== Step rendering ==========
 
-  function renderStep() {
+  async function renderStep() {
     const step = STEPS[currentStep];
     if (!step) return;
 
     const container = document.getElementById('setup-content');
     if (!container) return;
 
-    container.innerHTML = step.render(settingsCache);
+    container.innerHTML = await step.render(settingsCache);
     if (step.afterRender) step.afterRender();
 
     // Progress dots
@@ -1214,14 +1240,14 @@
 
     if (currentStep < STEPS.length - 1) {
       currentStep++;
-      renderStep();
+      await renderStep();
     }
   }
 
-  function prevStep() {
+  async function prevStep() {
     if (currentStep > 0) {
       currentStep--;
-      renderStep();
+      await renderStep();
     }
   }
 

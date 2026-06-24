@@ -250,11 +250,21 @@
           let control = '';
           if (groupKey === 'aesthetic settings' && key === 'appearance') {
             const normalizedValue = String(value || 'system');
+            let themeOptions = `
+              <option value="system" ${normalizedValue === 'system' ? 'selected' : ''}>System</option>
+              <option value="light" ${normalizedValue === 'light' ? 'selected' : ''}>Light</option>
+              <option value="dark" ${normalizedValue === 'dark' ? 'selected' : ''}>Dark</option>
+            `;
+            // Append custom themes from ThemeManager
+            const customThemes = window.ThemeManager?.getCustomThemeList?.() || [];
+            for (const t of customThemes) {
+              if (t.name === 'light' || t.name === 'dark' || t.name === 'system') continue;
+              const sel = normalizedValue === t.name ? 'selected' : '';
+              themeOptions += `<option value="${t.name}" ${sel}>${t.title}</option>`;
+            }
             control = `
               <select id="${fieldId}" class="settings-input settings-select" data-group="${groupKey}" data-key="${key}">
-                <option value="system" ${normalizedValue === 'system' ? 'selected' : ''}>System</option>
-                <option value="light" ${normalizedValue === 'light' ? 'selected' : ''}>Light</option>
-                <option value="dark" ${normalizedValue === 'dark' ? 'selected' : ''}>Dark</option>
+                ${themeOptions}
               </select>
             `;
           } else if (groupKey === 'qol settings' && (key === 'resources' || key === 'task manager')) {

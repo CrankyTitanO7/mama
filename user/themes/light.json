@@ -1,0 +1,28 @@
+{
+  "name": "light",
+  "title": "Light",
+  "variables": {
+    "--highlight-color": "#0077ff",
+    "--main-color": "#f4f7fb",
+    "--shadow-color": "rgba(15, 52, 96, 0.16)",
+    "--heading-color": "#0f172a",
+    "--body-color": "#475569",
+    "--page-bg": "#f4f7fb",
+    "--page-text": "#0f172a",
+    "--page-muted": "#475569",
+    "--panel-bg": "#ffffff",
+    "--panel-border": "#dbe4f0",
+    "--widget-bg": "#ffffff",
+    "--widget-border": "#dbe4f0",
+    "--topbar-bg": "#ffffff",
+    "--topbar-border": "#dbe4f0",
+    "--topbar-text": "#0f172a",
+    "--topbar-muted": "#64748b",
+    "--topbar-active": "#0077ff",
+    "--input-bg": "#ffffff",
+    "--input-text": "#0f172a",
+    "--input-border": "#dbe4f0",
+    "--button-secondary-bg": "#e2e8f0",
+    "--button-secondary-text": "#0f172a"
+  }
+}

@@ -1,7 +1,9 @@
 (function () {
   const STORAGE_KEY = 'mama-theme-preference';
   const root = document.documentElement;
-  const palettes = {
+
+  // Built-in fallback palettes
+  const builtInPalettes = {
     light: {
       '--highlight-color': '#0077ff',
       '--main-color': '#f4f7fb',
@@ -52,6 +54,12 @@
     }
   };
 
+  // Master palette: built-in + custom themes merged in at load time
+  let palettes = { ...builtInPalettes };
+
+  // Custom theme descriptors { name, title } for UI consumption
+  let customThemeList = [];
+
   let activeTheme = 'system';
 
   function getSystemTheme() {
@@ -61,7 +69,10 @@
 
   function getResolvedTheme(themeName) {
     if (!themeName || themeName === 'system') return getSystemTheme();
-    return themeName === 'light' || themeName === 'dark' ? themeName : 'system';
+    // If it's a known palette (built-in or custom), use it directly
+    if (palettes[themeName]) return themeName;
+    // Fall back to system
+    return getSystemTheme();
   }
 
   function applyThemeToRoot(targetRoot, themeName) {
@@ -74,7 +85,7 @@
     });
 
     targetRoot.style.setProperty('--theme-mode', resolved);
-    targetRoot.style.colorScheme = resolved;
+    targetRoot.style.colorScheme = resolved === 'dark' ? 'dark' : 'light';
     targetRoot.dataset.theme = resolved;
 
     return { normalized, resolved };
@@ -133,7 +144,36 @@
     }
   }
 
+  /**
+   * Load custom theme JSON files from user/themes/ via IPC and merge them
+   * into the palette lookup so they can be applied by name.
+   */
+  async function loadCustomThemes() {
+    try {
+      if (window.electron?.themesRead) {
+        const themes = await window.electron.themesRead();
+        if (Array.isArray(themes)) {
+          customThemeList = [];
+          for (const t of themes) {
+            if (t.name && t.title && t.variables) {
+              palettes[t.name] = { ...t.variables };
+              customThemeList.push({ name: t.name, title: t.title });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load custom themes:', error);
+    }
+  }
+
+  function getCustomThemeList() {
+    return customThemeList;
+  }
+
   async function initializeTheme() {
+    await loadCustomThemes();
+
     let themeName = getStoredTheme();
     applyTheme(themeName, false);
 
@@ -180,6 +220,7 @@
     applyThemeToWindow,
     initializeTheme,
     getResolvedTheme,
+    getCustomThemeList,
     getActiveTheme: () => activeTheme
   };
 

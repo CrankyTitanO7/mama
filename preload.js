@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld('electron', {
   // ── System: Generic command (for mission control checks) ───
   runSystemCommand: (command, args) => ipcRenderer.invoke('run-system-command', command, args),
 
+  // ── Custom themes ───────────────────────────────────────────
+  themesRead: () => ipcRenderer.invoke('themes-read'),
+
   // ── Python: Legacy commands ─────────────────────────────────
   runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action),
 });

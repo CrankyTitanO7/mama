@@ -1,0 +1,28 @@
+{
+  "name": "dark",
+  "title": "Dark",
+  "variables": {
+    "--highlight-color": "#00d4ff",
+    "--main-color": "#1a1a2e",
+    "--shadow-color": "rgba(0, 0, 0, 0.35)",
+    "--heading-color": "#00d4ff",
+    "--body-color": "#b0b0b0",
+    "--page-bg": "#1a1a2e",
+    "--page-text": "#e0e0e0",
+    "--page-muted": "#b0b0b0",
+    "--panel-bg": "#16213e",
+    "--panel-border": "#0f3460",
+    "--widget-bg": "#16213e",
+    "--widget-border": "#0f3460",
+    "--topbar-bg": "#16213e",
+    "--topbar-border": "#0f3460",
+    "--topbar-text": "#e0e0e0",
+    "--topbar-muted": "#b0b0b0",
+    "--topbar-active": "#00d4ff",
+    "--input-bg": "#1a1a2e",
+    "--input-text": "#e0e0e0",
+    "--input-border": "#0f3460",
+    "--button-secondary-bg": "#333333",
+    "--button-secondary-text": "#e0e0e0"
+  }
+}

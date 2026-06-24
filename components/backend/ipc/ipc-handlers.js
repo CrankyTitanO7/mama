@@ -127,6 +127,10 @@ const {
   readDescriptions,
 } = require('../settings-store');
 
+const {
+  readCustomThemes,
+} = require('../../styling/theme-loader');
+
 function writeSettings(filePath, settings, backup = true) {
   if (backup && fs.existsSync(filePath)) {
     fs.copyFileSync(filePath, filePath + '.bak');
@@ -313,6 +317,12 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
       console.error('settings-write-nonbackup failed:', e);
       return false;
     }
+  });
+
+  // ── Custom themes ───────────────────────────────────────────────────────
+
+  ipcMain.handle('themes-read', async () => {
+    return readCustomThemes();
   });
 
   // ── Setup complete ────────────────────────────────────────────────────────

@@ -2,6 +2,52 @@
 
 the complete comprehensive guide on every working part of this application, including intended usage and etc.
 
+# Development Documentation: Framework Installation & Verification
+
+## Overview
+This module provides the logic for automatically installing deep learning frameworks (**PyTorch** and **TensorFlow**) and verifying their installation and hardware acceleration. It is designed to be called by a parent process (e.g., a Node.js application) and provides streamed output for real-time monitoring.
+
+## Workflow Logic
+
+### 1. Installation Phase (`install_fw.py`)
+The installation script handles the mapping between user requirements and the specific `pip` commands needed.
+
+**Logic Flow:**
+1. **Input Parsing:** Accepts `framework` (torch/tf), `gpu_variant` (cuda/rocm/cpu), and an optional `accel_version`.
+2. **Command Construction:** The `build_command()` function determines the correct installation string:
+   - **PyTorch:** Maps requirements to `torch` installation strings, including specific wheels for CUDA or ROCm.
+   - **TensorFlow:** Maps requirements to `tensorflow` or `tensorflow-gpu` packages.
+   - **CPU Fallback:** Installs the CPU-only versions of the frameworks.
+3. **Execution:** Executes the command using `subprocess.run()`.
+   - **Output Streaming:** stdout and stderr are inherited, allowing the calling process to capture the installation progress in real-time.
+
+### 2. Verification Phase (`import_test.py`)
+After installation, this script ensures that the framework is functional and that the system hardware is correctly recognized.
+
+**Logic Flow:**
+- **PyTorch Verification:**
+    - Attempts `import torch`.
+    - **NVIDIA Path:** Checks `torch.cuda.is_available()` $\rightarrow$ Prints CUDA version, GPU count, and per-GPU properties (Model Name, VRAM).
+    - **AMD Path:** Checks `torch.version.hip` $\rightarrow$ Prints ROCm version.
+    - **CPU Path:** Falls back to "CPU only" status.
+- **TensorFlow Verification:**
+    - Attempts `import tensorflow as tf`.
+    - **GPU Detection:** Uses `tf.config.list_physical_devices("GPU")` to list all available hardware.
+- **Exit Status:** 
+    - `0`: Success.
+    - `1`: `ImportError` or critical failure.
+    - `2`: Invalid arguments.
+
+## Logic Summary Table
+
+| Feature | PyTorch Path | TensorFlow Path |
+| :--- | :--- | :--- |
+| **Install Command** | `pip install torch` (+ variant) | `pip install tensorflow` (+ variant) |
+| **Verification** | `import torch` | `import tensorflow as tf` |
+| **Hardware Check** | `torch.cuda` / `torch.version.hip` | `tf.config.list_physical_devices` |
+| **Diagnostics** | GPU Model, VRAM, CUDA/HIP Version | List of physical GPU devices |
+
+
 ## theme system
 
 ### architecture
@@ -87,4 +133,3 @@ the `window.ThemeManager` object exposed by `theme.js` provides:
 - `getActiveTheme()` — returns the currently active theme name
 - `initializeTheme()` — re-initialize (loads themes from IPC, applies stored preference)
 - `getResolvedTheme(themeName)` — returns the resolved palette key
-

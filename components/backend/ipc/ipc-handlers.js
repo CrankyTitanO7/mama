@@ -325,6 +325,16 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     return readCustomThemes();
   });
 
+  ipcMain.handle('themes-write', async (_event, theme) => {
+    try {
+      const { writeCustomTheme } = require('../../styling/theme-loader');
+      return writeCustomTheme(theme);
+    } catch (e) {
+      console.error('themes-write failed:', e);
+      return false;
+    }
+  });
+
   // ── Setup complete ────────────────────────────────────────────────────────
   // Flip the setup flag in settings and emit an event for main.js to handle
   // (e.g. navigate to the main window or reload the BrowserWindow).

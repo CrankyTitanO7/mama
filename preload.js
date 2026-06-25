@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // ── Custom themes ───────────────────────────────────────────
   themesRead: () => ipcRenderer.invoke('themes-read'),
+  themesWrite: (theme) => ipcRenderer.invoke('themes-write', theme),
 
   // ── Python: Legacy commands ─────────────────────────────────
   runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action),

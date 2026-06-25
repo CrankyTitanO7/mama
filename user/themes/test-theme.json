@@ -1,0 +1,7 @@
+{
+  "name": "test-theme",
+  "title": "Test Theme",
+  "variables": {
+    "--test-var": "#ff0000"
+  }
+}

@@ -1599,6 +1599,172 @@ body.embed-fullscreen-active {
   background: rgba(255,255,255,0.15) !important;
 }
 
+/* ============================================
+   Custom Theme Editor
+   ============================================ */
+.custom-theme-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 8, 18, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.custom-theme-dialog {
+  width: min(520px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 28px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px var(--shadow-color);
+}
+
+.custom-theme-dialog h3 {
+  margin: 0 0 6px;
+  color: var(--highlight-color);
+  font-size: 18px;
+}
+
+.custom-theme-desc {
+  margin: 0 0 16px;
+  color: var(--body-color);
+  font-size: 13px;
+}
+
+.custom-theme-fields {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 16px;
+}
+
+.custom-theme-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 50%, transparent);
+}
+
+.custom-theme-field:last-child {
+  border-bottom: none;
+}
+
+.custom-theme-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--page-text);
+  flex-shrink: 0;
+  min-width: 140px;
+}
+
+.custom-theme-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.custom-theme-color {
+  width: 40px;
+  height: 36px;
+  padding: 2px;
+  border: 2px solid var(--input-border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.custom-theme-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.custom-theme-color::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+.custom-theme-hex {
+  width: 80px;
+  padding: 6px 8px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.custom-theme-hex:focus {
+  border-color: var(--highlight-color);
+}
+
+.custom-theme-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.custom-theme-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.custom-theme-btn:hover {
+  opacity: 0.9;
+}
+
+.custom-theme-btn-primary {
+  background: var(--highlight-color);
+  color: var(--main-color);
+  font-weight: 600;
+}
+
+.custom-theme-btn-secondary {
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+}
+
+/* Name prompt dialog (smaller) */
+.custom-theme-name-dialog {
+  width: min(380px, calc(100vw - 48px));
+  padding: 24px 28px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px var(--shadow-color);
+}
+
+.custom-theme-name-dialog h3 {
+  margin: 0 0 6px;
+  color: var(--highlight-color);
+  font-size: 18px;
+}
+
+.custom-theme-name-row {
+  margin: 12px 0 16px;
+}
+
+.custom-theme-name-row .settings-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   #wb-props {

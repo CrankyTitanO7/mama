@@ -225,6 +225,238 @@
     `;
   }
 
+  // ── Custom Theme Editor ─────────────────────────────────────────────────────
+
+  // The canonical list of CSS variable keys for a theme, with friendly labels
+  const THEME_VARIABLE_DEFS = [
+    { key: '--highlight-color',       label: 'Highlight' },
+    { key: '--main-color',            label: 'Main Background' },
+    { key: '--shadow-color',          label: 'Shadow' },
+    { key: '--heading-color',         label: 'Heading' },
+    { key: '--body-color',            label: 'Body Text' },
+    { key: '--page-bg',               label: 'Page Background' },
+    { key: '--page-text',             label: 'Page Text' },
+    { key: '--page-muted',            label: 'Page Muted' },
+    { key: '--panel-bg',              label: 'Panel Background' },
+    { key: '--panel-border',          label: 'Panel Border' },
+    { key: '--widget-bg',             label: 'Widget Background' },
+    { key: '--widget-border',         label: 'Widget Border' },
+    { key: '--topbar-bg',             label: 'Topbar Background' },
+    { key: '--topbar-border',         label: 'Topbar Border' },
+    { key: '--topbar-text',           label: 'Topbar Text' },
+    { key: '--topbar-muted',          label: 'Topbar Muted' },
+    { key: '--topbar-active',         label: 'Topbar Active' },
+    { key: '--input-bg',              label: 'Input Background' },
+    { key: '--input-text',            label: 'Input Text' },
+    { key: '--input-border',          label: 'Input Border' },
+    { key: '--button-secondary-bg',   label: 'Button Secondary Background' },
+    { key: '--button-secondary-text', label: 'Button Secondary Text' },
+  ];
+
+  // Snapshot taken when the custom theme popup opens, for dirty-checking
+  let _customThemeEditorSnapshot = null;
+
+  function getDefaultThemeColors() {
+    // Read current CSS custom property values from the document
+    const style = getComputedStyle(document.documentElement);
+    const colors = {};
+    for (const def of THEME_VARIABLE_DEFS) {
+      colors[def.key] = style.getPropertyValue(def.key).trim() || '#000000';
+    }
+    return colors;
+  }
+
+  async function openCustomThemeEditor() {
+    const colors = getDefaultThemeColors();
+
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-theme-overlay';
+      overlay.innerHTML = `
+        <div class="custom-theme-dialog" role="dialog" aria-labelledby="custom-theme-title">
+          <h3 id="custom-theme-title">🎨 Custom Theme</h3>
+          <p class="custom-theme-desc">Adjust the colors below and click Save to create your theme.</p>
+          <div class="custom-theme-fields">
+            ${THEME_VARIABLE_DEFS.map((def, idx) => {
+              const val = colors[def.key] || '#000000';
+              return `
+                <div class="custom-theme-field" data-var-key="${def.key}">
+                  <label class="custom-theme-label" for="ct-${idx}">${escapeHtml(def.label)}</label>
+                  <div class="custom-theme-picker-row">
+                    <input type="color" id="ct-${idx}" class="custom-theme-color" value="${val}">
+                    <input type="text" class="custom-theme-hex" value="${val}" maxlength="7" spellcheck="false">
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="custom-theme-actions">
+            <button type="button" class="custom-theme-btn custom-theme-btn-secondary" data-action="cancel">Cancel</button>
+            <button type="button" class="custom-theme-btn custom-theme-btn-primary" data-action="save">Save Theme</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      // Wire up color <-> hex sync
+      overlay.querySelectorAll('.custom-theme-field').forEach((field) => {
+        const colorInput = field.querySelector('.custom-theme-color');
+        const hexInput = field.querySelector('.custom-theme-hex');
+
+        colorInput.addEventListener('input', () => {
+          hexInput.value = colorInput.value;
+        });
+
+        hexInput.addEventListener('input', () => {
+          let val = hexInput.value.trim();
+          if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+            colorInput.value = val;
+          }
+        });
+
+        hexInput.addEventListener('blur', () => {
+          let val = hexInput.value.trim();
+          if (!/^#[0-9a-fA-F]{6}$/.test(val)) {
+            // Reset to the color input's value on invalid input
+            hexInput.value = colorInput.value;
+          }
+        });
+      });
+
+      const close = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+
+      const dialog = overlay.querySelector('.custom-theme-dialog');
+      dialog?.addEventListener('click', (e) => e.stopPropagation());
+
+      // Cancel / close overlay
+      overlay.querySelector('[data-action="cancel"]')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close(null);
+      });
+
+      overlay.addEventListener('click', () => close(null));
+
+      // Save
+      overlay.querySelector('[data-action="save"]')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+
+        // Collect colors
+        const variables = {};
+        overlay.querySelectorAll('.custom-theme-field').forEach((field) => {
+          const key = field.dataset.varKey;
+          const hexInput = field.querySelector('.custom-theme-hex');
+          variables[key] = hexInput.value;
+        });
+
+        // Prompt for name
+        const name = await showThemeNamePrompt();
+        if (!name) return; // user cancelled naming
+
+        const theme = {
+          name: name.toLowerCase().replace(/\s+/g, '-'),
+          title: name,
+          variables
+        };
+
+        // Write via IPC
+        const success = await window.electron.themesWrite(theme);
+        if (!success) {
+          showStatus('Failed to save custom theme.', 'error');
+          return;
+        }
+
+        showStatus(`Theme "${escapeHtml(name)}" saved!`, 'success');
+
+        // Reload themes in ThemeManager and re-apply
+        if (window.ThemeManager && window.ThemeManager.applyTheme) {
+          try {
+            // Reload the theme list in the ThemeManager
+            if (window.ThemeManager.initializeTheme) {
+              await window.ThemeManager.initializeTheme();
+            }
+            // Apply the new theme
+            window.ThemeManager.applyTheme(theme.name);
+            // Also update the settings cache to reflect the new selection
+            if (settingsCache?.['aesthetic settings']) {
+              settingsCache['aesthetic settings'].appearance = theme.name;
+            }
+          } catch (e) {
+            console.warn('Theme re-apply after save failed', e);
+          }
+        }
+
+        // Re-render settings so the dropdown picks up the new theme
+        await renderSettings();
+        close(theme);
+      });
+    });
+  }
+
+  async function showThemeNamePrompt() {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-theme-overlay';
+      overlay.innerHTML = `
+        <div class="custom-theme-name-dialog" role="dialog" aria-labelledby="theme-name-title">
+          <h3 id="theme-name-title">Name Your Theme</h3>
+          <p class="custom-theme-desc">Give your custom theme a name.</p>
+          <div class="custom-theme-name-row">
+            <input type="text" id="theme-name-input" class="settings-input" placeholder="My Theme" maxlength="64" autofocus>
+          </div>
+          <div class="custom-theme-actions">
+            <button type="button" class="custom-theme-btn custom-theme-btn-secondary" data-action="cancel">Cancel</button>
+            <button type="button" class="custom-theme-btn custom-theme-btn-primary" data-action="confirm">Save</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      const close = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+
+      const input = overlay.querySelector('#theme-name-input');
+      const dialog = overlay.querySelector('.custom-theme-name-dialog');
+      dialog?.addEventListener('click', (e) => e.stopPropagation());
+
+      setTimeout(() => input?.focus(), 50);
+
+      overlay.querySelector('[data-action="cancel"]')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close(null);
+      });
+
+      overlay.querySelector('[data-action="confirm"]')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const name = input.value.trim();
+        if (!name) {
+          input.focus();
+          input.style.borderColor = '#f44336';
+          return;
+        }
+        close(name);
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          overlay.querySelector('[data-action="confirm"]')?.click();
+        }
+        if (e.key === 'Escape') {
+          close(null);
+        }
+      });
+
+      overlay.addEventListener('click', () => close(null));
+    });
+  }
+
   async function buildAppearanceOptions(normalizedValue) {
     // Start with system — always present
     let options =
@@ -263,6 +495,10 @@
       const sel = normalizedValue === '__default__' ? 'selected' : '';
       options += `<option value="__default__" ${sel}>Fallback</option>`;
     }
+
+    // Always add the custom theme option
+    options += `<option value="__custom__" data-custom-theme="true">🎨 Custom theme...</option>`;
+
     return options;
   }
 
@@ -341,6 +577,31 @@
         updateUnsavedState();
       });
     });
+
+    // Special handling for the appearance select: intercept "custom theme" selection
+    const appearanceSelect = container.querySelector('[data-group="aesthetic settings"][data-key="appearance"]');
+    if (appearanceSelect) {
+      appearanceSelect.addEventListener('change', async function () {
+        if (this.value === '__custom__') {
+          // Reset the dropdown to the previous value while the editor is open
+          const prevValue = settingsCache?.['aesthetic settings']?.appearance || 'system';
+          this.value = prevValue;
+
+          // Open the custom theme editor
+          const result = await openCustomThemeEditor();
+          if (result) {
+            // A theme was saved — update the dropdown to select it
+            appearanceSelect.value = result.name;
+            settingsCache['aesthetic settings'].appearance = result.name;
+            updateUnsavedState();
+          }
+          // If cancelled, the dropdown stays at the previous value
+        } else {
+          updateCacheFromField(this);
+          updateUnsavedState();
+        }
+      });
+    }
 
     document.getElementById('settings-save-btn')?.addEventListener('click', saveSettings);
     document.getElementById('settings-reload-btn')?.addEventListener('click', async () => {

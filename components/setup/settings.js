@@ -190,12 +190,13 @@
     if (navigationWired) return;
     navigationWired = true;
 
-    document.querySelectorAll('[data-settings-nav]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const page = btn.dataset.settingsNav;
-        if (page) navigateAway(page);
-      });
+    // Use event delegation so dynamically added [data-settings-nav] elements work
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-settings-nav]');
+      if (!btn) return;
+      e.preventDefault();
+      const page = btn.dataset.settingsNav;
+      if (page) navigateAway(page);
     });
 
     window.handleSettingsNavigation = async (page) => {
@@ -507,6 +508,12 @@
     if (!container || !settingsCache) return;
 
     let html = '';
+
+    // Setup Wizard link at the top of settings content
+    html += `<div class="settings-setup-bar">
+      <button type="button" class="nav-btn" data-settings-nav="public/setup.html">🔧 Setup Wizard</button>
+      <span class="settings-setup-bar-text">Configure initial installation and framework detection</span>
+    </div>`;
 
     for (const [groupKey, groupValue] of Object.entries(settingsCache)) {
       html += `<div class="settings-group">`;

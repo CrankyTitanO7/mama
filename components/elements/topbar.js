@@ -11,12 +11,19 @@ class Topbar {
 
   getNavItems() {
     return [
-      { label: '🔧 Setup', page: 'setup.html', key: 'setup' },
-      { label: '⚙️ Settings', page: 'settings.html', key: 'settings' },
       { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
       { label: '✏️ multimodel designer', page: 'multicon.html', key: 'multicon' },
       { label: 'database explorer', page: 'db_explorer.html', key: 'db_explorer' },
       { label: 'export model', page: 'export.html', key: 'export' }
+    ];
+  }
+
+  /**
+   * Items that appear at the right end of the topbar.
+   */
+  getRightNavItems() {
+    return [
+      { label: '⚙️ Settings', page: 'settings.html', key: 'settings' }
     ];
   }
 
@@ -32,6 +39,7 @@ class Topbar {
 
   render() {
     const navItems = this.getNavItems();
+    const rightNavItems = this.getRightNavItems();
     const activeKey = this.getActiveKey();
     
     const topbarHTML = `
@@ -39,6 +47,16 @@ class Topbar {
         <span class="topbar-brand" style="cursor:pointer" data-topbar-nav="public/index.html">mama</span>
         <div class="topbar-nav">
           ${navItems.map(item => `
+            <button
+              class="topbar-btn ${activeKey === item.key ? 'active' : ''}"
+              data-topbar-nav="public/${item.page}"
+            >
+              ${item.label}
+            </button>
+          `).join('')}
+        </div>
+        <div class="topbar-nav topbar-nav-right">
+          ${rightNavItems.map(item => `
             <button
               class="topbar-btn ${activeKey === item.key ? 'active' : ''}"
               data-topbar-nav="public/${item.page}"

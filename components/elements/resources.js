@@ -542,18 +542,99 @@ function initResourcesWidget(container) {
   }
 
   /**
+   * macOS Metal GPU via ioreg + system_profiler.
+   *
+   * Uses ioreg to detect whether a GPU has dedicated VRAM (discrete/dGPU)
+   * or shares system RAM (integrated/iGPU — Apple Silicon, Intel Iris).
+   *
+   * For dGPU: reads VRAM,total from ioreg (hex bytes).
+   * For iGPU:  no VRAM is reported (unified memory — VRAM section shows N/A).
+   *
+   * GPU utilisation is unavailable without root on macOS (powermetrics),
+   * so we return gpuPct = -1 to signal "unknown" to the UI.
+   */
+  let _macGpuCache = null;
+
+  async function getGPUMacOS() {
+    if (PLATFORM !== 'macos') return null;
+    try {
+      // ── ioreg: detect GPU presence and VRAM class ──────────────────────
+      const ioregR = await cmd('ioreg', ['-l', '-w0', '-c', 'IOAccelerator']);
+      if (ioregR.code !== 0 || !ioregR.stdout.trim()) return null;
+
+      const out = ioregR.stdout;
+      const hasDiscreteVRAM = out.includes('"VRAM,total"');
+      const isAppleSilicon  = /"class"\s*=\s*"Apple.*GFX"/i.test(out)
+                              || /"IOName"\s*=\s*".*m1[0-9]*[a-z-]*"/i.test(out)
+                              || /"IOName"\s*=\s*".*m2[0-9]*[a-z-]*"/i.test(out)
+                              || /"IOName"\s*=\s*".*m3[0-9]*[a-z-]*"/i.test(out)
+                              || /"IOName"\s*=\s*".*m4[0-9]*[a-z-]*"/i.test(out);
+
+      // ── Parse discrete VRAM from ioreg (hex bytes) ─────────────────────
+      let vramBytes = 0;
+      if (hasDiscreteVRAM) {
+        const m = out.match(/"VRAM,total"\s*=\s*(\d+)/i);
+        if (m) vramBytes = parseInt(m.group(1), 10);
+      }
+
+      // ── system_profiler for display name + Metal version ───────────────
+      const spR = await cmd('system_profiler', ['SPDisplaysDataType']);
+      let gpuName = '';
+      let metalVer = '';
+      if (spR.code === 0 && spR.stdout) {
+        const sp = spR.stdout;
+        const chip = sp.match(/Chipset Model:\s*(.+?)$/m);
+        if (chip) gpuName = chip[1].trim();
+        const metal = sp.match(/Metal Support:\s*(.+?)$/mi);
+        if (metal) {
+          const mv = metal[1].trim();
+          const v = mv.match(/Metal\s*([\d.]+)?/i);
+          metalVer = v ? (v[1] || '1') : '';
+        }
+      }
+
+      if (!gpuName) {
+        // Fallback: infer from ioreg model hint
+        const modelM = out.match(/"model"\s*=\s*<"([^"]+)"/i);
+        if (modelM) gpuName = modelM[1];
+      }
+      if (!gpuName) return null; // nothing identifiable found
+
+      const isIGPU = isAppleSilicon || !hasDiscreteVRAM;
+      const source = 'metal';
+
+      return {
+        gpuPct:      -1,        // unknown without sudo
+        vramUsed:    0,
+        vramTotal:   isIGPU ? 0 : vramBytes,  // 0 = no VRAM for iGPU
+        vramPct:     0,
+        gpuUtilAvail: false,
+        source,
+        available:   true,
+        gpuName,
+        metalVer,
+        isIGPU,
+        isDiscrete:  !isIGPU,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
    * Try all GPU backends in priority order.
    *
-   * Windows:  nvidia-smi (NVIDIA) → PDH counters (AMD / Intel / any)
-   * Linux:    nvidia-smi → rocm-smi → sysfs
-   * macOS:    nvidia-smi (eGPU edge case only; Apple Silicon not supported)
+   * Windows:   nvidia-smi (NVIDIA) → PDH counters (AMD / Intel / any)
+   * Linux:     nvidia-smi → rocm-smi → sysfs
+   * macOS:     nvidia-smi (eGPU) → getGPUMacOS (Apple Silicon / Intel / AMD)
    */
   async function getGPU() {
     const result =
       (await getGPUNvidia()) ||
-      (PLATFORM === 'windows' ? await getGPUWindows()  : null) ||
-      (PLATFORM === 'linux'   ? await getGPUROCm()     : null) ||
-      (PLATFORM === 'linux'   ? await getGPUSysfs()    : null) ||
+      (PLATFORM === 'macos'   ? await getGPUMacOS()     : null) ||
+      (PLATFORM === 'windows' ? await getGPUWindows()   : null) ||
+      (PLATFORM === 'linux'   ? await getGPUROCm()      : null) ||
+      (PLATFORM === 'linux'   ? await getGPUSysfs()     : null) ||
       { gpuPct: 0, vramUsed: 0, vramTotal: 0, vramPct: 0, source: 'none', available: false };
     return result;
   }
@@ -629,19 +710,29 @@ function initResourcesWidget(container) {
       }
 
       // GPU
-      const gpuPct = Math.round(gpu.gpuPct);
+      const rawPct = Math.round(gpu.gpuPct);
+      const gpuPct = rawPct < 0 ? 0 : rawPct; // -1 means unknown — show empty bar
       setBar('.gpu-bar', gpuPct);
       if (gpu.available) {
-        const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
-                      gpu.source === 'rocm'        ? 'AMD/ROCm' :
-                      gpu.source === 'sysfs'       ? 'AMD/sysfs' :
-                      gpu.source === 'windows-pdh' ? 'PDH' : '';
-        setText('.gpu-detail', `${gpuPct}%${label ? `  [${label}]` : ''}`);
+        let detail = '';
+        if (gpu.source === 'metal') {
+          // macOS Metal GPU: show name + Metal version, no fake percentage
+          const metalTag = gpu.metalVer ? ` [Metal ${gpu.metalVer}]` : '';
+          detail = `${gpu.gpuName || 'GPU'}${metalTag}`;
+        } else {
+          const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
+                        gpu.source === 'rocm'        ? 'AMD/ROCm' :
+                        gpu.source === 'sysfs'       ? 'AMD/sysfs' :
+                        gpu.source === 'windows-pdh' ? 'PDH' : '';
+          detail = `${gpuPct}%${label ? `  [${label}]` : ''}`;
+        }
+        setText('.gpu-detail', detail);
       } else {
         setText('.gpu-detail', 'N/A — no supported GPU detected');
       }
 
-      // VRAM
+      // VRAM — only shown for discrete GPUs with dedicated VRAM.
+      // Apple Silicon iGPUs use unified memory so vramTotal = 0 → shows N/A.
       const vramPct = Math.round(gpu.vramPct);
       setBar('.vram-bar', vramPct);
       if (gpu.available && gpu.vramTotal > 0) {

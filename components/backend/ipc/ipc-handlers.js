@@ -158,8 +158,10 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
   });
 
   ipcMain.handle('run-gpu-detect', async () => {
-    // nvidia-smi / rocm-smi can hang briefly on first call — allow 30 s
-    return runScript(SCRIPT.gpuDetect, [], { timeout: 30_000 });
+    // nvidia-smi / rocm-smi can hang briefly on first call.
+    // macOS system_profiler SPDisplaysDataType may take 10–20 s on some machines,
+    // and the metal detector calls both ioreg + system_profiler — allow 90 s total.
+    return runScript(SCRIPT.gpuDetect, [], { timeout: 90_000 });
   });
 
   // ── OS info helper ─────────────────────────────────────────────────────────

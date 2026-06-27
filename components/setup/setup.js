@@ -151,6 +151,7 @@
     const mfr = detected.gpuManufacturer;
     if (mfr === 'nvidia') return detected.cudaVersion ? `CUDA ${detected.cudaVersion}` : 'CUDA (version unknown)';
     if (mfr === 'amd')    return detected.rocmVersion ? `ROCm ${detected.rocmVersion}` : 'ROCm (version unknown)';
+    if (mfr === 'apple')  return `MPS${detected.metalVersion ? ` (Metal ${detected.metalVersion})` : ''}`;
     return 'CPU-only';
   }
 
@@ -158,6 +159,7 @@
   function gpuVariant() {
     if (detected.gpuManufacturer === 'nvidia') return 'cuda';
     if (detected.gpuManufacturer === 'amd')    return 'rocm';
+    if (detected.gpuManufacturer === 'apple')  return 'mps';
     return 'cpu';
   }
 
@@ -480,6 +482,7 @@
             <select id="setup-gpu-mfr" class="setup-select">
               <option value="nvidia">NVIDIA</option>
               <option value="amd">AMD</option>
+              <option value="apple">Apple (MPS / Metal)</option>
               <option value="intel">Intel</option>
               <option value="none">None / CPU only</option>
             </select>
@@ -536,27 +539,43 @@
             detected.cudaVersion     = kv['CUDA_VERSION']    || '';
             detected.rocmVersion     = kv['ROCM_VERSION']    || '';
             detected.driverVersion   = kv['DRIVER_VERSION']  || '';
+            detected.metalVersion    = kv['METAL_VERSION']   || '';
+            detected.mpsAvailable    = kv['MPS_AVAILABLE']   || '';
+            detected.gpuType         = kv['GPU_TYPE']        || '';
+            detected.metalVersion    = kv['METAL_VERSION']   || '';
+            detected.mpsAvailable    = kv['MPS_AVAILABLE']   || '';
+            detected.gpuType         = kv['GPU_TYPE']        || '';
 
             const mfrLabel = {
               nvidia: 'NVIDIA',
               amd:    'AMD',
+              apple:  'Apple',
               intel:  'Intel',
               none:   'None / CPU only'
             }[detected.gpuManufacturer] || 'Unknown';
 
-            const vramStr  = detected.gpuVramMB ? ` — ${(detected.gpuVramMB / 1024).toFixed(1)} GB VRAM` : '';
-            const accelStr = detected.cudaVersion ? ` (CUDA ${detected.cudaVersion})`
-                           : detected.rocmVersion ? ` (ROCm ${detected.rocmVersion})`
-                           : '';
+            const vramStr = detected.gpuVramMB
+              ? ` — ${(detected.gpuVramMB / 1024).toFixed(1)} GB VRAM`
+              : '';
+            const accelStr = detected.cudaVersion
+              ? ` (CUDA ${detected.cudaVersion})`
+              : detected.rocmVersion
+                ? ` (ROCm ${detected.rocmVersion})`
+                : detected.metalVersion
+                  ? ` (Metal ${detected.metalVersion})`
+                  : '';
+            const mpsStr = detected.mpsAvailable === 'true'
+              ? ' — MPS available'
+              : '';
 
             if (detected.gpuManufacturer !== 'none' && detected.gpuName) {
               out.innerHTML = `
                 <div class="setup-success-msg">
-                  ✅ GPU detected: <strong>${escapeHtml(detected.gpuName)}</strong>${escapeHtml(vramStr + accelStr)}
+                  ✅ GPU detected: <strong>${escapeHtml(detected.gpuName)}</strong>${escapeHtml(vramStr + accelStr + mpsStr)}
                 </div>
               `;
             } else if (detected.gpuManufacturer !== 'none') {
-              out.innerHTML = `<div class="setup-success-msg">✅ ${mfrLabel} GPU detected${escapeHtml(accelStr)}</div>`;
+              out.innerHTML = `<div class="setup-success-msg">✅ ${mfrLabel} GPU detected${escapeHtml(accelStr + mpsStr)}</div>`;
             } else {
               out.innerHTML = `
                 <div class="setup-hint">

@@ -25,3 +25,10 @@ out/
 # user
 user/settings.json
 user/settings.json.bak
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

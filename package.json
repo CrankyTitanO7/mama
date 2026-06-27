@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
     "dev": "electron . --inspect=5858 --trace-deprecation --trace-warnings",
     "build": "electron-builder"
@@ -24,6 +23,8 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.0.1",
     "electron": "latest"
   },
   "allowScripts": {

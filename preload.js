@@ -3,9 +3,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // ── Streaming install state (internal, not exposed) ─────────────────────────
 let _installChunkCallback = null;
+let _beforeQuitCallback = null;
 
 ipcRenderer.on('install-chunk', (_event, chunk) => {
   if (_installChunkCallback) _installChunkCallback(chunk);
+});
+
+ipcRenderer.on('before-quit-check', async (_event) => {
+  if (_beforeQuitCallback) {
+    const action = await _beforeQuitCallback();
+    ipcRenderer.send('before-quit-response', action);
+  } else {
+    ipcRenderer.send('before-quit-response', 'proceed');
+  }
 });
 
 contextBridge.exposeInMainWorld('versions', {
@@ -60,4 +70,9 @@ contextBridge.exposeInMainWorld('electron', {
 
   // ── Python: Legacy commands ─────────────────────────────────
   runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action),
+
+  // ── Before-quit hook (settings unsaved changes dialog) ─────
+  onBeforeQuit: (callback) => {
+    _beforeQuitCallback = callback;
+  },
 });

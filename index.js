@@ -88,6 +88,46 @@ const createWindow = (page) => {
       webviewTag: true,
     }
   });
+
+  // Flag to prevent re-triggering the close check after user confirms
+  let _closingConfirmed = false;
+
+  // Intercept close: if settings page is showing unsaved changes,
+  // ask the renderer to prompt the user before closing.
+  mainWindow.on('close', async (e) => {
+    // If already confirmed, allow the close to proceed naturally
+    if (_closingConfirmed) return;
+
+    if (mainWindow && mainWindow.webContents) {
+      e.preventDefault();
+
+      // Send a synchronous-style check via IPC — ask renderer if there are unsaved changes
+      const result = await new Promise((resolve) => {
+        // Listen for the response
+        const onResponse = (_event, action) => {
+          ipcMain.removeListener('before-quit-response', onResponse);
+          resolve(action);
+        };
+        ipcMain.on('before-quit-response', onResponse);
+
+        // Ask the renderer to check
+        mainWindow.webContents.send('before-quit-check');
+
+        // Timeout: if no response within 10 seconds, proceed with close
+        setTimeout(() => {
+          ipcMain.removeListener('before-quit-response', onResponse);
+          resolve('proceed');
+        }, 10000);
+      });
+
+      if (result === 'cancel') return;
+
+      // User confirmed — close the window for real
+      _closingConfirmed = true;
+      mainWindow.close();
+    }
+  });
+
   mainWindow.loadFile(page || 'public/index.html');
 };
 

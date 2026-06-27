@@ -209,6 +209,29 @@
       e.preventDefault();
       e.returnValue = '';
     });
+
+    // Register quit handler: when main process asks about unsaved changes,
+    // show the unsaved dialog and return the user's choice.
+    if (window.electron && window.electron.onBeforeQuit) {
+      window.electron.onBeforeQuit(async () => {
+        if (!isDirty()) return 'proceed';
+
+        const action = await showUnsavedDialog();
+        if (action === 'cancel') return 'cancel';
+
+        if (action === 'discard') {
+          await revertToSaved();
+          return 'proceed';
+        }
+
+        if (action === 'save') {
+          const saved = await saveSettings();
+          return saved ? 'proceed' : 'cancel';
+        }
+
+        return 'proceed';
+      });
+    }
   }
 
   function renderResourcesField(fieldId, groupKey, key, value) {

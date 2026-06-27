@@ -2,7 +2,6 @@
  * resources.js — btop-style resource monitor widget.
  *
  * Displays live CPU, RAM, GPU, and VRAM usage with configurable refresh rate.
- * Supports NVIDIA (nvidia-smi) and AMD (rocm-smi → sysfs fallback) GPUs.
  *
  * ── Required IPC (add to ipc-handlers.js + preload.js) ────────────────────
  *
@@ -21,20 +20,22 @@
  *   preload.js:
  *     runSystemCommand: (cmd, args = []) => ipcRenderer.invoke('run-system-command', cmd, args),
  *
- * ── Platform support ──────────────────────────────────────────────────────
+ * ── Platform / GPU support ────────────────────────────────────────────────
  *
  *   CPU / RAM
- *     Windows  PowerShell Get-CimInstance Win32_Processor + Win32_OperatingSystem
- *     Linux    top -bn2 -d0.1 (CPU)  +  free -b using available column (RAM)
- *     macOS    top -l 2 -s 0 (CPU)   +  vm_stat + sysctl hw.memsize (RAM)
+ *     Windows   PowerShell Get-CimInstance
+ *     Linux     top -bn2 -d0.1  +  free -b (available column)
+ *     macOS     top -l 2        +  vm_stat + sysctl hw.memsize
  *
  *   GPU / VRAM
- *     NVIDIA   nvidia-smi --query-gpu (all platforms)
- *  AMD      rocm-smi --json (Linux + ROCm)
- * /   
- //              → /sys/class/drm/card*/
- // device/gpu_busy_percent sysfs (Linux fallback)
- /*              → N/A on Windows AMD (no equivalent CLI without extra drivers)
+ *     NVIDIA       nvidia-smi       (all platforms)
+ *     Windows any  PDH counters     (AMD / Intel / any, no extra drivers)
+ *     AMD Linux    rocm-smi --json  → /sys/class/drm sysfs fallback
+ *     macOS        ioreg IOAccelerator → PerformanceStatistics
+ *                  Works on Apple Silicon (AGXAccelerator) and Intel iGPU.
+ *                  No sudo required.
+ *                  "In use system memory" is GPU-held bytes of unified RAM;
+ *                  vramTotal = hw.memsize (no fixed VRAM pool on Apple Silicon).
  */
 
 'use strict';
@@ -44,7 +45,7 @@
 const PLATFORM = (() => {
   const p  = (navigator.platform  || '').toLowerCase();
   const ua = (navigator.userAgent || '').toLowerCase();
-  if (p.startsWith('win') || ua.includes('windows')) return 'windows';
+  if (p.startsWith('win') || ua.includes('windows'))                        return 'windows';
   if (p.startsWith('mac') || ua.includes('macintosh') || ua.includes('mac os')) return 'macos';
   return 'linux';
 })();
@@ -52,66 +53,54 @@ const PLATFORM = (() => {
 // ── Widget entry point ─────────────────────────────────────────────────────
 
 /**
- * Initialise the resource monitor inside a container element.
  * @param {HTMLElement} container
+ * @param {object}      [opts]
+ * @param {object}      [opts.gpuConfig]  Saved GPU info from setup wizard.
+ *   { manufacturer, name, cudaVersion, rocmVersion, metalVersion, mpsAvailable }
  */
 function initResourcesWidget(container, opts = {}) {
   if (!container) return;
 
-  const gpuConfig = opts.gpuConfig || null; // { manufacturer, name, cudaVersion, rocmVersion, metalVersion, mpsAvailable, gpuType }
-
-  // GPU configured? If not, we'll show "not configured" instead of auto-detecting.
-  const hasConfiguredGPU = gpuConfig && gpuConfig.manufacturer && gpuConfig.manufacturer !== 'none';
+  const gpuConfig      = opts.gpuConfig || null;
+  const hasConfiguredGPU = gpuConfig
+    && gpuConfig.manufacturer
+    && gpuConfig.manufacturer !== 'none';
 
   // ── Static HTML ──────────────────────────────────────────────────────────
 
   container.innerHTML = `
     <div class="resources-widget">
-
       <div class="resources-header">
         <span class="resources-title">System Resources</span>
         <label class="resources-interval-label">
           Refresh every
-          <input
-            id="res-interval-input"
-            class="resources-interval-slider"
-            type="range"
-            min="1" max="60" step="1"
-            value="3"
-          >
+          <input id="res-interval-input" class="resources-interval-slider"
+            type="range" min="1" max="60" step="1" value="3">
           <span id="res-interval-value" class="resources-interval-value">3s</span>
         </label>
       </div>
 
       <div class="resource-group">
         <div class="resource-group-title">CPU</div>
-        <div class="resource-bar-track">
-          <div class="resource-bar cpu-bar" style="width:0%"></div>
-        </div>
+        <div class="resource-bar-track"><div class="resource-bar cpu-bar" style="width:0%"></div></div>
         <div class="resource-detail cpu-detail">—</div>
       </div>
 
       <div class="resource-group">
         <div class="resource-group-title">RAM</div>
-        <div class="resource-bar-track">
-          <div class="resource-bar ram-bar" style="width:0%"></div>
-        </div>
+        <div class="resource-bar-track"><div class="resource-bar ram-bar" style="width:0%"></div></div>
         <div class="resource-detail ram-detail">—</div>
       </div>
 
       <div class="resource-group">
         <div class="resource-group-title">GPU</div>
-        <div class="resource-bar-track">
-          <div class="resource-bar gpu-bar" style="width:0%"></div>
-        </div>
+        <div class="resource-bar-track"><div class="resource-bar gpu-bar" style="width:0%"></div></div>
         <div class="resource-detail gpu-detail">—</div>
       </div>
 
       <div class="resource-group">
         <div class="resource-group-title">VRAM</div>
-        <div class="resource-bar-track">
-          <div class="resource-bar vram-bar" style="width:0%"></div>
-        </div>
+        <div class="resource-bar-track"><div class="resource-bar vram-bar" style="width:0%"></div></div>
         <div class="resource-detail vram-detail">—</div>
       </div>
 
@@ -121,21 +110,15 @@ function initResourcesWidget(container, opts = {}) {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  /** Run a system command via Electron IPC. */
   function cmd(command, args = []) {
     return window.electron.runSystemCommand(command, args);
   }
 
-  /**
-   * Parse the first float found in a string.
-   * Returns NaN on failure rather than -1 so callers can use isNaN().
-   */
   function parseFirst(text) {
-    const m = String(text || '').match(/[\d]+(?:\.[\d]+)?/);
+    const m = String(text || '').match(/\d+(?:\.\d+)?/);
     return m ? parseFloat(m[0]) : NaN;
   }
 
-  /** Bytes → GiB string, e.g. "7.8 GiB" or "512 MiB". */
   function fmtBytes(bytes) {
     if (!bytes || bytes <= 0) return '—';
     const gib = bytes / (1024 ** 3);
@@ -143,17 +126,12 @@ function initResourcesWidget(container, opts = {}) {
     return `${(bytes / (1024 ** 2)).toFixed(0)} MiB`;
   }
 
-  /** Clamp a percentage value to [0, 100]. */
   function clampPct(v) {
     return Math.min(100, Math.max(0, v || 0));
   }
 
-  // ── CPU queries ──────────────────────────────────────────────────────────
+  // ── CPU ───────────────────────────────────────────────────────────────────
 
-  /**
-   * Windows CPU via PowerShell (Get-CimInstance Win32_Processor).
-   * Returns 0–100 load percentage.
-   */
   async function getCPUWindows() {
     try {
       const r = await cmd('powershell', [
@@ -163,73 +141,44 @@ function initResourcesWidget(container, opts = {}) {
       const v = parseFirst(r.stdout);
       if (!isNaN(v) && v >= 0 && v <= 100) return v;
     } catch (_) {}
-
-    // Fallback: wmic (deprecated but still present on older Windows)
     try {
       const r = await cmd('wmic', ['cpu', 'get', 'loadpercentage', '/value']);
       const m = (r.stdout || '').match(/LoadPercentage=(\d+)/i);
       if (m) return clampPct(parseFloat(m[1]));
     } catch (_) {}
-
     return 0;
   }
 
-  /**
-   * Linux CPU via top (two samples, 100ms apart → accurate delta reading).
-   * Parses "id" (idle) field and returns 100 - idle.
-   *
-   * top -bn2 -d0.1 output (second sample):
-   *   %Cpu(s):  5.0 us,  2.0 sy, ..., 92.5 id, ...
-   */
   async function getCPULinux() {
     try {
       const r = await cmd('top', ['-bn2', '-d0.1']);
-      const lines = (r.stdout || '')
-        .split('\n')
+      const lines = (r.stdout || '').split('\n')
         .filter(l => /^(%Cpu|Cpu\(s\))/i.test(l.trim()));
-
-      // Use the last matching line (second top sample)
       const line = lines[lines.length - 1] || '';
-
-      // Match "92.5 id" or "92.5%id"
       const m = line.match(/(\d+(?:\.\d+)?)\s*%?\s*id/i);
       if (m) return clampPct(100 - parseFloat(m[1]));
     } catch (_) {}
-
-    // Fallback: /proc/stat snapshot (less accurate — one sample only)
     try {
       const r = await cmd('cat', ['/proc/stat']);
       const line = (r.stdout || '').split('\n').find(l => l.startsWith('cpu '));
       if (line) {
         const parts = line.trim().split(/\s+/).slice(1).map(Number);
-        // [user, nice, system, idle, iowait, irq, softirq, steal]
-        const idle  = (parts[3] || 0) + (parts[4] || 0); // idle + iowait
+        const idle  = (parts[3] || 0) + (parts[4] || 0);
         const total = parts.reduce((a, b) => a + b, 0);
         return clampPct(total > 0 ? ((total - idle) / total) * 100 : 0);
       }
     } catch (_) {}
-
     return 0;
   }
 
-  /**
-   * macOS CPU via top (two samples, accurate delta).
-   * Parses "CPU usage: X% user, Y% sys, Z% idle"
-   * from the second sample line.
-   */
   async function getCPUMacOS() {
     try {
       const r = await cmd('top', ['-l', '2', '-s', '0', '-n', '0', '-stats', 'cpu']);
-      const lines = (r.stdout || '')
-        .split('\n')
-        .filter(l => /CPU usage:/i.test(l));
-
-      const line = lines[lines.length - 1] || '';
-      // "CPU usage: 12.50% user, 6.25% sys, 81.25% idle"
+      const lines = (r.stdout || '').split('\n').filter(l => /CPU usage:/i.test(l));
+      const line  = lines[lines.length - 1] || '';
       const m = line.match(/(\d+(?:\.\d+)?)\s*%\s*idle/i);
       if (m) return clampPct(100 - parseFloat(m[1]));
     } catch (_) {}
-
     return 0;
   }
 
@@ -239,17 +188,8 @@ function initResourcesWidget(container, opts = {}) {
     return getCPULinux();
   }
 
-  // ── RAM queries ──────────────────────────────────────────────────────────
+  // ── RAM ───────────────────────────────────────────────────────────────────
 
-  /**
-   * RAM result shape: { used: bytes, total: bytes, pct: 0-100 }
-   */
-
-  /**
-   * Windows RAM via PowerShell.
-   * Win32_OperatingSystem reports TotalVisibleMemorySize and FreePhysicalMemory in KB.
-   * Correct conversion: KiB / 1048576 → GiB  (NOT * 0.000001 which is ~5% wrong).
-   */
   async function getRAMWindows() {
     try {
       const r = await cmd('powershell', [
@@ -262,14 +202,12 @@ function initResourcesWidget(container, opts = {}) {
         const totalKiB = parseFloat(parts[0]);
         const freeKiB  = parseFloat(parts[1]);
         if (!isNaN(totalKiB) && totalKiB > 0) {
-          const total = totalKiB * 1024;          // KiB → bytes
+          const total = totalKiB * 1024;
           const used  = (totalKiB - freeKiB) * 1024;
           return { total, used, pct: clampPct((used / total) * 100) };
         }
       }
     } catch (_) {}
-
-    // Fallback: wmic os get (same fields, older Windows)
     try {
       const r = await cmd('wmic', ['os', 'get', 'TotalVisibleMemorySize,FreePhysicalMemory', '/value']);
       const totalM = (r.stdout || '').match(/TotalVisibleMemorySize=(\d+)/i);
@@ -280,60 +218,35 @@ function initResourcesWidget(container, opts = {}) {
         return { total, used, pct: clampPct((used / total) * 100) };
       }
     } catch (_) {}
-
     return { total: 0, used: 0, pct: 0 };
   }
 
-  /**
-   * Linux RAM via `free -b` (bytes, so no unit conversion rounding).
-   *
-   * `free -b` columns: total used free shared buff/cache available
-   *
-   * "used" shown in htop / GNOME System Monitor =  total - available
-   * This correctly excludes reclaimable page cache and buffers,
-   * giving the memory that is actually committed to processes.
-   */
   async function getRAMLinux() {
     try {
       const r = await cmd('free', ['-b']);
-      const line = (r.stdout || '')
-        .split('\n')
-        .find(l => l.trim().startsWith('Mem:'));
+      const line = (r.stdout || '').split('\n').find(l => l.trim().startsWith('Mem:'));
       if (line) {
         const parts = line.trim().split(/\s+/);
-        // parts: ["Mem:", total, used, free, shared, buff/cache, available]
         const total     = parseFloat(parts[1]);
-        const available = parseFloat(parts[6]);   // ← key fix: use available, not parts[2]
+        const available = parseFloat(parts[6]);
         if (!isNaN(total) && total > 0 && !isNaN(available)) {
           const used = total - available;
           return { total, used, pct: clampPct((used / total) * 100) };
         }
       }
     } catch (_) {}
-
     return { total: 0, used: 0, pct: 0 };
   }
 
-  /**
-   * macOS RAM via vm_stat + sysctl.
-   *
-   * sysctl -n hw.memsize → total bytes
-   * vm_stat              → page counts (page size declared on first line)
-   *
-   * used = (active + wired + occupied-by-compressor) × page_size
-   * This matches Activity Monitor's "Memory Used" figure.
-   */
   async function getRAMMacOS() {
     try {
       const [sysR, vmR] = await Promise.all([
         cmd('sysctl', ['-n', 'hw.memsize']),
         cmd('vm_stat'),
       ]);
-
       const total = parseFloat((sysR.stdout || '').trim());
       if (isNaN(total) || total <= 0) throw new Error('no total');
 
-      // Parse page size from first line: "Mach Virtual Memory Statistics: (page size of 16384 bytes)"
       const vmLines  = (vmR.stdout || '').split('\n');
       const psMatch  = vmLines[0].match(/page size of (\d+) bytes/i);
       const pageSize = psMatch ? parseInt(psMatch[1]) : 4096;
@@ -341,18 +254,13 @@ function initResourcesWidget(container, opts = {}) {
       function pages(label) {
         const line = vmLines.find(l => l.includes(label));
         if (!line) return 0;
-        const m = line.match(/([\d]+)/);
+        const m = line.match(/(\d+)/);
         return m ? parseInt(m[1]) : 0;
       }
 
-      const active     = pages('Pages active');
-      const wired      = pages('Pages wired down');
-      const compressed = pages('Pages occupied by compressor');
-
-      const used = (active + wired + compressed) * pageSize;
+      const used = (pages('Pages active') + pages('Pages wired down') + pages('Pages occupied by compressor')) * pageSize;
       return { total, used, pct: clampPct((used / total) * 100) };
     } catch (_) {}
-
     return { total: 0, used: 0, pct: 0 };
   }
 
@@ -362,13 +270,7 @@ function initResourcesWidget(container, opts = {}) {
     return getRAMLinux();
   }
 
-  // ── GPU / VRAM queries ───────────────────────────────────────────────────
-
-  /**
-   * GPU result shape:
-   *   { gpuPct, vramUsed, vramTotal, vramPct, source, available }
-   *   source: 'nvidia' | 'rocm' | 'sysfs' | 'none'
-   */
+  // ── GPU ───────────────────────────────────────────────────────────────────
 
   /** NVIDIA via nvidia-smi (all platforms). */
   async function getGPUNvidia() {
@@ -378,73 +280,41 @@ function initResourcesWidget(container, opts = {}) {
         '--format=csv,noheader,nounits',
       ]);
       if (r.code !== 0 || !r.stdout.trim()) return null;
-
-      // First GPU: "5, 1024, 12288" (MiB)
-      const line  = r.stdout.trim().split('\n')[0];
-      const parts = line.split(',').map(p => parseFloat(p.trim()));
+      const parts = r.stdout.trim().split('\n')[0].split(',').map(p => parseFloat(p.trim()));
       if (parts.length < 3 || parts.some(isNaN)) return null;
-
-      const [gpuPct, vramUsedMiB, vramTotalMiB] = parts;
-      const vramUsed  = vramUsedMiB  * 1024 * 1024;   // MiB → bytes
-      const vramTotal = vramTotalMiB * 1024 * 1024;
+      const [gpuPct, usedMiB, totalMiB] = parts;
+      const vramUsed  = usedMiB  * 1024 * 1024;
+      const vramTotal = totalMiB * 1024 * 1024;
       return {
-        gpuPct: clampPct(gpuPct),
-        vramUsed,
-        vramTotal,
+        gpuPct: clampPct(gpuPct), vramUsed, vramTotal,
         vramPct: clampPct((vramUsed / vramTotal) * 100),
-        source: 'nvidia',
-        available: true,
+        source: 'nvidia', available: true,
       };
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
-  /**
-   * AMD via rocm-smi JSON (Linux + ROCm installed).
-   *
-   * rocm-smi --showuse --showmeminfo vram --json
-   * Output: {"card0": {"GPU use (%)": "5", "VRAM Total Memory (B)": "8589934592",
-   *                    "VRAM Total Used Memory (B)": "1073741824"}}
-   */
+  /** AMD via rocm-smi JSON (Linux + ROCm). */
   async function getGPUROCm() {
     try {
       const r = await cmd('rocm-smi', ['--showuse', '--showmeminfo', 'vram', '--json']);
       if (r.code !== 0 || !r.stdout.trim()) return null;
-
       const data    = JSON.parse(r.stdout);
       const cardKey = Object.keys(data).find(k => k.startsWith('card'));
       if (!cardKey) return null;
-
-      const card       = data[cardKey];
-      const gpuPct     = parseFloat(card['GPU use (%)'] || '0');
-      const vramTotal  = parseFloat(card['VRAM Total Memory (B)'] || '0');
-      const vramUsed   = parseFloat(card['VRAM Total Used Memory (B)'] || '0');
-
+      const card      = data[cardKey];
+      const gpuPct    = parseFloat(card['GPU use (%)']              || '0');
+      const vramTotal = parseFloat(card['VRAM Total Memory (B)']    || '0');
+      const vramUsed  = parseFloat(card['VRAM Total Used Memory (B)'] || '0');
       if (isNaN(vramTotal) || vramTotal <= 0) return null;
       return {
-        gpuPct:    clampPct(gpuPct),
-        vramUsed,
-        vramTotal,
-        vramPct:   clampPct((vramUsed / vramTotal) * 100),
-        source:    'rocm',
-        available: true,
+        gpuPct: clampPct(gpuPct), vramUsed, vramTotal,
+        vramPct: clampPct((vramUsed / vramTotal) * 100),
+        source: 'rocm', available: true,
       };
-    } catch (_) {
-      // rocm-smi not installed, JSON parse failed, etc.
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
-  /**
-   * AMD sysfs fallback (Linux, no ROCm required — works with plain amdgpu kernel driver).
-   *
-   * /sys/class/drm/card0/device/gpu_busy_percent   → e.g. "5\n"
-   * /sys/class/drm/card0/device/mem_info_vram_used  → bytes
-   * /sys/class/drm/card0/device/mem_info_vram_total → bytes
-   *
-   * Tries card0 first, then card1 (multi-GPU or iGPU-present systems).
-   */
+  /** AMD sysfs fallback (Linux, no ROCm needed). */
   async function getGPUSysfs() {
     for (const card of ['card0', 'card1', 'card2']) {
       const base = `/sys/class/drm/${card}/device`;
@@ -454,306 +324,230 @@ function initResourcesWidget(container, opts = {}) {
           cmd('cat', [`${base}/mem_info_vram_used`]),
           cmd('cat', [`${base}/mem_info_vram_total`]),
         ]);
-
-        if (busyR.code !== 0) continue;   // this card doesn't have the file; skip
-
+        if (busyR.code !== 0) continue;
         const gpuPct    = clampPct(parseFirst(busyR.stdout));
         const vramUsed  = parseFirst(usedR.stdout)  || 0;
         const vramTotal = parseFirst(totalR.stdout) || 0;
-
-        // If total is 0 or very small it's an iGPU using system RAM — skip
-        if (vramTotal < 64 * 1024 * 1024) continue;
-
+        if (vramTotal < 64 * 1024 * 1024) continue;  // skip iGPU / system-RAM GPU
         return {
-          gpuPct,
-          vramUsed,
-          vramTotal,
-          vramPct:   clampPct(vramTotal > 0 ? (vramUsed / vramTotal) * 100 : 0),
-          source:    'sysfs',
-          available: true,
+          gpuPct, vramUsed, vramTotal,
+          vramPct: clampPct(vramTotal > 0 ? (vramUsed / vramTotal) * 100 : 0),
+          source: 'sysfs', available: true,
         };
-      } catch (_) {
-        continue;
-      }
+      } catch (_) { continue; }
     }
     return null;
   }
 
   /**
-   * Windows GPU via PDH performance counters (works for AMD, NVIDIA, Intel —
-   * no vendor-specific tools required, just the standard Windows GPU driver).
-   *
-   * Counter paths (backslashes doubled for JS string literals):
-   *   \GPU Process Memory(*)\Local Usage      → current VRAM used (bytes)
-   *   \GPU Engine(*engtype_3D)\Utilization Percentage → 3D engine usage (%)
-   *
-   * `| where CookedValue` filters out zero/null samples correctly.
-   * A separate Win32_VideoController query gives total VRAM.
-   * Note: AdapterRAM is a 32-bit WMI field — it caps at ~4 GB for cards with
-   * more VRAM (e.g. RX 7900 XTX 24 GB shows as 4 GB). No reliable workaround
-   * exists without vendor SDK; the bar will still work, only the label is off.
+   * Windows GPU via PDH performance counters.
+   * Works for AMD, NVIDIA, Intel — no vendor tools required.
    */
   async function getGPUWindows() {
     try {
       const script =
-        // VRAM used: sum Local Usage across all GPU process memory instances
         '$GpuMemTotal = (((Get-Counter "\\GPU Process Memory(*)\\Local Usage").CounterSamples ' +
           '| where CookedValue).CookedValue | measure -sum).sum; ' +
         'Write-Output "MEM:$([math]::Round($GpuMemTotal/1MB, 4))"; ' +
-
-        // GPU utilisation: sum 3D engine utilisation across all engine instances
         '$GpuUseTotal = (((Get-Counter "\\GPU Engine(*engtype_3D)\\Utilization Percentage").CounterSamples ' +
           '| where CookedValue).CookedValue | measure -sum).sum; ' +
         'Write-Output "USE:$([math]::Round($GpuUseTotal, 4))"; ' +
-
-        // Total VRAM from WMI — grab the adapter with the most dedicated RAM
         '$vc = Get-CimInstance Win32_VideoController ' +
           '| Where-Object { $_.Name -notmatch "Microsoft|Basic|Remote" } ' +
-          '| Sort-Object AdapterRAM -Descending ' +
-          '| Select-Object -First 1; ' +
+          '| Sort-Object AdapterRAM -Descending | Select-Object -First 1; ' +
         'Write-Output "TOTAL:$($vc.AdapterRAM)"';
 
       const r = await cmd('powershell', ['-NoProfile', '-Command', script]);
       if (r.code !== 0 || !r.stdout.trim()) return null;
 
-      // Parse labeled output lines
       const val = (prefix) => {
         const line = (r.stdout || '').split('\n').find(l => l.trimStart().startsWith(prefix));
         if (!line) return NaN;
         return parseFloat(line.slice(line.indexOf(':') + 1).trim());
       };
 
-      const vramUsedMB  = val('MEM:');    // MB
-      const gpuPct      = val('USE:');    // %
-      const vramTotalB  = val('TOTAL:'); // bytes (may be capped at ~4 GB by WMI)
-
-      // If all three failed the counters aren't available on this system
+      const vramUsedMB = val('MEM:');
+      const gpuPct     = val('USE:');
+      const vramTotalB = val('TOTAL:');
       if (isNaN(vramUsedMB) && isNaN(gpuPct)) return null;
 
-      const vramUsed  = (vramUsedMB  || 0) * 1024 * 1024;  // MB → bytes
-      const vramTotal = isNaN(vramTotalB) ? 0 : vramTotalB; // already bytes from WMI
-
+      const vramUsed  = (vramUsedMB  || 0) * 1024 * 1024;
+      const vramTotal = isNaN(vramTotalB) ? 0 : vramTotalB;
       return {
-        gpuPct:    clampPct(gpuPct   || 0),
-        vramUsed,
-        vramTotal,
-        vramPct:   vramTotal > 0 ? clampPct((vramUsed / vramTotal) * 100) : 0,
-        source:    'windows-pdh',
-        available: true,
+        gpuPct: clampPct(gpuPct || 0), vramUsed, vramTotal,
+        vramPct: vramTotal > 0 ? clampPct((vramUsed / vramTotal) * 100) : 0,
+        source: 'windows-pdh', available: true,
       };
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
   /**
-   * macOS Metal GPU via ioreg + system_profiler.
+   * macOS GPU via ioreg IOAccelerator → PerformanceStatistics.
    *
-   * Uses ioreg to detect whether a GPU has dedicated VRAM (discrete/dGPU)
-   * or shares system RAM (integrated/iGPU — Apple Silicon, Intel Iris).
+   * Works on Apple Silicon (AGXAccelerator) and Intel iGPU (IntelAccelerator).
+   * No sudo required — ioreg reads public IOKit registry entries.
    *
-   * For dGPU: reads VRAM,total from ioreg (hex bytes).
-   * For iGPU:  no VRAM is reported (unified memory — VRAM section shows N/A).
+   * Fields read from PerformanceStatistics:
+   *   "Device Utilization %"  → gpuPct   (0–100)
+   *   "In use system memory"  → vramUsed (bytes of unified RAM held by GPU)
    *
-   * GPU utilisation is unavailable without root on macOS (powermetrics),
-   * so we return gpuPct = -1 to signal "unknown" to the UI.
+   * vramTotal = hw.memsize (total system RAM) because Apple Silicon has no
+   * fixed VRAM pool — GPU memory is carved from unified RAM on demand.
    */
-  let _macGpuCache = null;
-
   async function getGPUMacOS() {
-    if (PLATFORM !== 'macos') return null;
     try {
-      // ── ioreg: detect GPU presence and VRAM class ──────────────────────
-      const ioregR = await cmd('ioreg', ['-l', '-w0', '-c', 'IOAccelerator']);
+      const [ioregR, memR] = await Promise.all([
+        cmd('ioreg', ['-r', '-d', '1', '-w', '0', '-c', 'IOAccelerator']),
+        cmd('sysctl', ['-n', 'hw.memsize']),
+      ]);
+
       if (ioregR.code !== 0 || !ioregR.stdout.trim()) return null;
 
       const out = ioregR.stdout;
-      const hasDiscreteVRAM = out.includes('"VRAM,total"');
-      const isAppleSilicon  = /"class"\s*=\s*"Apple.*GFX"/i.test(out)
-                              || /"IOName"\s*=\s*".*m1[0-9]*[a-z-]*"/i.test(out)
-                              || /"IOName"\s*=\s*".*m2[0-9]*[a-z-]*"/i.test(out)
-                              || /"IOName"\s*=\s*".*m3[0-9]*[a-z-]*"/i.test(out)
-                              || /"IOName"\s*=\s*".*m4[0-9]*[a-z-]*"/i.test(out);
 
-      // ── Parse discrete VRAM from ioreg (hex bytes) ─────────────────────
-      let vramBytes = 0;
-      if (hasDiscreteVRAM) {
-        const m = out.match(/"VRAM,total"\s*=\s*(\d+)/i);
-        if (m) vramBytes = parseInt(m.group(1), 10);
+      // Parse a named integer field from the PerformanceStatistics dictionary.
+      // ioreg prints it as:  "Device Utilization %" = 12
+      function ioField(name) {
+        // Escape special regex chars in the field name (the % sign)
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const m = out.match(new RegExp(`"${escaped}"\\s*=\\s*(\\d+)`));
+        return m ? parseInt(m[1], 10) : null;   // m[1], NOT m.group(1)
       }
 
-      // ── system_profiler for display name + Metal version ───────────────
-      const spR = await cmd('system_profiler', ['SPDisplaysDataType']);
-      let gpuName = '';
-      let metalVer = '';
-      if (spR.code === 0 && spR.stdout) {
-        const sp = spR.stdout;
-        const chip = sp.match(/Chipset Model:\s*(.+?)$/m);
-        if (chip) gpuName = chip[1].trim();
-        const metal = sp.match(/Metal Support:\s*(.+?)$/mi);
-        if (metal) {
-          const mv = metal[1].trim();
-          const v = mv.match(/Metal\s*([\d.]+)?/i);
-          metalVer = v ? (v[1] || '1') : '';
-        }
-      }
+      const gpuPct   = ioField('Device Utilization %');
+      const vramUsed = ioField('In use system memory');
 
-      if (!gpuName) {
-        // Fallback: infer from ioreg model hint
-        const modelM = out.match(/"model"\s*=\s*<"([^"]+)"/i);
-        if (modelM) gpuName = modelM[1];
-      }
-      if (!gpuName) return null; // nothing identifiable found
+      // If neither field exists this probably isn't an accelerator with stats
+      if (gpuPct === null && vramUsed === null) return null;
 
-      const isIGPU = isAppleSilicon || !hasDiscreteVRAM;
-      const source = 'metal';
+      const vramTotal = parseFloat((memR.stdout || '').trim()) || 0;
 
       return {
-        gpuPct:      -1,        // unknown without sudo
-        vramUsed:    0,
-        vramTotal:   isIGPU ? 0 : vramBytes,  // 0 = no VRAM for iGPU
-        vramPct:     0,
-        gpuUtilAvail: false,
-        source,
-        available:   true,
-        gpuName,
-        metalVer,
-        isIGPU,
-        isDiscrete:  !isIGPU,
+        gpuPct:    clampPct(gpuPct   ?? 0),
+        vramUsed:  vramUsed ?? 0,
+        vramTotal,
+        vramPct:   vramTotal > 0 ? clampPct(((vramUsed ?? 0) / vramTotal) * 100) : 0,
+        source:    'ioreg',
+        available: true,
       };
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
   /**
    * Try all GPU backends in priority order.
    *
-   * Windows:   nvidia-smi (NVIDIA) → PDH counters (AMD / Intel / any)
-   * Linux:     nvidia-smi → rocm-smi → sysfs
-   * macOS:     nvidia-smi (eGPU) → getGPUMacOS (Apple Silicon / Intel / AMD)
+   * Windows:  nvidia-smi → PDH (AMD / Intel / any)
+   * Linux:    nvidia-smi → rocm-smi → sysfs
+   * macOS:    nvidia-smi (eGPU) → ioreg (Apple Silicon / Intel iGPU)
    */
   async function getGPU() {
     const result =
       (await getGPUNvidia()) ||
-      (PLATFORM === 'windows' ? await getGPUWindows()   : null) ||
-      (PLATFORM === 'linux'   ? await getGPUROCm()      : null) ||
-      (PLATFORM === 'linux'   ? await getGPUSysfs()     : null) ||
+      (PLATFORM === 'windows' ? await getGPUWindows() : null) ||
+      (PLATFORM === 'linux'   ? await getGPUROCm()    : null) ||
+      (PLATFORM === 'linux'   ? await getGPUSysfs()   : null) ||
+      (PLATFORM === 'macos'   ? await getGPUMacOS()   : null) ||   // ← was missing
       { gpuPct: 0, vramUsed: 0, vramTotal: 0, vramPct: 0, source: 'none', available: false };
     return result;
   }
 
-  // ── DOM helpers ──────────────────────────────────────────────────────────
+  // ── DOM helpers ───────────────────────────────────────────────────────────
 
-  function setBar(selector, pct) {
-    const el = container.querySelector(selector);
-    if (el) el.style.width = `${clampPct(pct)}%`;
-  }
+  function setBar(sel, pct)  { const el = container.querySelector(sel); if (el) el.style.width = `${clampPct(pct)}%`; }
+  function setText(sel, txt) { const el = container.querySelector(sel); if (el) el.textContent = txt; }
 
-  function setText(selector, text) {
-    const el = container.querySelector(selector);
-    if (el) el.textContent = text;
-  }
+  // ── Refresh loop ──────────────────────────────────────────────────────────
 
-  // ── Refresh loop ─────────────────────────────────────────────────────────
-
-  let refreshTimer = null;
+  let refreshTimer    = null;
   let refreshInFlight = false;
 
   function getRefreshSeconds() {
-    const input = container.querySelector('#res-interval-input');
-    const parsed = parseInt(input?.value, 10);
-    return Math.min(60, Math.max(1, Number.isFinite(parsed) ? parsed : 3));
-  }
-
-  function clearRefreshTimer() {
-    if (refreshTimer) {
-      clearTimeout(refreshTimer);
-      refreshTimer = null;
-    }
+    const v = parseInt(container.querySelector('#res-interval-input')?.value, 10);
+    return Math.min(60, Math.max(1, Number.isFinite(v) ? v : 3));
   }
 
   function scheduleRefresh() {
-    clearRefreshTimer();
-    const seconds = getRefreshSeconds();
-    refreshTimer = setTimeout(() => {
-      refreshTimer = null;
-      refresh();
-    }, seconds * 1000);
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => { refreshTimer = null; refresh(); }, getRefreshSeconds() * 1000);
   }
 
   function restartRefreshTimer() {
-    clearRefreshTimer();
-    if (!refreshInFlight) {
-      refresh();
-    }
-    // If a refresh is in flight, its finally block schedules with the new interval.
+    if (refreshTimer) clearTimeout(refreshTimer);
+    if (!refreshInFlight) refresh();
   }
 
   async function refresh() {
     if (refreshInFlight) return;
     refreshInFlight = true;
-    clearRefreshTimer();
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
 
     try {
       const [cpu, ram, gpu] = await Promise.all([getCPU(), getRAM(), getGPU()]);
 
-      // CPU
+      // ── CPU ──────────────────────────────────────────────────────────────
       const cpuPct = Math.round(cpu);
       setBar('.cpu-bar', cpuPct);
       setText('.cpu-detail', `${cpuPct}%`);
 
-      // RAM
+      // ── RAM ──────────────────────────────────────────────────────────────
       const ramPct = Math.round(ram.pct);
       setBar('.ram-bar', ramPct);
-      if (ram.total > 0) {
-        setText('.ram-detail',
-          `${fmtBytes(ram.used)} / ${fmtBytes(ram.total)} (${ramPct}%)`);
-      } else {
-        setText('.ram-detail', 'unavailable');
-      }
+      setText('.ram-detail', ram.total > 0
+        ? `${fmtBytes(ram.used)} / ${fmtBytes(ram.total)} (${ramPct}%)`
+        : 'unavailable');
 
-      // GPU
-      const rawPct = Math.round(gpu.gpuPct);
-      const gpuPct = rawPct < 0 ? 0 : rawPct;
+      // ── GPU ──────────────────────────────────────────────────────────────
+      const gpuPct = Math.round(gpu.gpuPct);
       setBar('.gpu-bar', gpuPct);
 
       if (!hasConfiguredGPU) {
         setText('.gpu-detail', 'not configured');
         setBar('.gpu-bar', 0);
-      } else if (gpuConfig.manufacturer === 'apple') {
-        const name = gpuConfig.name || 'Apple GPU';
-        const metalTag = gpuConfig.metalVersion ? ` [Metal ${gpuConfig.metalVersion}]` : '';
-        const mpsTag = gpuConfig.mpsAvailable === 'true' ? ' — MPS ready' : '';
-        setText('.gpu-detail', `${name}${metalTag}${mpsTag}`);
       } else if (gpu.available) {
-        const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
-                      gpu.source === 'rocm'        ? 'AMD/ROCm' :
-                      gpu.source === 'sysfs'       ? 'AMD/sysfs' :
-                      gpu.source === 'windows-pdh' ? 'PDH' : '';
-        setText('.gpu-detail', `${gpuPct}%${label ? `  [${label}]` : ''}`);
+        // Build suffix: prefer gpuConfig metadata, fall back to source tag
+        let suffix = '';
+        if (gpuConfig.manufacturer === 'apple') {
+          const metalTag = gpuConfig.metalVersion ? ` Metal ${gpuConfig.metalVersion}` : '';
+          const mpsTag   = gpuConfig.mpsAvailable === 'true' ? ' · MPS' : '';
+          const name     = gpuConfig.name || 'Apple GPU';
+          suffix = `  [${name}${metalTag}${mpsTag}]`;
+        } else {
+          const sourceLabel = {
+            'nvidia':      'NVIDIA',
+            'rocm':        'AMD/ROCm',
+            'sysfs':       'AMD/sysfs',
+            'windows-pdh': 'PDH',
+            'ioreg':       'Apple GPU',
+          }[gpu.source] || '';
+          if (sourceLabel) suffix = `  [${sourceLabel}]`;
+        }
+        setText('.gpu-detail', `${gpuPct}%${suffix}`);
       } else {
         setText('.gpu-detail', 'N/A — no supported GPU detected');
       }
 
-      // VRAM
+      // ── VRAM ─────────────────────────────────────────────────────────────
       const vramPct = Math.round(gpu.vramPct);
       setBar('.vram-bar', vramPct);
 
       if (!hasConfiguredGPU) {
         setText('.vram-detail', 'not configured');
-      } else if (gpuConfig.manufacturer === 'apple') {
-        setText('.vram-detail', 'N/A — unified memory');
       } else if (gpu.available && gpu.vramTotal > 0) {
-        setText('.vram-detail',
-          `${fmtBytes(gpu.vramUsed)} / ${fmtBytes(gpu.vramTotal)} (${vramPct}%)`);
+        // Apple unified memory: label makes clear this isn't a fixed VRAM pool
+        const detail = gpu.source === 'ioreg'
+          ? `${fmtBytes(gpu.vramUsed)} GPU  /  ${fmtBytes(gpu.vramTotal)} unified (${vramPct}%)`
+          : `${fmtBytes(gpu.vramUsed)} / ${fmtBytes(gpu.vramTotal)} (${vramPct}%)`;
+        setText('.vram-detail', detail);
+      } else if (gpuConfig?.manufacturer === 'apple') {
+        setText('.vram-detail', 'unified memory — no fixed VRAM pool');
       } else {
         setText('.vram-detail', 'N/A');
       }
 
-      // Timestamp
+      // ── Timestamp ────────────────────────────────────────────────────────
       setText('.resource-update-msg',
         `updated ${new Date().toLocaleTimeString()} · every ${getRefreshSeconds()}s`);
+
     } catch (err) {
       console.error('resources widget refresh failed:', err);
       setText('.resource-update-msg', 'refresh failed — retrying…');
@@ -763,25 +557,18 @@ function initResourcesWidget(container, opts = {}) {
     }
   }
 
+  // ── Interval slider ───────────────────────────────────────────────────────
+
   const intervalInput = container.querySelector('#res-interval-input');
   const intervalValue = container.querySelector('#res-interval-value');
 
   function updateIntervalDisplay() {
-    if (intervalValue) {
-      intervalValue.textContent = `${getRefreshSeconds()}s`;
-    }
+    if (intervalValue) intervalValue.textContent = `${getRefreshSeconds()}s`;
   }
 
-  intervalInput?.addEventListener('input', () => {
-    updateIntervalDisplay();
-    restartRefreshTimer();
-  });
-  intervalInput?.addEventListener('change', () => {
-    updateIntervalDisplay();
-    restartRefreshTimer();
-  });
+  intervalInput?.addEventListener('input',  () => { updateIntervalDisplay(); restartRefreshTimer(); });
+  intervalInput?.addEventListener('change', () => { updateIntervalDisplay(); restartRefreshTimer(); });
 
-  // Initialize display
   updateIntervalDisplay();
 
   // ── Kick off ──────────────────────────────────────────────────────────────

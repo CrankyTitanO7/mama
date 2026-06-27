@@ -33,9 +33,9 @@ jobs:
         with:
           name: release-${{ matrix.os }}
           path: |
-            mama/release/*.dmg
-            mama/release/*.AppImage
-            mama/release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.exe
           if-no-files-found: error
 
   release:

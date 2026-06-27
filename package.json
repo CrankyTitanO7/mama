@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --inspect=5858 --trace-deprecation --trace-warnings",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "test": "playwright test",
+    "test:ci": "playwright test --reporter=html --output=test-results/"
   },
   "build": {
     "appId": "com.myapp",

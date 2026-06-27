@@ -22,9 +22,19 @@
     - build external website (hosted via vercel? github statics? generated from gist?)
     - build refresh cache
 
+## documentation
+
+- finish documentation, somehow
+
+## git and build
+
+- ACTIVATE LFS BEFORE UPLOADING DESIGNS
+- write README.MD
+- configure git repo contribute settings, license settings, etc.
+
 ## aesthetic
 - redesign default themes 
-- design icons
+- design icons (BEFORE UPLOADING, ACTIVATE GIT LFS)
 
 ## long term
 - language support

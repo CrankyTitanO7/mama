@@ -55,8 +55,13 @@ const PLATFORM = (() => {
  * Initialise the resource monitor inside a container element.
  * @param {HTMLElement} container
  */
-function initResourcesWidget(container) {
+function initResourcesWidget(container, opts = {}) {
   if (!container) return;
+
+  const gpuConfig = opts.gpuConfig || null; // { manufacturer, name, cudaVersion, rocmVersion, metalVersion, mpsAvailable, gpuType }
+
+  // GPU configured? If not, we'll show "not configured" instead of auto-detecting.
+  const hasConfiguredGPU = gpuConfig && gpuConfig.manufacturer && gpuConfig.manufacturer !== 'none';
 
   // ── Static HTML ──────────────────────────────────────────────────────────
 
@@ -631,7 +636,6 @@ function initResourcesWidget(container) {
   async function getGPU() {
     const result =
       (await getGPUNvidia()) ||
-      (PLATFORM === 'macos'   ? await getGPUMacOS()     : null) ||
       (PLATFORM === 'windows' ? await getGPUWindows()   : null) ||
       (PLATFORM === 'linux'   ? await getGPUROCm()      : null) ||
       (PLATFORM === 'linux'   ? await getGPUSysfs()     : null) ||
@@ -711,31 +715,36 @@ function initResourcesWidget(container) {
 
       // GPU
       const rawPct = Math.round(gpu.gpuPct);
-      const gpuPct = rawPct < 0 ? 0 : rawPct; // -1 means unknown — show empty bar
+      const gpuPct = rawPct < 0 ? 0 : rawPct;
       setBar('.gpu-bar', gpuPct);
-      if (gpu.available) {
-        let detail = '';
-        if (gpu.source === 'metal') {
-          // macOS Metal GPU: show name + Metal version, no fake percentage
-          const metalTag = gpu.metalVer ? ` [Metal ${gpu.metalVer}]` : '';
-          detail = `${gpu.gpuName || 'GPU'}${metalTag}`;
-        } else {
-          const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
-                        gpu.source === 'rocm'        ? 'AMD/ROCm' :
-                        gpu.source === 'sysfs'       ? 'AMD/sysfs' :
-                        gpu.source === 'windows-pdh' ? 'PDH' : '';
-          detail = `${gpuPct}%${label ? `  [${label}]` : ''}`;
-        }
-        setText('.gpu-detail', detail);
+
+      if (!hasConfiguredGPU) {
+        setText('.gpu-detail', 'not configured');
+        setBar('.gpu-bar', 0);
+      } else if (gpuConfig.manufacturer === 'apple') {
+        const name = gpuConfig.name || 'Apple GPU';
+        const metalTag = gpuConfig.metalVersion ? ` [Metal ${gpuConfig.metalVersion}]` : '';
+        const mpsTag = gpuConfig.mpsAvailable === 'true' ? ' — MPS ready' : '';
+        setText('.gpu-detail', `${name}${metalTag}${mpsTag}`);
+      } else if (gpu.available) {
+        const label = gpu.source === 'nvidia'      ? 'NVIDIA' :
+                      gpu.source === 'rocm'        ? 'AMD/ROCm' :
+                      gpu.source === 'sysfs'       ? 'AMD/sysfs' :
+                      gpu.source === 'windows-pdh' ? 'PDH' : '';
+        setText('.gpu-detail', `${gpuPct}%${label ? `  [${label}]` : ''}`);
       } else {
         setText('.gpu-detail', 'N/A — no supported GPU detected');
       }
 
-      // VRAM — only shown for discrete GPUs with dedicated VRAM.
-      // Apple Silicon iGPUs use unified memory so vramTotal = 0 → shows N/A.
+      // VRAM
       const vramPct = Math.round(gpu.vramPct);
       setBar('.vram-bar', vramPct);
-      if (gpu.available && gpu.vramTotal > 0) {
+
+      if (!hasConfiguredGPU) {
+        setText('.vram-detail', 'not configured');
+      } else if (gpuConfig.manufacturer === 'apple') {
+        setText('.vram-detail', 'N/A — unified memory');
+      } else if (gpu.available && gpu.vramTotal > 0) {
         setText('.vram-detail',
           `${fmtBytes(gpu.vramUsed)} / ${fmtBytes(gpu.vramTotal)} (${vramPct}%)`);
       } else {

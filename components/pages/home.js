@@ -80,7 +80,19 @@ async function renderResources() {
   }
 
   if (typeof initResourcesWidget === 'function') {
-    initResourcesWidget(container);
+    // Pass hardware settings so the widget can show configured GPU without auto-detecting
+    const hw = getSetting('hardware settings') || {};
+    initResourcesWidget(container, {
+      gpuConfig: {
+        manufacturer:  hw['graphics manufacturer'],
+        name:          hw['target card name'],
+        cudaVersion:   hw['cuda version'],
+        rocmVersion:   hw['rocm version'],
+        metalVersion:  hw['metal version'],
+        mpsAvailable:  hw['mps available'],
+        gpuType:       hw['gpu type'],
+      }
+    });
   } else {
     container.innerHTML = `<p class="disabled-msg">Resources widget not loaded.</p>`;
   }

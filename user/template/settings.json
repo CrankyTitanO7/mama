@@ -16,7 +16,10 @@
         "graphics manufacturer": null,            // null | "unscanned" | "amd" | "nvidia" | ...
         "target card name": null,                   // detected GPU name string
         "cuda version": null,                       // NVIDIA CUDA version if applicable
-        "rocm version": null                        // AMD ROCm version if applicable
+        "rocm version": null,
+        "metal version": null,
+        "mps available": null,
+        "gpu type": null                        // AMD ROCm version if applicable
     },
 
     // ── Software (filled by setup wizard / detection) ─────────────────────────

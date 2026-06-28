@@ -2,19 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Documentation Index</title>
-  <style>
-    body {font-family: Arial, sans-serif; margin: 20px;}
-    ul {list-style: none; padding: 0;}
-    li {margin: 8px 0;}
-    a {text-decoration: none; color: #0366d6;}
-    a:hover {text-decoration: underline;}
-  </style>
+  <title>Frank - Docs</title>
+  <link rel="stylesheet" href="../styles.css">
+  <!-- marked.js must load before docs.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-  <h1>Documentation</h1>
-  <ul id="doc-list">Loading…</ul>
+  <div class="page-content docs-layout">
+    <aside class="docs-sidebar">
+      <h2>Documentation</h2>
+      <ul id="doc-list">Loading…</ul>
+    </aside>
+    <main id="doc-content" class="docs-content">
+      <p class="doc-loading">Select a document.</p>
+    </main>
+  </div>
 
+  <script src="../components/elements/topbar.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      Topbar.init('docs');
+    });
+  </script>
   <script src="../components/pages/docs.js"></script>
 </body>
 </html>

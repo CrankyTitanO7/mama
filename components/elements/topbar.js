@@ -23,8 +23,8 @@ class Topbar {
    */
   getRightNavItems() {
     return [
-      { label: '⚙️ Settings', page: 'settings.html', key: 'settings' }, 
       { label: 'docs', page: 'docs.html', key: 'docs' }, 
+      { label: '⚙️ Settings', page: 'settings.html', key: 'settings' }, 
     ];
   }
 

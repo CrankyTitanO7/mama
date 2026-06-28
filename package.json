@@ -1,7 +1,7 @@
 {
   "name": "frank",
   "version": "1.0.0",
-  "description": "",
+  "description": "a visual AI development application",
   "main": "index.js",
   "scripts": {
     "start": "electron-forge start",

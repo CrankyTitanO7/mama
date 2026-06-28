@@ -21,7 +21,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
@@ -34,10 +34,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.os }}
-          path: |
-            release/*.dmg
-            release/*.AppImage
-            release/*.exe
+          path: out/make/**/*
           if-no-files-found: error
 
   release:
@@ -47,7 +44,7 @@ jobs:
 
     permissions:
       contents: write
-      
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4

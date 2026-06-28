@@ -1,7 +1,7 @@
 # to do list 
 
 ## bugs (known)
-- doesn't quit all the way sometimes
+- doesn't quit all the way sometimes (mac)
 - user settings are softlocked on first launch. The setup wizard is not run because settings.json doesn't exist yet. 
 - due to missing certification, users on mac must run 
     ```zsh

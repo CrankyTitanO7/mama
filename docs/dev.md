@@ -133,3 +133,13 @@ the `window.ThemeManager` object exposed by `theme.js` provides:
 - `getActiveTheme()` — returns the currently active theme name
 - `initializeTheme()` — re-initialize (loads themes from IPC, applies stored preference)
 - `getResolvedTheme(themeName)` — returns the resolved palette key
+
+## documentation
+
+the documentation system is quite simple. add the relative path of any md file to docs/register.json (it assumes it is in docs folder, but you can change the path). see example: 
+```json
+{
+  "display name" : "filename.md",
+  "file outside of docs folder" : "../path/to/file.md"
+}
+```

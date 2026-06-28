@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const btn = document.createElement('button');
       btn.type        = 'button';
-      btn.className   = 'doc-list-btn';
+      btn.className   = 'nav-btn doc-list-btn';
       btn.textContent = key;
       btn.addEventListener('click', () => loadDoc(filename, key));
 

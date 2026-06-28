@@ -1,0 +1,12 @@
+{
+    "pytorch": {
+        "name": "pytorch",
+        "description": "pytorch template",
+        "url": "https://github.com/victoresque/pytorch-template.git"
+    },
+    "tensorflow": {
+        "name": "tensorflow",
+        "description": "tensorflow template",
+        "url": "https://github.com/mgsalem/Tensorflow-Project-Template.git"
+    }
+}

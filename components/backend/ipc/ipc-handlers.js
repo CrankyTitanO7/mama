@@ -125,6 +125,7 @@ function runScript(scriptPath, args = [], opts = {}) {
 const {
   readSettings: readSettingsFromStore,
   readDescriptions,
+  resetSettingsToTemplate,
 } = require('../settings-store');
 
 const {
@@ -318,6 +319,15 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     } catch (e) {
       console.error('settings-write-nonbackup failed:', e);
       return false;
+    }
+  });
+
+  ipcMain.handle('settings-reset', async () => {
+    try {
+      return resetSettingsToTemplate(settingsFilePath);
+    } catch (e) {
+      console.error('settings-reset failed:', e);
+      return null;
     }
   });
 

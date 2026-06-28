@@ -27,12 +27,10 @@ function parseSettingsJson(raw) {
   return JSON.parse(stripJsonComments(raw));
 }
 
-function ensureUserSettings(settingsFilePath) {
-  if (fs.existsSync(settingsFilePath)) return false;
-
+function seedSettingsFromTemplate(settingsFilePath) {
   if (!fs.existsSync(TEMPLATE_PATH)) {
     console.warn('Settings template missing:', TEMPLATE_PATH);
-    return false;
+    return null;
   }
 
   try {
@@ -40,10 +38,27 @@ function ensureUserSettings(settingsFilePath) {
     const parsed = parseSettingsJson(raw);
     fs.mkdirSync(path.dirname(settingsFilePath), { recursive: true });
     fs.writeFileSync(settingsFilePath, JSON.stringify(parsed, null, 4), 'utf8');
-    return true;
+    return parsed;
   } catch (e) {
     console.error('Failed to seed settings from template:', e);
-    return false;
+    return null;
+  }
+}
+
+function ensureUserSettings(settingsFilePath) {
+  if (fs.existsSync(settingsFilePath)) return false;
+  return seedSettingsFromTemplate(settingsFilePath) !== null;
+}
+
+function resetSettingsToTemplate(settingsFilePath) {
+  try {
+    if (fs.existsSync(settingsFilePath)) {
+      fs.copyFileSync(settingsFilePath, settingsFilePath + '.bak');
+    }
+    return seedSettingsFromTemplate(settingsFilePath);
+  } catch (e) {
+    console.error('resetSettingsToTemplate failed:', e);
+    return null;
   }
 }
 
@@ -74,7 +89,9 @@ module.exports = {
   DESCRIPTIONS_PATH,
   stripJsonComments,
   parseSettingsJson,
+  seedSettingsFromTemplate,
   ensureUserSettings,
+  resetSettingsToTemplate,
   readSettings,
   readDescriptions,
 };

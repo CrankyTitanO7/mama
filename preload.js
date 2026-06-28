@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electron', {
   settingsWrite:           (s)      => ipcRenderer.invoke('settings-write', s),
   settingsWriteNonbackup:  (s)      => ipcRenderer.invoke('settings-write-nonbackup', s),
   settingsWriteWithBackup: (s)      => ipcRenderer.invoke('settings-write-with-backup', s),
+  settingsReset:           ()       => ipcRenderer.invoke('settings-reset'),
   settingsSetupComplete:   ()       => ipcRenderer.invoke('settings-setup-complete'),
   setupComplete:           ()       => ipcRenderer.invoke('setup-complete'),
 

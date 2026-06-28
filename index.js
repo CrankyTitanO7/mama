@@ -6,7 +6,10 @@ const fs = require('fs');
 
 // ── Modular IPC handlers (detection, install, settings, etc.) ────
 const { registerIPCHandlers } = require('./components/backend/ipc/ipc-handlers');
-const { readSettings: readSettingsFromStore } = require('./components/backend/settings-store');
+const {
+  readSettings: readSettingsFromStore,
+  ensureUserSettings,
+} = require('./components/backend/settings-store');
 
 let mainWindow;
 
@@ -132,6 +135,9 @@ const createWindow = (page) => {
 };
 
 app.on('ready', () => {
+  // Seed user/settings.json from user/template on first launch.
+  ensureUserSettings(SETTINGS_PATH);
+
   // ── Register all modular IPC handlers first ──
   // This registers: run-os-detect, run-python-detect, run-gpu-detect,
   //   run-install (GPU-variant aware), run-import-test (enhanced),

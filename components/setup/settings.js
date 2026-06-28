@@ -103,6 +103,74 @@
     }
   }
 
+  function showResetConfirmDialog() {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'settings-unsaved-overlay';
+      overlay.innerHTML = `
+        <div class="settings-unsaved-dialog" role="dialog" aria-labelledby="reset-title">
+          <h3 id="reset-title">Reset settings?</h3>
+          <p>Your current settings will be saved to <strong>user/settings.json.bak</strong>, then replaced with the defaults from <strong>user/template</strong>.</p>
+          <div class="settings-unsaved-actions">
+            <button type="button" id="reset-confirm" class="settings-btn settings-btn-primary">
+              Reset settings
+            </button>
+            <button type="button" id="reset-cancel" class="settings-btn settings-btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      const close = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+
+      const dialog = overlay.querySelector('.settings-unsaved-dialog');
+      dialog?.addEventListener('click', (e) => e.stopPropagation());
+
+      overlay.querySelector('#reset-confirm')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close(true);
+      });
+      overlay.querySelector('#reset-cancel')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close(false);
+      });
+      overlay.addEventListener('click', () => close(false));
+    });
+  }
+
+  async function resetSettings() {
+    const confirmed = await showResetConfirmDialog();
+    if (!confirmed) return;
+
+    try {
+      const settings = await window.electron.settingsReset();
+      if (!settings) {
+        showStatus('Failed to reset settings.', 'error');
+        return;
+      }
+
+      settingsCache = settings;
+      markClean();
+      window.__themeApplyDeferred = false;
+      if (window.ThemeManager) {
+        const appearance = settings?.['aesthetic settings']?.appearance;
+        window.ThemeManager.applyTheme(appearance || 'system');
+      }
+      await loadDescriptions();
+      await renderSettings();
+      showStatus('Settings reset. Previous settings saved to user/settings.json.bak.', 'success');
+    } catch (e) {
+      showStatus('Failed to reset settings.', 'error');
+      console.error(e);
+    }
+  }
+
   function showUnsavedDialog() {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
@@ -593,6 +661,7 @@
     html += `<div class="settings-actions">
       <button id="settings-save-btn" class="settings-btn settings-btn-primary">💾 Save Settings</button>
       <button id="settings-reload-btn" class="settings-btn settings-btn-secondary">↻ Reload</button>
+      <button id="settings-reset-btn" class="settings-btn settings-btn-secondary">↺ Reset Settings</button>
     </div>`;
 
     container.innerHTML = html;
@@ -634,6 +703,7 @@
     }
 
     document.getElementById('settings-save-btn')?.addEventListener('click', saveSettings);
+    document.getElementById('settings-reset-btn')?.addEventListener('click', resetSettings);
     document.getElementById('settings-reload-btn')?.addEventListener('click', async () => {
       if (isDirty()) {
         const action = await showUnsavedDialog();

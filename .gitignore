@@ -32,3 +32,4 @@ user/settings.json.bak
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+components/recents.json

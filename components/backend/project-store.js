@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const RECENTS_PATH = path.join(__dirname, '..', 'recents.json');
+const RECENTS_TEMPLATE_PATH = path.join(__dirname, '..', '..', 'user', 'template', 'recents.json');
 const MAX_RECENTS = 10;
 
 function normalizeRecents(data) {
@@ -19,7 +20,31 @@ function normalizeRecents(data) {
   return { open, recent };
 }
 
+function seedRecentsFromTemplate(recentsFilePath = RECENTS_PATH) {
+  if (!fs.existsSync(RECENTS_TEMPLATE_PATH)) {
+    console.warn('Recents template missing:', RECENTS_TEMPLATE_PATH);
+    return null;
+  }
+
+  try {
+    const raw = fs.readFileSync(RECENTS_TEMPLATE_PATH, 'utf8');
+    const parsed = normalizeRecents(JSON.parse(raw));
+    fs.mkdirSync(path.dirname(recentsFilePath), { recursive: true });
+    fs.writeFileSync(recentsFilePath, JSON.stringify(parsed, null, 4), 'utf8');
+    return parsed;
+  } catch (e) {
+    console.error('Failed to seed recents from template:', e);
+    return null;
+  }
+}
+
+function ensureUserRecents(recentsFilePath = RECENTS_PATH) {
+  if (fs.existsSync(recentsFilePath)) return false;
+  return seedRecentsFromTemplate(recentsFilePath) !== null;
+}
+
 function readRecents() {
+  ensureUserRecents();
   try {
     if (!fs.existsSync(RECENTS_PATH)) {
       return { open: null, recent: [] };
@@ -96,6 +121,9 @@ function openProjectFolder(folderPath) {
 
 module.exports = {
   RECENTS_PATH,
+  RECENTS_TEMPLATE_PATH,
+  seedRecentsFromTemplate,
+  ensureUserRecents,
   readRecents,
   writeRecents,
   addRecentFolder,

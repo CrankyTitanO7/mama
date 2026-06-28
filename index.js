@@ -10,6 +10,7 @@ const {
   readSettings: readSettingsFromStore,
   ensureUserSettings,
 } = require('./components/backend/settings-store');
+const { ensureUserRecents } = require('./components/backend/project-store');
 
 let mainWindow;
 
@@ -135,8 +136,9 @@ const createWindow = (page) => {
 };
 
 app.on('ready', () => {
-  // Seed user/settings.json from user/template on first launch.
+  // Seed user/settings.json and components/recents.json from user/template on first launch.
   ensureUserSettings(SETTINGS_PATH);
+  ensureUserRecents();
 
   // ── Register all modular IPC handlers first ──
   // This registers: run-os-detect, run-python-detect, run-gpu-detect,

@@ -25,7 +25,7 @@
 > this is unrecommended, as it is likely we will implement Github actions to auto-build this. However, if it is necessary, here are instructions to manually build on your machine.
 
 1. npm install
-2. npm run build
+2. npm run make
 
 > note that npm occassionally is unable to build packages on running npm install. it will typically say please run npm audit fix. this works most of the time. otherwise, try npm audit fix --force
 

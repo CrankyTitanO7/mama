@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('electron', {
   settingsWriteNonbackup:  (s)      => ipcRenderer.invoke('settings-write-nonbackup', s),
   settingsWriteWithBackup: (s)      => ipcRenderer.invoke('settings-write-with-backup', s),
   settingsReset:           ()       => ipcRenderer.invoke('settings-reset'),
+  settingsBackupExists:      ()       => ipcRenderer.invoke('settings-backup-exists'),
+  settingsRestoreBackup:     ()       => ipcRenderer.invoke('settings-restore-backup'),
   settingsSetupComplete:   ()       => ipcRenderer.invoke('settings-setup-complete'),
   setupComplete:           ()       => ipcRenderer.invoke('setup-complete'),
 
@@ -71,6 +73,12 @@ contextBridge.exposeInMainWorld('electron', {
 
   // ── Python: Legacy commands ─────────────────────────────────
   runPythonCommand: (action) => ipcRenderer.invoke('run-python-command', action),
+
+  // ── Project explorer ─────────────────────────────────────────
+  projectRecentsRead:  ()           => ipcRenderer.invoke('project-recents-read'),
+  projectPickFolder:   ()           => ipcRenderer.invoke('project-pick-folder'),
+  projectOpenFolder:   (folderPath) => ipcRenderer.invoke('project-open-folder', folderPath),
+  projectListFolder:   (folderPath) => ipcRenderer.invoke('project-list-folder', folderPath),
 
   // ── Before-quit hook (settings unsaved changes dialog) ─────
   onBeforeQuit: (callback) => {

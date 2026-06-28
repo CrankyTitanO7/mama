@@ -1,5 +1,5 @@
 {
-  "name": "frank",
+  "name": "mama",
   "version": "1.0.0",
   "description": "a visual AI development application",
   "main": "index.js",
@@ -13,7 +13,7 @@
   },
   "build": {
     "appId": "com.myapp",
-    "productName": "frank",
+    "productName": "mama",
     "files": [
       "index.js",
       "preload.js",

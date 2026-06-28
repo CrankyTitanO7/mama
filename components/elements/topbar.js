@@ -12,6 +12,7 @@ class Topbar {
   getNavItems() {
     return [
       { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
+      { label: 'project', page: 'project.html', key: 'project' },
       { label: '✏️ multimodel designer', page: 'multicon.html', key: 'multicon' },
       { label: 'database explorer', page: 'db_explorer.html', key: 'db_explorer' },
       { label: 'export model', page: 'export.html', key: 'export' }

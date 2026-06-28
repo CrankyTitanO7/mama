@@ -144,7 +144,7 @@ app.on('ready', () => {
   //   settings-read, settings-write, settings-write-nonbackup, setup-complete
   registerIPCHandlers(app, SETTINGS_PATH);
 
-  app.on('frank:setup-complete', () => {
+  app.on('mama:setup-complete', () => {
     if (mainWindow) {
       mainWindow.loadFile('public/index.html');
     }

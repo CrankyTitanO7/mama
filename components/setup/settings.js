@@ -171,6 +171,42 @@
     }
   }
 
+  async function restoreSettingsFromBackup() {
+    let hasBackup = false;
+    try {
+      hasBackup = await window.electron.settingsBackupExists();
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (!hasBackup) {
+      showStatus('No settings backup found (user/settings.json.bak).', 'error');
+      return;
+    }
+
+    try {
+      const settings = await window.electron.settingsRestoreBackup();
+      if (!settings) {
+        showStatus('Failed to restore settings from backup.', 'error');
+        return;
+      }
+
+      settingsCache = settings;
+      markClean();
+      window.__themeApplyDeferred = false;
+      if (window.ThemeManager) {
+        const appearance = settings?.['aesthetic settings']?.appearance;
+        window.ThemeManager.applyTheme(appearance || 'system');
+      }
+      await loadDescriptions();
+      await renderSettings();
+      showStatus('Settings restored from user/settings.json.bak.', 'success');
+    } catch (e) {
+      showStatus('Failed to restore settings from backup.', 'error');
+      console.error(e);
+    }
+  }
+
   function showUnsavedDialog() {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
@@ -661,6 +697,7 @@
     html += `<div class="settings-actions">
       <button id="settings-save-btn" class="settings-btn settings-btn-primary">💾 Save Settings</button>
       <button id="settings-reload-btn" class="settings-btn settings-btn-secondary">↻ Reload</button>
+      <button id="settings-restore-btn" class="settings-btn settings-btn-secondary">⏪ Restore from Backup</button>
       <button id="settings-reset-btn" class="settings-btn settings-btn-secondary">↺ Reset Settings</button>
     </div>`;
 
@@ -703,6 +740,7 @@
     }
 
     document.getElementById('settings-save-btn')?.addEventListener('click', saveSettings);
+    document.getElementById('settings-restore-btn')?.addEventListener('click', restoreSettingsFromBackup);
     document.getElementById('settings-reset-btn')?.addEventListener('click', resetSettings);
     document.getElementById('settings-reload-btn')?.addEventListener('click', async () => {
       if (isDirty()) {

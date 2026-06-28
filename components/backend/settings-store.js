@@ -62,6 +62,24 @@ function resetSettingsToTemplate(settingsFilePath) {
   }
 }
 
+function settingsBackupExists(settingsFilePath) {
+  return fs.existsSync(settingsFilePath + '.bak');
+}
+
+function restoreSettingsFromBackup(settingsFilePath) {
+  const bakPath = settingsFilePath + '.bak';
+  if (!fs.existsSync(bakPath)) return null;
+
+  try {
+    fs.copyFileSync(bakPath, settingsFilePath);
+    const raw = fs.readFileSync(settingsFilePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('restoreSettingsFromBackup failed:', e);
+    return null;
+  }
+}
+
 function readSettings(settingsFilePath) {
   ensureUserSettings(settingsFilePath);
   try {
@@ -92,6 +110,8 @@ module.exports = {
   seedSettingsFromTemplate,
   ensureUserSettings,
   resetSettingsToTemplate,
+  settingsBackupExists,
+  restoreSettingsFromBackup,
   readSettings,
   readDescriptions,
 };

@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, dialog, BrowserWindow } = require('electron');
 const { spawn }        = require('child_process');
 const path             = require('path');
 const fs               = require('fs');
@@ -126,7 +126,15 @@ const {
   readSettings: readSettingsFromStore,
   readDescriptions,
   resetSettingsToTemplate,
+  settingsBackupExists,
+  restoreSettingsFromBackup,
 } = require('../settings-store');
+
+const {
+  readRecents,
+  openProjectFolder,
+  listDirectory,
+} = require('../project-store');
 
 const {
   readCustomThemes,
@@ -331,6 +339,56 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     }
   });
 
+  ipcMain.handle('settings-backup-exists', async () => {
+    return settingsBackupExists(settingsFilePath);
+  });
+
+  ipcMain.handle('settings-restore-backup', async () => {
+    try {
+      return restoreSettingsFromBackup(settingsFilePath);
+    } catch (e) {
+      console.error('settings-restore-backup failed:', e);
+      return null;
+    }
+  });
+
+  // ── Project / folder explorer ───────────────────────────────────────────
+
+  ipcMain.handle('project-recents-read', async () => {
+    return readRecents();
+  });
+
+  ipcMain.handle('project-pick-folder', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory'],
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('project-open-folder', async (_event, folderPath) => {
+    try {
+      if (!folderPath) return null;
+      return openProjectFolder(folderPath);
+    } catch (e) {
+      console.error('project-open-folder failed:', e);
+      return null;
+    }
+  });
+
+  ipcMain.handle('project-list-folder', async (_event, folderPath) => {
+    try {
+      if (!folderPath) return null;
+      const entries = listDirectory(folderPath);
+      if (!entries) return null;
+      return { path: folderPath, entries };
+    } catch (e) {
+      console.error('project-list-folder failed:', e);
+      return null;
+    }
+  });
+
   // ── Custom themes ───────────────────────────────────────────────────────
 
   ipcMain.handle('themes-read', async () => {
@@ -358,8 +416,8 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
       settings['general settings'].setup = false;   // mark setup done
       writeSettings(settingsFilePath, settings, false);
 
-      // Signal main.js — listen for 'frank:setup-complete' there
-      electronApp.emit('frank:setup-complete');
+      // Signal main.js — listen for 'mama:setup-complete' there
+      electronApp.emit('mama:setup-complete');
       return true;
     } catch (e) {
       console.error('setup-complete failed:', e);

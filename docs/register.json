@@ -4,5 +4,5 @@
     "user manual" : "manual.md", 
     "power user appendix" : "poweruser.md", 
     "full guide" : "dev.md", 
-    "license" : "license.md"
+    "license" : "../LICENSE.md"
 }

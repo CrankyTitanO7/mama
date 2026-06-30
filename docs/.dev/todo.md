@@ -2,7 +2,7 @@
 
 ## bugs (known)
 - doesn't quit all the way sometimes (mac)
-- user settings are softlocked on first launch. The setup wizard is not run because settings.json doesn't exist yet. 
+- <del> user settings are softlocked on first launch. The setup wizard is not run because settings.json doesn't exist yet. </del>
 - due to missing certification, users on mac must run 
     ```zsh
     xattr -cr /path/to/application

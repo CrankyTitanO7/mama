@@ -1,0 +1,38 @@
+// comments look like this 
+
+// the dictionary section
+// each widget has a unique alphanumeric hash
+// widget settings should be listed similar to json format
+
+!dictionary
+
+1234ab {
+    type:script,
+    loca:/file/location.py
+}
+
+1235bc {
+    type:model,
+    loca:/file/location,
+    "epochs":990
+    // other setting keys are in quotations
+    // values are not in quotations
+}
+
+// the coordinate section is a list of coordinates 
+// in tab separated format
+
+!coordinate
+
+1234ab  1   2   3
+1235bc  2   3   4
+
+// the edges section is a list of edges
+// tab separated values
+// -> indicates a one way traffic to the right
+// <- indicates a one way traffic to the left
+// <-> indicates two way traffic
+
+!edges
+1234ab  ->  1235bc
+1234ab  <-> otehr_node

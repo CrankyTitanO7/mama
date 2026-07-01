@@ -69,11 +69,16 @@ function renderLanding(recents) {
   });
 }
 
-function renderExplorer(folderData) {
+async function renderExplorer(folderData) {
   const container = document.getElementById('project-content');
   if (!container || !folderData) return;
 
   const parentPath = getParentPath(folderData.path);
+  const templates = await window.electron.projectTemplatesRead();
+  const templateOptions = Object.entries(templates || {}).map(([key, template]) => ({
+    key,
+    label: template?.name || template?.description || key,
+  }));
 
   const rows = (folderData.entries || []).map((entry) => {
     const icon = entry.isDirectory ? '📁' : '📄';
@@ -98,6 +103,16 @@ function renderExplorer(folderData) {
         <div class="project-explorer-actions">
           ${parentPath ? `<button type="button" id="project-up-btn" class="settings-btn settings-btn-secondary">⬆ Up</button>` : ''}
           <button type="button" id="project-change-folder-btn" class="settings-btn settings-btn-secondary">📂 Open folder</button>
+          <div class="project-import-menu">
+            <button type="button" id="project-import-template-btn" class="settings-btn settings-btn-primary">⬇ Import template</button>
+            <div class="project-import-menu-options" id="project-import-template-options">
+              ${templateOptions.map((entry) => `
+                <button type="button" class="project-import-option" data-template-key="${escapeHtml(entry.key)}">
+                  ${escapeHtml(entry.label)}
+                </button>
+              `).join('')}
+            </div>
+          </div>
         </div>
       </header>
       <div class="project-file-table-wrap">
@@ -120,6 +135,21 @@ function renderExplorer(folderData) {
   document.getElementById('project-change-folder-btn')?.addEventListener('click', pickAndOpenFolder);
   document.getElementById('project-up-btn')?.addEventListener('click', async () => {
     if (parentPath) await openFolder(parentPath, false);
+  });
+
+  const importButton = document.getElementById('project-import-template-btn');
+  const importOptions = document.getElementById('project-import-template-options');
+  importButton?.addEventListener('click', () => {
+    importOptions?.classList.toggle('is-open');
+  });
+
+  container.querySelectorAll('.project-import-option').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const templateKey = button.getAttribute('data-template-key');
+      if (!templateKey) return;
+      importOptions?.classList.remove('is-open');
+      await importTemplate(templateKey);
+    });
   });
 
   container.querySelectorAll('.project-file-row.is-directory').forEach((row) => {
@@ -159,9 +189,24 @@ async function openFolder(folderPath, updateRecents = true) {
       return;
     }
 
-    renderExplorer(folderData);
+    await renderExplorer(folderData);
   } catch (e) {
     console.error('Failed to open folder:', e);
+  }
+}
+
+async function importTemplate(templateKey) {
+  try {
+    const result = await window.electron.projectImportTemplate(templateKey);
+    if (result?.success) {
+      window.alert(`Imported template into ${result.destinationDir}`);
+      await openFolder(result.destinationDir, false);
+    } else {
+      window.alert(result?.error || 'Template import failed.');
+    }
+  } catch (e) {
+    console.error('Template import failed:', e);
+    window.alert('Template import failed.');
   }
 }
 

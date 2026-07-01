@@ -79,6 +79,8 @@ contextBridge.exposeInMainWorld('electron', {
   projectPickFolder:   ()           => ipcRenderer.invoke('project-pick-folder'),
   projectOpenFolder:   (folderPath) => ipcRenderer.invoke('project-open-folder', folderPath),
   projectListFolder:   (folderPath) => ipcRenderer.invoke('project-list-folder', folderPath),
+  projectTemplatesRead: ()          => ipcRenderer.invoke('project-templates-read'),
+  projectImportTemplate: (templateKey) => ipcRenderer.invoke('project-import-template', templateKey),
 
   // ── Before-quit hook (settings unsaved changes dialog) ─────
   onBeforeQuit: (callback) => {

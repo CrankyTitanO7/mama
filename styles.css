@@ -1909,6 +1909,45 @@ body.embed-fullscreen-active {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+    align-items: center;
+}
+
+.project-import-menu {
+    position: relative;
+}
+
+.project-import-menu-options {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 140px;
+    padding: 8px;
+    border: 1px solid var(--widget-border);
+    border-radius: 8px;
+    background: var(--widget-bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+    z-index: 5;
+}
+
+.project-import-menu-options.is-open {
+    display: flex;
+}
+
+.project-import-option {
+    border: 1px solid var(--widget-border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: var(--widget-bg);
+    color: var(--page-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.project-import-option:hover {
+    background: color-mix(in srgb, var(--highlight-color) 12%, var(--widget-bg));
 }
 
 .project-recent {

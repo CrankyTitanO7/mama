@@ -2,11 +2,13 @@
     "pytorch": {
         "name": "pytorch",
         "description": "pytorch template",
+        "dl": "https://github.com/victoresque/pytorch-template/archive/refs/heads/master.zip",
         "url": "https://github.com/victoresque/pytorch-template.git"
     },
     "tensorflow": {
         "name": "tensorflow",
         "description": "tensorflow template",
+        "dl": "https://github.com/mgsalem/Tensorflow-Project-Template/archive/refs/heads/master.zip",
         "url": "https://github.com/mgsalem/Tensorflow-Project-Template.git"
     }
 }

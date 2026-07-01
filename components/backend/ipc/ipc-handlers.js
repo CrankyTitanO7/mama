@@ -140,6 +140,8 @@ const {
   readCustomThemes,
 } = require('../../styling/theme-loader');
 
+const { importTemplate } = require('../template-download/template_download');
+
 function writeSettings(filePath, settings, backup = true) {
   if (backup && fs.existsSync(filePath)) {
     fs.copyFileSync(filePath, filePath + '.bak');
@@ -386,6 +388,25 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     } catch (e) {
       console.error('project-list-folder failed:', e);
       return null;
+    }
+  });
+
+  ipcMain.handle('project-templates-read', async () => {
+    try {
+      const { readTemplates } = require('../template-download/template_download');
+      return readTemplates();
+    } catch (e) {
+      console.error('project-templates-read failed:', e);
+      return {};
+    }
+  });
+
+  ipcMain.handle('project-import-template', async (_event, templateKey) => {
+    try {
+      return await importTemplate(templateKey);
+    } catch (e) {
+      console.error('project-import-template failed:', e);
+      return { success: false, error: e.message };
     }
   });
 

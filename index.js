@@ -10,7 +10,7 @@ const {
   readSettings: readSettingsFromStore,
   ensureUserSettings,
 } = require('./components/backend/settings-store');
-const { ensureUserRecents } = require('./components/backend/project-store');
+const { ensureUserRecents, clearOpenProjectFolder } = require('./components/backend/project-store');
 
 let mainWindow;
 
@@ -134,6 +134,10 @@ const createWindow = (page) => {
 
   mainWindow.loadFile(page || 'public/index.html');
 };
+
+app.on('before-quit', () => {
+  clearOpenProjectFolder();
+});
 
 app.on('ready', () => {
   // Seed user/settings.json and components/recents.json from user/template on first launch.

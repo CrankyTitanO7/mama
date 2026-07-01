@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { ipcMain, app, dialog, BrowserWindow } = require('electron');
+const { ipcMain, app, dialog, BrowserWindow, shell } = require('electron');
 const { spawn }        = require('child_process');
 const path             = require('path');
 const fs               = require('fs');
@@ -388,6 +388,17 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     } catch (e) {
       console.error('project-list-folder failed:', e);
       return null;
+    }
+  });
+
+  ipcMain.handle('project-reveal-folder', async (_event, folderPath) => {
+    try {
+      if (!folderPath) return false;
+      const result = await shell.openPath(folderPath);
+      return result === '';
+    } catch (e) {
+      console.error('project-reveal-folder failed:', e);
+      return false;
     }
   });
 

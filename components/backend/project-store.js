@@ -62,6 +62,13 @@ function writeRecents(data) {
   fs.writeFileSync(RECENTS_PATH, JSON.stringify(data, null, 4), 'utf8');
 }
 
+function clearOpenProjectFolder() {
+  const data = readRecents();
+  const updated = { open: null, recent: data.recent || [] };
+  writeRecents(updated);
+  return updated;
+}
+
 function addRecentFolder(folderPath) {
   const data = readRecents();
   const recent = [folderPath, ...data.recent.filter((entry) => entry !== folderPath)].slice(0, MAX_RECENTS);
@@ -126,6 +133,7 @@ module.exports = {
   ensureUserRecents,
   readRecents,
   writeRecents,
+  clearOpenProjectFolder,
   addRecentFolder,
   listDirectory,
   openProjectFolder,

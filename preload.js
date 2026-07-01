@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('electron', {
   projectPickFolder:   ()           => ipcRenderer.invoke('project-pick-folder'),
   projectOpenFolder:   (folderPath) => ipcRenderer.invoke('project-open-folder', folderPath),
   projectListFolder:   (folderPath) => ipcRenderer.invoke('project-list-folder', folderPath),
+  projectRevealFolder: (folderPath) => ipcRenderer.invoke('project-reveal-folder', folderPath),
   projectTemplatesRead: ()          => ipcRenderer.invoke('project-templates-read'),
   projectImportTemplate: (templateKey) => ipcRenderer.invoke('project-import-template', templateKey),
 

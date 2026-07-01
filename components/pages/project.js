@@ -103,6 +103,7 @@ async function renderExplorer(folderData) {
         <div class="project-explorer-actions">
           ${parentPath ? `<button type="button" id="project-up-btn" class="settings-btn settings-btn-secondary">⬆ Up</button>` : ''}
           <button type="button" id="project-change-folder-btn" class="settings-btn settings-btn-secondary">📂 Open folder</button>
+          <button type="button" id="project-open-in-explorer-btn" class="settings-btn settings-btn-secondary">🗂 Open in Explorer</button>
           <div class="project-import-menu">
             <button type="button" id="project-import-template-btn" class="settings-btn settings-btn-primary">⬇ Import template</button>
             <div class="project-import-menu-options" id="project-import-template-options">
@@ -135,6 +136,9 @@ async function renderExplorer(folderData) {
   document.getElementById('project-change-folder-btn')?.addEventListener('click', pickAndOpenFolder);
   document.getElementById('project-up-btn')?.addEventListener('click', async () => {
     if (parentPath) await openFolder(parentPath, false);
+  });
+  document.getElementById('project-open-in-explorer-btn')?.addEventListener('click', async () => {
+    await revealInExplorer(folderData.path);
   });
 
   const importButton = document.getElementById('project-import-template-btn');
@@ -195,6 +199,18 @@ async function openFolder(folderPath, updateRecents = true) {
   }
 }
 
+async function revealInExplorer(folderPath) {
+  try {
+    const ok = await window.electron.projectRevealFolder(folderPath);
+    if (!ok) {
+      window.alert('Unable to open this folder in the system file explorer.');
+    }
+  } catch (e) {
+    console.error('Reveal folder failed:', e);
+    window.alert('Unable to open this folder in the system file explorer.');
+  }
+}
+
 async function importTemplate(templateKey) {
   try {
     const result = await window.electron.projectImportTemplate(templateKey);
@@ -212,6 +228,14 @@ async function importTemplate(templateKey) {
 
 async function init() {
   const recents = await window.electron.projectRecentsRead();
+  if (recents?.open) {
+    try {
+      await openFolder(recents.open);
+      return;
+    } catch (e) {
+      console.error('Failed to auto-open recents folder:', e);
+    }
+  }
   renderLanding(recents);
 }
 

@@ -3,6 +3,7 @@
 // Step order:
 //   Welcome → Language → Appearance →
 //   OS Detection → Python & Tools Detection → GPU Detection →
+//   System Compatibility →
 //   Framework Selection → Framework Install → Framework Verification →
 //   Resources → QoL → Security → Finish
 //
@@ -11,6 +12,7 @@
 //   window.electron.runOSDetect()
 //   window.electron.runPythonDetect()
 //   window.electron.runGPUDetect()
+//   window.electron.runCompatibilityCheck(params)
 //   window.electron.runInstall(fw, gpuVariant)   ← gpuVariant: 'cuda' | 'rocm' | 'cpu'
 //   window.electron.runImportTest(fw)
 //   window.electron.settingsRead()
@@ -103,7 +105,12 @@
     gpuVramMB:       null,
     cudaVersion:     '',
     rocmVersion:     '',
-    driverVersion:   ''
+    driverVersion:   '',
+    metalVersion:    '',
+    mpsAvailable:    '',
+    gpuType:         '',
+    // Compatibility results (populated by compat-check step)
+    compatResults:   null
   };
 
   // ========== Utilities ==========
@@ -628,9 +635,137 @@
     },
 
     // ============================================
-    // STEP 6: Framework Selection
+    // STEP 6: System Compatibility Check
+    // Validates hardware, OS, and architecture against
+    // minimum requirements for ML frameworks.
+    // Auto-runs on render using detected data from
+    // previous steps.
+    // ============================================
+    {
+      id: 'compat-check',
+      title: 'System Compatibility',
+      render: () => `
+        <h2>System Compatibility Check</h2>
+        <p>Validating your hardware, OS, and architecture against minimum requirements...</p>
+        <div id="compat-detect-output" class="setup-detect-output">
+          <p class="setup-hint">⏳ Running compatibility check...</p>
+        </div>
+        <div id="compat-results" style="display:none">
+          <table class="setup-status-table" id="compat-results-table">
+            <tbody></tbody>
+          </table>
+          <div id="compat-overall" class="setup-detect-output" style="margin-top:12px"></div>
+          <div class="setup-actions-inline" style="margin-top:12px">
+            <button id="compat-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-check</button>
+          </div>
+        </div>
+      `,
+      afterRender: () => {
+        runCompatCheck();
+
+        document.getElementById('compat-rescan-btn')?.addEventListener('click', () => {
+          const out = document.getElementById('compat-detect-output');
+          if (out) out.innerHTML = '<p class="setup-hint">⏳ Running compatibility check...</p>';
+          const results = document.getElementById('compat-results');
+          if (results) results.style.display = 'none';
+          runCompatCheck();
+        });
+
+        async function runCompatCheck() {
+          const out     = document.getElementById('compat-detect-output');
+          const results = document.getElementById('compat-results');
+          if (!out) return;
+
+          try {
+            // Gather all detected info into params for the Python script
+            const params = {
+              osFamily:  '',
+              osVersion: detected.osKernel || '',
+              arch:      window.versions?.arch?.() || '',
+              gpuMfr:    detected.gpuManufacturer || '',
+              gpuName:   detected.gpuName || '',
+              gpuVramMB: detected.gpuVramMB || '',
+              cudaVer:   detected.cudaVersion || '',
+              rocmVer:   detected.rocmVersion || '',
+              metalVer:  detected.metalVersion || '',
+              mpsAvail:  detected.mpsAvailable || '',
+              pythonVer: detected.pythonVersion || '',
+            };
+
+            // Determine OS family from detected OS name
+            const osName = (detected.osPrettyName || detected.osFullName || '').toLowerCase();
+            if (osName.includes('windows')) {
+              params.osFamily = 'windows';
+            } else if (osName.includes('macos') || osName.includes('darwin')) {
+              params.osFamily = 'macos';
+            } else if (osName.includes('ubuntu') || osName.includes('linux') || osName.includes('debian') || osName.includes('fedora') || osName.includes('arch') || osName.includes('opensuse')) {
+              params.osFamily = 'linux';
+            }
+
+            const result = await window.electron.runCompatibilityCheck(params);
+            const kv     = parseKV(result.stdout);
+
+            // Store results for later steps
+            detected.compatResults = kv;
+
+            // Build the results table
+            const checks = [
+              { key: 'COMPAT_OS',      label: 'Operating System' },
+              { key: 'COMPAT_ARCH',    label: 'Architecture' },
+              { key: 'COMPAT_GPU',     label: 'GPU Requirements' },
+              { key: 'COMPAT_CUDA',    label: 'CUDA Compatibility' },
+              { key: 'COMPAT_ROCM',    label: 'ROCm Compatibility' },
+              { key: 'COMPAT_METAL',   label: 'Metal / MPS' },
+              { key: 'COMPAT_CC',      label: 'Compute Capability' },
+              { key: 'COMPAT_PYTHON',  label: 'Python Version' },
+            ];
+
+            const tbody = document.querySelector('#compat-results-table tbody');
+            if (tbody) {
+              tbody.innerHTML = checks.map(check => {
+                const status = kv[check.key] || '—';
+                const msgKey = check.key + '_MSG';
+                const msg    = kv[msgKey] || '';
+                const icon   = status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : status === 'fail' ? '❌' : '—';
+                return `
+                  <tr>
+                    <td>${icon}</td>
+                    <td>${escapeHtml(check.label)}</td>
+                    <td class="setup-hint">${escapeHtml(msg)}</td>
+                  </tr>
+                `;
+              }).join('');
+            }
+
+            // Show overall verdict
+            const overall    = kv['COMPAT_OVERALL'] || 'warn';
+            const overallMsg = kv['COMPAT_OVERALL_MSG'] || 'Compatibility check completed.';
+            const overallDiv = document.getElementById('compat-overall');
+            if (overallDiv) {
+              const overallIcon = overall === 'pass' ? '✅' : overall === 'warn' ? '⚠️' : '❌';
+              const overallCls  = overall === 'pass' ? 'setup-success-msg' : overall === 'warn' ? 'setup-warn-msg' : 'setup-error-msg';
+              overallDiv.innerHTML = `<div class="${overallCls}">${overallIcon} ${escapeHtml(overallMsg)}</div>`;
+            }
+
+            // Hide spinner, show results
+            out.innerHTML = '';
+            if (results) results.style.display = 'block';
+
+            if (result.stderr) {
+              out.innerHTML += `<pre class="setup-pre setup-pre-error">${escapeHtml(result.stderr)}</pre>`;
+            }
+          } catch (e) {
+            out.innerHTML = `<p class="setup-hint">⚠️ Compatibility check failed: ${escapeHtml(e.message)}</p>`;
+          }
+        }
+      }
+    },
+
+    // ============================================
+    // STEP 7: Framework Selection
     // Pre-suggests PyTorch for NVIDIA/AMD (better GPU ecosystem),
     // TensorFlow for Intel or CPU-only (historically better CPU perf).
+    // Shows compatibility warnings from the previous step.
     // ============================================
     {
       id: 'framework',
@@ -650,9 +785,31 @@
         const variant    = gpuVariantLabel();
         const indexUrl   = torchIndexURL();
 
+        // Build compatibility warning banner if there are issues
+        const compat = detected.compatResults;
+        let compatBanner = '';
+        if (compat) {
+          const overall = compat['COMPAT_OVERALL'] || '';
+          if (overall === 'fail') {
+            compatBanner = `
+              <div class="setup-error-msg" style="margin-bottom:12px">
+                ⚠️ System compatibility issues detected. Review the previous step for details.
+                Consider CPU-only mode or upgrading your hardware.
+              </div>
+            `;
+          } else if (overall === 'warn') {
+            compatBanner = `
+              <div class="setup-warn-msg" style="margin-bottom:12px">
+                ⚠️ Some compatibility warnings exist. Your system should work, but performance may be limited.
+              </div>
+            `;
+          }
+        }
+
         return `
           <h2>AI Framework</h2>
           <p>Which deep learning framework would you like to use?</p>
+          ${compatBanner}
           <div class="setup-hint" style="margin-bottom:12px">
             Detected hardware: <strong>${escapeHtml(detected.gpuName || detected.gpuManufacturer || 'CPU only')}</strong>
             — install variant will be <strong>${escapeHtml(variant)}</strong>
@@ -697,7 +854,7 @@
     },
 
     // ============================================
-    // STEP 7: Framework Install
+    // STEP 8: Framework Install
     // GPU-aware: shows the exact pip command before running it.
     // Streams output to a live terminal window.
     // ============================================
@@ -812,7 +969,7 @@
     },
 
     // ============================================
-    // STEP 8: Framework Verification
+    // STEP 9: Framework Verification
     // ============================================
     {
       id: 'fw-verify',
@@ -917,7 +1074,7 @@
     },
 
     // ============================================
-    // STEP 9: Resources
+    // STEP 10: Resources
     // ============================================
     {
       id: 'resources',
@@ -958,7 +1115,7 @@
     },
 
     // ============================================
-    // STEP 10: Quality of Life
+    // STEP 11: Quality of Life
     // ============================================
     {
       id: 'qol',
@@ -1027,7 +1184,7 @@
     },
 
     // ============================================
-    // STEP 11: Security
+    // STEP 12: Security
     // ============================================
     {
       id: 'security',
@@ -1084,7 +1241,7 @@
     },
 
     // ============================================
-    // STEP 12: Finish
+    // STEP 13: Finish
     // ============================================
     {
       id: 'finish',
@@ -1259,6 +1416,21 @@
 
     if (currentStep < STEPS.length - 1) {
       currentStep++;
+
+      // Auto-skip GPU detection step if no GPU was detected (CPU-only).
+      // This avoids showing an unnecessary scan step when there's no
+      // discrete GPU (e.g. cloud VMs, old laptops, headless servers).
+      while (currentStep < STEPS.length - 1) {
+        const next = STEPS[currentStep];
+        if (next.id === 'gpu-detect' && detected.gpuManufacturer === 'none') {
+          // Collect and persist this step's data too so we don't lose it
+          applyStepData(next);
+          currentStep++;
+        } else {
+          break;
+        }
+      }
+
       await renderStep();
     }
   }

@@ -616,6 +616,53 @@ a:hover {
     margin-bottom: 10px;
 }
 
+.setup-warn-msg {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid #ffc107;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.setup-error-msg {
+    background: color-mix(in srgb, var(--highlight-color) 12%, transparent);
+    color: var(--highlight-color);
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--highlight-color);
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.setup-status-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+}
+
+.setup-status-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--widget-border);
+    vertical-align: top;
+}
+
+.setup-status-table td:first-child {
+    width: 32px;
+    text-align: center;
+}
+
+.setup-status-table td:nth-child(2) {
+    white-space: nowrap;
+    font-weight: 600;
+    width: 180px;
+}
+
+.setup-status-table tr:last-child td {
+    border-bottom: none;
+}
+
 /* ── Install terminal output ──────────────────────────────────────────────── */
 .setup-terminal {
     background: #0d1117;
@@ -660,16 +707,6 @@ a:hover {
     background: rgba(244, 67, 54, 0.15);
     color: #f44336;
     border: 1px solid #f44336;
-}
-
-.setup-error-msg {
-    background: color-mix(in srgb, var(--highlight-color) 12%, transparent);
-    color: var(--highlight-color);
-    padding: 10px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--highlight-color);
-    font-weight: 600;
-    margin-bottom: 10px;
 }
 
 /* ============================================

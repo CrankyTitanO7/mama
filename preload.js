@@ -21,7 +21,8 @@ ipcRenderer.on('before-quit-check', async (_event) => {
 contextBridge.exposeInMainWorld('versions', {
   node: () => process.versions.node,
   chrome: () => process.versions.chrome,
-  electron: () => process.versions.electron
+  electron: () => process.versions.electron,
+  arch: () => process.arch
 });
 
 contextBridge.exposeInMainWorld('electron', {
@@ -46,6 +47,7 @@ contextBridge.exposeInMainWorld('electron', {
   runOSDetect:     ()                 => ipcRenderer.invoke('run-os-detect'),
   runPythonDetect: ()                 => ipcRenderer.invoke('run-python-detect'),
   runGPUDetect:    ()                 => ipcRenderer.invoke('run-gpu-detect'),
+  runCompatibilityCheck: (params)     => ipcRenderer.invoke('run-compatibility-check', params),
 
   // ── Python: Install framework (GPU-variant aware) ──────────
   runInstall: (fw, gpuVariant = 'cpu', accelVersion = '') =>

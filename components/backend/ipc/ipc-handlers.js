@@ -27,11 +27,12 @@ const fs               = require('fs');
 // ── Script paths ──────────────────────────────────────────────────────────────
 
 const SCRIPT = {
-  osDetect:     path.join(__dirname, '..', 'systemDetect', 'detect_os.py'),
-  pythonDetect: path.join(__dirname, '..', 'systemDetect', 'detect_python.py'),
-  gpuDetect:    path.join(__dirname, '..', 'systemDetect', 'detect_gpu.py'),
-  install:      path.join(__dirname, '..', 'installs', 'install_fw.py'),
-  importTest:   path.join(__dirname, '..', 'installs', 'import_test.py'),
+  osDetect:      path.join(__dirname, '..', 'systemDetect', 'detect_os.py'),
+  pythonDetect:  path.join(__dirname, '..', 'systemDetect', 'detect_python.py'),
+  gpuDetect:     path.join(__dirname, '..', 'systemDetect', 'detect_gpu.py'),
+  compatCheck:   path.join(__dirname, '..', 'systemDetect', 'check_compatibility.py'),
+  install:       path.join(__dirname, '..', 'installs', 'install_fw.py'),
+  importTest:    path.join(__dirname, '..', 'installs', 'import_test.py'),
 };
 
 // ── Python executable resolution ──────────────────────────────────────────────
@@ -173,6 +174,29 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     // macOS system_profiler SPDisplaysDataType may take 10–20 s on some machines,
     // and the metal detector calls both ioreg + system_profiler — allow 90 s total.
     return runScript(SCRIPT.gpuDetect, [], { timeout: 90_000 });
+  });
+
+  // ── Compatibility check ──────────────────────────────────────────────────
+  // Uses the detected system information to validate hardware/OS/architecture
+  // minimum requirements. Takes all detected values as arguments.
+  ipcMain.handle('run-compatibility-check', async (
+    _event,
+    { osFamily, osVersion, arch, gpuMfr, gpuName, gpuVramMB, cudaVer, rocmVer, metalVer, mpsAvail, pythonVer }
+  ) => {
+    const args = [
+      '--os-family',  osFamily  || '',
+      '--os-version', osVersion || '',
+      '--arch',       arch      || '',
+      '--gpu-mfr',    gpuMfr    || '',
+      '--gpu-name',   gpuName   || '',
+      '--gpu-vram-mb', String(gpuVramMB || ''),
+      '--cuda-ver',   cudaVer   || '',
+      '--rocm-ver',   rocmVer   || '',
+      '--metal-ver',  metalVer  || '',
+      '--mps-avail',  mpsAvail  || '',
+      '--python-ver', pythonVer || '',
+    ];
+    return runScript(SCRIPT.compatCheck, args, { timeout: 30_000 });
   });
 
   // ── OS info helper ─────────────────────────────────────────────────────────

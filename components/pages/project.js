@@ -69,7 +69,14 @@ function renderLanding(recents) {
   });
 }
 
-async function renderExplorer(folderData) {
+async function getExplorerLabel() {
+  const platform = window.navigator.platform || '';
+  if (platform.includes('Mac')) return '🗂 Open in Finder';
+  if (platform.includes('Linux')) return '🗂 Open in File Manager';
+  return '🗂 Open in Explorer';
+}
+
+function renderExplorer(folderData) {
   const container = document.getElementById('project-content');
   if (!container || !folderData) return;
 
@@ -103,7 +110,7 @@ async function renderExplorer(folderData) {
         <div class="project-explorer-actions">
           ${parentPath ? `<button type="button" id="project-up-btn" class="settings-btn settings-btn-secondary">⬆ Up</button>` : ''}
           <button type="button" id="project-change-folder-btn" class="settings-btn settings-btn-secondary">📂 Open folder</button>
-          <button type="button" id="project-open-in-explorer-btn" class="settings-btn settings-btn-secondary">🗂 Open in Explorer</button>
+          <button type="button" id="project-open-in-explorer-btn" class="settings-btn settings-btn-secondary">${escapeHtml(getExplorerLabel())}</button>
           <div class="project-import-menu">
             <button type="button" id="project-import-template-btn" class="settings-btn settings-btn-primary">⬇ Import template</button>
             <div class="project-import-menu-options" id="project-import-template-options">

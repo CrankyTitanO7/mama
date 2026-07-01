@@ -18,6 +18,7 @@
     - pytorch (from site)
         - solve refreshing problem (probably via web-analysis?)
         - REMEMBER MPS ONLY SUPPORTED ON NIGHTLY BUILD!!! HARDWARE DETECTION COMES FIRST
+        - https://docs.pytorch.org/assets/quick-start-module.js
     - amd (rocm)
         - static load from documentation site
     - nvidia cuda

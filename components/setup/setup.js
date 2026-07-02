@@ -86,6 +86,7 @@
   // ========== Module-level state ==========
 
   let selectedFramework = null; // 'torch' | 'tf'
+  let selectedMode      = 'gpu'; // 'gpu' | 'cpu'
   let installSucceeded  = false;
 
   // Populated by detection steps; read by later steps
@@ -153,8 +154,13 @@
     return 'https://download.pytorch.org/whl/cpu';
   }
 
+  function selectedModeValue() {
+    return (selectedMode || 'gpu').toLowerCase();
+  }
+
   /** Human-readable variant label */
   function gpuVariantLabel() {
+    if (selectedModeValue() === 'cpu') return 'CPU-only';
     const mfr = detected.gpuManufacturer;
     if (mfr === 'nvidia') return detected.cudaVersion ? `CUDA ${detected.cudaVersion}` : 'CUDA (version unknown)';
     if (mfr === 'amd')    return detected.rocmVersion ? `ROCm ${detected.rocmVersion}` : 'ROCm (version unknown)';
@@ -164,6 +170,7 @@
 
   /** gpuVariant string passed to runInstall() */
   function gpuVariant() {
+    if (selectedModeValue() === 'cpu') return 'cpu';
     if (detected.gpuManufacturer === 'nvidia') return 'cuda';
     if (detected.gpuManufacturer === 'amd')    return 'rocm';
     if (detected.gpuManufacturer === 'apple')  return 'mps';
@@ -644,23 +651,44 @@
     {
       id: 'compat-check',
       title: 'System Compatibility',
-      render: () => `
-        <h2>System Compatibility Check</h2>
-        <p>Validating your hardware, OS, and architecture against minimum requirements...</p>
-        <div id="compat-detect-output" class="setup-detect-output">
-          <p class="setup-hint">⏳ Running compatibility check...</p>
-        </div>
-        <div id="compat-results" style="display:none">
-          <table class="setup-status-table" id="compat-results-table">
-            <tbody></tbody>
-          </table>
-          <div id="compat-overall" class="setup-detect-output" style="margin-top:12px"></div>
-          <div class="setup-actions-inline" style="margin-top:12px">
-            <button id="compat-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-check</button>
+      render: (settings) => {
+        const mode = (settings['hardware settings']?.mode || selectedModeValue()).toLowerCase();
+        return `
+          <h2>System Compatibility Check</h2>
+          <p>Choose the runtime mode that should drive the framework installation flow.</p>
+          <div class="setup-radio-group" style="margin-bottom:12px">
+            <label class="setup-radio-label">
+              <input type="radio" name="compat-mode" value="gpu" ${mode === 'gpu' ? 'checked' : ''}>
+              <span class="setup-radio-title">GPU mode</span>
+              <span class="setup-radio-desc">Run the normal GPU compatibility checks and install GPU-optimized variants when available.</span>
+            </label>
+            <label class="setup-radio-label">
+              <input type="radio" name="compat-mode" value="cpu" ${mode === 'cpu' ? 'checked' : ''}>
+              <span class="setup-radio-title">CPU mode</span>
+              <span class="setup-radio-desc">Skip GPU-specific checks and install CPU-only variants for PyTorch and TensorFlow.</span>
+            </label>
           </div>
-        </div>
-      `,
+          <div id="compat-detect-output" class="setup-detect-output">
+            <p class="setup-hint">⏳ Running compatibility check...</p>
+          </div>
+          <div id="compat-results" style="display:none">
+            <table class="setup-status-table" id="compat-results-table">
+              <tbody></tbody>
+            </table>
+            <div id="compat-overall" class="setup-detect-output" style="margin-top:12px"></div>
+            <div class="setup-actions-inline" style="margin-top:12px">
+              <button id="compat-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-check</button>
+            </div>
+          </div>
+        `;
+      },
       afterRender: () => {
+        document.querySelectorAll('input[name="compat-mode"]').forEach(el => {
+          el.addEventListener('change', (e) => {
+            if (e.target.checked) selectedMode = e.target.value;
+          });
+        });
+
         runCompatCheck();
 
         document.getElementById('compat-rescan-btn')?.addEventListener('click', () => {
@@ -675,6 +703,13 @@
           const out     = document.getElementById('compat-detect-output');
           const results = document.getElementById('compat-results');
           if (!out) return;
+
+          if (selectedModeValue() === 'cpu') {
+            out.innerHTML = '<div class="setup-success-msg">✅ CPU mode enabled. GPU-specific compatibility checks are skipped, and CPU-only variants will be installed for PyTorch and TensorFlow.</div>';
+            if (results) results.style.display = 'none';
+            detected.compatResults = { COMPAT_OVERALL: 'pass', COMPAT_OVERALL_MSG: 'CPU mode enabled.' };
+            return;
+          }
 
           try {
             // Gather all detected info into params for the Python script
@@ -758,6 +793,11 @@
             out.innerHTML = `<p class="setup-hint">⚠️ Compatibility check failed: ${escapeHtml(e.message)}</p>`;
           }
         }
+      },
+      collect: () => {
+        const selected = document.querySelector('input[name="compat-mode"]:checked')?.value || selectedModeValue();
+        selectedMode = selected;
+        return { mode: selectedModeValue() };
       }
     },
 
@@ -773,6 +813,7 @@
       render: (settings) => {
         const pytAlready  = settings['software information']?.pyt === true;
         const tfAlready   = settings['software information']?.tf  === true;
+        const mode        = (settings['hardware settings']?.mode || selectedModeValue()).toLowerCase();
 
         // Smart default: suggest PyTorch for NVIDIA/AMD, TF for Intel/none
         let suggested = 'torch';
@@ -806,12 +847,21 @@
           }
         }
 
+        if (mode === 'cpu') {
+          compatBanner = `
+            <div class="setup-success-msg" style="margin-bottom:12px">
+              ✅ CPU mode enabled — PyTorch and TensorFlow will be installed with CPU-only variants.
+            </div>
+          `;
+        }
+
         return `
           <h2>AI Framework</h2>
           <p>Which deep learning framework would you like to use?</p>
           ${compatBanner}
           <div class="setup-hint" style="margin-bottom:12px">
             Detected hardware: <strong>${escapeHtml(detected.gpuName || detected.gpuManufacturer || 'CPU only')}</strong>
+            — runtime mode: <strong>${escapeHtml(mode === 'cpu' ? 'CPU' : 'GPU')}</strong>
             — install variant will be <strong>${escapeHtml(variant)}</strong>
           </div>
           <div class="setup-radio-group">
@@ -820,9 +870,10 @@
               <span class="setup-radio-title">PyTorch</span>
               <span class="setup-radio-desc">
                 torch, torchvision, torchaudio
-                ${detected.gpuManufacturer === 'nvidia' ? `<br><code>--index-url ${escapeHtml(indexUrl)}</code>` : ''}
-                ${detected.gpuManufacturer === 'amd'    ? `<br><code>--index-url ${escapeHtml(indexUrl)}</code>` : ''}
-                ${detected.gpuManufacturer === 'none' || detected.gpuManufacturer === 'intel'
+                ${mode === 'cpu' ? '<br>CPU-only wheels' : ''}
+                ${mode !== 'cpu' && detected.gpuManufacturer === 'nvidia' ? `<br><code>--index-url ${escapeHtml(indexUrl)}</code>` : ''}
+                ${mode !== 'cpu' && detected.gpuManufacturer === 'amd'    ? `<br><code>--index-url ${escapeHtml(indexUrl)}</code>` : ''}
+                ${mode !== 'cpu' && (detected.gpuManufacturer === 'none' || detected.gpuManufacturer === 'intel')
                   ? '<br>CPU-only wheels' : ''}
               </span>
             </label>
@@ -830,9 +881,10 @@
               <input type="radio" name="framework" value="tf" ${preSelected === 'tf' ? 'checked' : ''}>
               <span class="setup-radio-title">TensorFlow</span>
               <span class="setup-radio-desc">
-                ${detected.gpuManufacturer === 'nvidia' ? 'tensorflow[and-cuda]' : ''}
-                ${detected.gpuManufacturer === 'amd'    ? 'tensorflow-rocm' : ''}
-                ${detected.gpuManufacturer === 'intel' || detected.gpuManufacturer === 'none'
+                ${mode === 'cpu' ? 'tensorflow-cpu' : ''}
+                ${mode !== 'cpu' && detected.gpuManufacturer === 'nvidia' ? 'tensorflow[and-cuda]' : ''}
+                ${mode !== 'cpu' && detected.gpuManufacturer === 'amd'    ? 'tensorflow-rocm' : ''}
+                ${mode !== 'cpu' && (detected.gpuManufacturer === 'intel' || detected.gpuManufacturer === 'none')
                   ? 'tensorflow-cpu' : ''}
               </span>
             </label>
@@ -864,15 +916,19 @@
       render: () => {
         const fw      = selectedFramework === 'tf' ? 'TensorFlow' : 'PyTorch';
         const variant = gpuVariantLabel();
+        const mode    = selectedModeValue();
 
         // Build the install command string for display
         let installCmd = '';
         if (selectedFramework === 'tf') {
-          if (detected.gpuManufacturer === 'nvidia') installCmd = 'pip install tensorflow[and-cuda]';
+          if (mode === 'cpu') installCmd = 'pip install tensorflow-cpu';
+          else if (detected.gpuManufacturer === 'nvidia') installCmd = 'pip install tensorflow[and-cuda]';
           else if (detected.gpuManufacturer === 'amd') installCmd = 'pip install tensorflow-rocm';
           else installCmd = 'pip install tensorflow-cpu';
         } else {
-          installCmd = `pip install torch torchvision torchaudio --index-url ${torchIndexURL()}`;
+          installCmd = mode === 'cpu'
+            ? 'pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu'
+            : `pip install torch torchvision torchaudio --index-url ${torchIndexURL()}`;
         }
 
         return `
@@ -1264,6 +1320,7 @@
     try {
       settingsCache = await window.electron.settingsRead();
       if (!settingsCache) settingsCache = getDefaultSettings();
+      selectedMode = settingsCache['hardware settings']?.mode || 'gpu';
       return settingsCache;
     } catch (e) {
       console.error('Failed to load settings:', e);
@@ -1280,7 +1337,8 @@
         'graphics manufacturer': 'unscanned',
         'target card name':      null,
         'cuda version':          null,
-        'rocm version':          null
+        'rocm version':          null,
+        mode: 'gpu'
       },
       'software information': {
         'OS full': null, 'OS pretty': null, 'OS kernel': null,
@@ -1388,10 +1446,17 @@
       }
       case 'gpu-detect':
         settingsCache['hardware settings'] = {
+          ...settingsCache['hardware settings'],
           'graphics manufacturer': data['graphics manufacturer'],
           'target card name':      data['target card name'],
           'cuda version':          data['cuda version'],
           'rocm version':          data['rocm version']
+        };
+        break;
+      case 'compat-check':
+        settingsCache['hardware settings'] = {
+          ...settingsCache['hardware settings'],
+          mode: data.mode
         };
         break;
       case 'framework':

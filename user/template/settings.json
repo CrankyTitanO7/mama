@@ -19,7 +19,8 @@
         "rocm version": null,
         "metal version": null,
         "mps available": null,
-        "gpu type": null                        // AMD ROCm version if applicable
+        "gpu type": null,                        // AMD ROCm version if applicable
+        "mode": "gpu"                            // "gpu" | "cpu"
     },
 
     // ── Software (filled by setup wizard / detection) ─────────────────────────

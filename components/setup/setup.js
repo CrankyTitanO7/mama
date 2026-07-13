@@ -889,6 +889,32 @@
               </span>
             </label>
           </div>
+
+          <div class="setup-reqs-section" style="margin-top:16px;padding:12px;border:1px solid var(--widget-border);border-radius:8px;background:var(--widget-bg)">
+            <p style="margin:0 0 8px 0;font-weight:600;font-size:14px">
+              ⚙️ Minimum Requirements
+            </p>
+            <div class="setup-reqs-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="setup-reqs-card" style="padding:10px;border-radius:6px;background:var(--page-bg)">
+                <p style="margin:0 0 6px 0;font-weight:600;font-size:13px;color:var(--highlight-color)">PyTorch</p>
+                <ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7">
+                  <li>Python 3.8+ (3.10+ recommended)</li>
+                  <li>CUDA 11.8+ / ROCm 5.0+, or CPU-only</li>
+                  <li>4 GB VRAM min / 8 GB+ recommended</li>
+                  <li>OS: Windows 10+ / macOS 12+ / Linux</li>
+                </ul>
+              </div>
+              <div class="setup-reqs-card" style="padding:10px;border-radius:6px;background:var(--page-bg)">
+                <p style="margin:0 0 6px 0;font-weight:600;font-size:13px;color:var(--highlight-color)">TensorFlow</p>
+                <ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7">
+                  <li>Python 3.8+ (3.9–3.12 supported)</li>
+                  <li>CUDA 11.8+ / ROCm 5.0+, or CPU-only</li>
+                  <li>4 GB VRAM min / 8 GB+ recommended</li>
+                  <li>OS: Windows 10+ / Linux (Ubuntu 20.04+)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         `;
       },
       afterRender: () => {

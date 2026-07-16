@@ -747,24 +747,71 @@
     },
 
     // ── 8: Framework Install ──────────────────────────────────────
-    // Uses IPC event-based streaming (runInstallStream + onInstallProgress).
-    // See file header for the required main-process / preload setup.
-    // The displayed command is the actual command that will run — editing
-    // it changes what gets sent to the installer.
     {
       id: 'fw-install',
       title: 'Framework Install',
       render: () => {
         const fw      = selectedFramework === 'tf' ? 'TensorFlow' : 'PyTorch';
+        const isTorch = selectedFramework === 'torch';
         const variant = gpuVariantLabel();
         const cmd     = buildInstallCommand();
+
+        let gridHtml = '';
+        if (isTorch) {
+          gridHtml = `
+            <div class="setup-pytorch-matrix" style="margin: 16px 0; padding: 16px; background: rgba(128,128,128,0.1); border-radius: 8px;">
+              <p style="margin-top:0; margin-bottom: 12px; font-weight: bold; font-size: 14px;">PyTorch Installation Matrix</p>
+              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                <label style="width: 120px; font-size: 13px;">PyTorch Build</label>
+                <select id="pt-build" class="setup-select">
+                  <option value="stable" selected>Stable (2.13.0)</option>
+                  <option value="preview">Preview (Nightly)</option>
+                </select>
+              </div>
+              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                <label style="width: 120px; font-size: 13px;">Your OS</label>
+                <select id="pt-os" class="setup-select">
+                  <option value="linux" ${detected.osPrettyName?.toLowerCase().includes('linux') ? 'selected' : ''}>Linux</option>
+                  <option value="macos" ${detected.osPrettyName?.toLowerCase().includes('mac') ? 'selected' : ''}>Mac</option>
+                  <option value="windows" ${detected.osPrettyName?.toLowerCase().includes('windows') ? 'selected' : ''}>Windows</option>
+                </select>
+              </div>
+              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                <label style="width: 120px; font-size: 13px;">Package</label>
+                <select id="pt-pm" class="setup-select">
+                  <option value="pip" selected>Pip</option>
+                  <option value="libtorch">LibTorch</option>
+                </select>
+              </div>
+              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                <label style="width: 120px; font-size: 13px;">Language</label>
+                <select id="pt-lang" class="setup-select">
+                  <option value="python" selected>Python</option>
+                  <option value="cplusplus">C++</option>
+                </select>
+              </div>
+              <div class="setup-field" style="display:flex; align-items:center; gap:10px;">
+                <label style="width: 120px; font-size: 13px;">Compute Platform</label>
+                <select id="pt-cuda" class="setup-select">
+                  <option value="cuda.x" ${detected.gpuManufacturer === 'nvidia' ? 'selected' : ''}>CUDA 12.6</option>
+                  <option value="cuda.y">CUDA 13.0</option>
+                  <option value="cuda.z">CUDA 13.2</option>
+                  <option value="rocm5.x" ${detected.gpuManufacturer === 'amd' ? 'selected' : ''}>ROCm 7.2</option>
+                  <option value="accnone" ${['apple', 'intel', 'none'].includes(detected.gpuManufacturer) ? 'selected' : ''}>CPU / Default</option>
+                </select>
+              </div>
+            </div>
+          `;
+        }
+
         return `
           <h2>Install ${fw}</h2>
           <p>Installing <strong>${fw}</strong> with <strong>${escapeHtml(variant)}</strong> support.</p>
+          ${gridHtml}
           <div class="setup-field">
             <label>Install command:</label>
             <input type="text" id="install-cmd-input" class="setup-input setup-input-mono" value="${escapeHtml(cmd)}">
-            <p class="setup-hint">Edit if you need a specific CUDA/ROCm wheel — see pytorch.org/get-started.</p>
+            <p class="setup-hint">Edit if you need a specific wheel, or use the matrix above for PyTorch.</p>
           </div>
           <button id="run-fw-install-btn" class="setup-btn setup-btn-primary">⬇️ Install ${fw}</button>
           <div id="fw-install-output" style="display:none; margin-top:12px">
@@ -773,11 +820,104 @@
         `;
       },
       afterRender: () => {
+        // --- PYTORCH DYNAMIC MATRIX LOGIC ---
+        if (selectedFramework === 'torch') {
+          const cmdInput = document.getElementById('install-cmd-input');
+          const selects = ['pt-build', 'pt-pm', 'pt-os', 'pt-cuda', 'pt-lang'].map(id => document.getElementById(id));
+          
+          // Extracted mapping from pytorch.org quick-start-module.js
+          const pyTorchCommandMap = {
+            "preview,pip,linux,accnone,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
+            "preview,pip,linux,cuda.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu126", 
+            "preview,pip,linux,cuda.y,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130", 
+            "preview,pip,linux,cuda.z,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu132", 
+            "preview,pip,linux,rocm5.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/rocm7.2", 
+            "preview,libtorch,linux,accnone,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip", 
+            "preview,libtorch,linux,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu126/libtorch-shared-with-deps-latest.zip", 
+            "preview,libtorch,linux,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu130/libtorch-shared-with-deps-latest.zip", 
+            "preview,libtorch,linux,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu132/libtorch-shared-with-deps-latest.zip", 
+            "preview,libtorch,linux,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/rocm7.2/libtorch-shared-with-deps-latest.zip", 
+            "preview,pip,macos,cuda.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
+            "preview,pip,macos,cuda.y,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
+            "preview,pip,macos,cuda.z,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
+            "preview,pip,macos,rocm5.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
+            "preview,pip,macos,accnone,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
+            "preview,libtorch,macos,accnone,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
+            "preview,libtorch,macos,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
+            "preview,libtorch,macos,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
+            "preview,libtorch,macos,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
+            "preview,libtorch,macos,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
+            "preview,pip,windows,accnone,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
+            "preview,pip,windows,cuda.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu126", 
+            "preview,pip,windows,cuda.y,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130", 
+            "preview,pip,windows,cuda.z,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu132", 
+            "preview,pip,windows,rocm5.x,python": "# ROCm is not available on Windows", 
+            "preview,libtorch,windows,accnone,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-win-shared-with-deps-latest.zip", 
+            "preview,libtorch,windows,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu126/libtorch-win-shared-with-deps-latest.zip", 
+            "preview,libtorch,windows,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu130/libtorch-win-shared-with-deps-latest.zip", 
+            "preview,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu132/libtorch-win-shared-with-deps-latest.zip", 
+            "preview,libtorch,windows,rocm5.x,cplusplus": "# ROCm is not available on Windows", 
+            "stable,pip,linux,accnone,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu", 
+            "stable,pip,linux,cuda.x,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126", 
+            "stable,pip,linux,cuda.y,python": "pip3 install torch torchvision", 
+            "stable,pip,linux,cuda.z,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132", 
+            "stable,pip,linux,rocm5.x,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.2", 
+            "stable,libtorch,linux,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.13.0%2Bcpu.zip", 
+            "stable,libtorch,linux,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cu126/libtorch-shared-with-deps-2.13.0%2Bcu126.zip", 
+            "stable,libtorch,linux,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cu130/libtorch-shared-with-deps-2.13.0%2Bcu130.zip", 
+            "stable,libtorch,linux,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-shared-with-deps-2.13.0%2Bcu132.zip", 
+            "stable,libtorch,linux,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/rocm7.2/libtorch-shared-with-deps-2.13.0%2Brocm7.2.zip", 
+            "stable,pip,macos,cuda.x,python": "pip3 install torch torchvision", 
+            "stable,pip,macos,cuda.y,python": "pip3 install torch torchvision", 
+            "stable,pip,macos,cuda.z,python": "pip3 install torch torchvision", 
+            "stable,pip,macos,rocm5.x,python": "pip3 install torch torchvision", 
+            "stable,pip,macos,accnone,python": "pip3 install torch torchvision", 
+            "stable,libtorch,macos,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
+            "stable,libtorch,macos,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
+            "stable,libtorch,macos,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
+            "stable,libtorch,macos,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
+            "stable,libtorch,macos,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
+            "stable,pip,windows,accnone,python": "pip3 install torch torchvision", 
+            "stable,pip,windows,cuda.x,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126", 
+            "stable,pip,windows,cuda.y,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130", 
+            "stable,pip,windows,cuda.z,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132", 
+            "stable,pip,windows,rocm5.x,python": "# ROCm is not available on Windows", 
+            "stable,libtorch,windows,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.13.0%2Bcpu.zip", 
+            "stable,libtorch,windows,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cu126/libtorch-win-shared-with-deps-2.13.0%2Bcu126.zip", 
+            "stable,libtorch,windows,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cu130/libtorch-win-shared-with-deps-2.13.0%2Bcu130.zip", 
+            "stable,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-win-shared-with-deps-2.13.0%2Bcu132.zip", 
+            "stable,libtorch,windows,rocm5.x,cplusplus": "# ROCm is not available on Windows"
+          };
+
+          const updateCommand = () => {
+            // Build the string key formatted exactly as the JSON map expects it
+            const key = selects.map(el => el.value).join(',');
+            if (pyTorchCommandMap[key]) {
+              cmdInput.value = pyTorchCommandMap[key];
+            } else {
+              cmdInput.value = "# Follow instructions at https://github.com/pytorch/pytorch#from-source";
+            }
+          };
+
+          selects.forEach(el => el.addEventListener('change', updateCommand));
+          
+          // Initial fire to set the input box correctly
+          updateCommand();
+        }
+
+        // --- EXISTING INSTALL PROCESS LOGIC ---
         document.getElementById('run-fw-install-btn')?.addEventListener('click', async () => {
           const btn      = document.getElementById('run-fw-install-btn');
           const output   = document.getElementById('fw-install-output');
           const terminal = document.getElementById('fw-install-terminal');
+          const cmdInput = document.getElementById('install-cmd-input');
           if (!btn || !output || !terminal) return;
+
+          // If the user selected libtorch (which spits out a URL instead of a pip command), abort the pip install
+          if (cmdInput && cmdInput.value.startsWith('http')) {
+             alert('LibTorch provides a ZIP download link, not a direct command. Please copy the URL to download it.');
+             return;
+          }
 
           output.style.display = 'block';
           terminal.innerHTML   = '';
@@ -785,7 +925,12 @@
           btn.textContent      = '⏳ Installing…';
 
           const fw = selectedFramework || 'torch';
-          const gv = gpuVariant();
+          // Important: Grab the variant/version off the dropdowns if torch is selected
+          const gv = fw === 'torch' && document.getElementById('pt-cuda') ? 
+                     (document.getElementById('pt-cuda').value.includes('cuda') ? 'cuda' : 
+                     document.getElementById('pt-cuda').value.includes('rocm') ? 'rocm' : 'cpu') 
+                     : gpuVariant();
+          
           const accelVersion = detected.cudaVersion || detected.rocmVersion || '';
 
           function appendTerminal(text, cls) {
@@ -797,34 +942,36 @@
           }
 
           try {
-            // Register progress listener before starting the process
             window.electron.onInstallProgress((chunk) => {
               if (chunk.type === 'stdout') appendTerminal(chunk.text, 'terminal-stdout');
               if (chunk.type === 'stderr') appendTerminal(chunk.text, 'terminal-stderr');
             });
 
+            // Note: If you want to use the EXACT command from the input field rather than 
+            // recalculating it in 'runInstallStream', you may need to update IPC to accept 
+            // the full 'cmdInput.value' string as a parameter instead of fw/gv/accelVersion.
             const exitCode = await window.electron.runInstallStream(fw, gv, accelVersion);
 
             window.electron.offInstallProgress();
 
             if (exitCode === 0) {
               installSucceeded = true;
-              appendTerminal('✅ Installation complete!\n', 'terminal-success');
+              appendTerminal('✅ Installation complete!\\n', 'terminal-success');
               btn.textContent = '✓ Installed';
             } else {
-              appendTerminal('❌ Installation failed — see output above.\n', 'terminal-error');
+              appendTerminal('❌ Installation failed — see output above.\\n', 'terminal-error');
               btn.textContent = '⬇️ Retry';
               btn.disabled    = false;
             }
           } catch (e) {
             window.electron.offInstallProgress?.();
-            appendTerminal(`⚠️ Error: ${e.message}\n`, 'terminal-error');
+            appendTerminal(`⚠️ Error: ${e.message}\\n`, 'terminal-error');
             btn.textContent = '⬇️ Retry';
             btn.disabled    = false;
           }
         });
       }
-    },
+    }, 
 
     // ── 9: Framework Verification ─────────────────────────────────
     {

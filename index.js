@@ -71,14 +71,14 @@ function runPythonScript(scriptPath, args = []) {
 // ========== Window ==========
 
 const createWindow = (page) => {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     const prefs = mainWindow.webContents.getWebPreferences?.() ?? {};
     if (!prefs.webviewTag) {
       mainWindow.destroy();
       mainWindow = null;
     }
   }
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.loadFile(page || 'public/index.html');
     return;
   }
@@ -102,7 +102,11 @@ const createWindow = (page) => {
     // If already confirmed, allow the close to proceed naturally
     if (_closingConfirmed) return;
 
-    if (mainWindow && mainWindow.webContents) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    if (mainWindow.webContents) {
       e.preventDefault();
 
       // Send a synchronous-style check via IPC — ask renderer if there are unsaved changes
@@ -115,7 +119,13 @@ const createWindow = (page) => {
         ipcMain.on('before-quit-response', onResponse);
 
         // Ask the renderer to check
-        mainWindow.webContents.send('before-quit-check');
+        const windowRef = mainWindow;
+        if (windowRef && !windowRef.isDestroyed() && windowRef.webContents) {
+          windowRef.webContents.send('before-quit-check');
+        } else {
+          resolve('proceed');
+          return;
+        }
 
         // Timeout: if no response within 10 seconds, proceed with close
         setTimeout(() => {
@@ -128,6 +138,7 @@ const createWindow = (page) => {
 
       // User confirmed — close the window for real
       _closingConfirmed = true;
+      if (!mainWindow || mainWindow.isDestroyed()) return;
       mainWindow.close();
     }
   });

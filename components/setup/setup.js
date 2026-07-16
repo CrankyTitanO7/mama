@@ -310,7 +310,13 @@
           if (!out) return;
           out.innerHTML = '<p class="setup-hint">⏳ Running detection…</p>';
           try {
-            const result = await window.electron.runOSDetect();
+            const api = window?.electron;
+            if (!api?.runOSDetect) {
+              out.innerHTML = '<p class="setup-hint">⚠️ Electron bridge unavailable — restart the app and try again.</p>';
+              if (fields) fields.style.display = 'block';
+              return;
+            }
+            const result = await api.runOSDetect();
             const kv     = parseKV(result.stdout);
             detected.osFullName   = kv['OS_FULL']   || '';
             detected.osPrettyName = kv['OS_PRETTY'] || '';
@@ -374,7 +380,13 @@
           if (!out) return;
           out.innerHTML = '<p class="setup-hint">⏳ Running detection…</p>';
           try {
-            const result = await window.electron.runPythonDetect();
+            const api = window?.electron;
+            if (!api?.runPythonDetect) {
+              out.innerHTML = '<p class="setup-hint">⚠️ Electron bridge unavailable — restart the app and try again.</p>';
+              if (rescanW) rescanW.style.display = 'block';
+              return;
+            }
+            const result = await api.runPythonDetect();
             const kv     = parseKV(result.stdout);
             detected.pythonVersion  = kv['PYTHON_VERSION']  || null;
             detected.pipAvailable   = boolVal(kv['PIP_AVAILABLE']);
@@ -454,7 +466,13 @@
           if (!out) return;
           out.innerHTML = '<p class="setup-hint">⏳ Running detection…</p>';
           try {
-            const result = await window.electron.runGPUDetect();
+            const api = window?.electron;
+            if (!api?.runGPUDetect) {
+              out.innerHTML = '<p class="setup-hint">⚠️ Electron bridge unavailable — restart the app and try again.</p>';
+              if (fields) fields.style.display = 'block';
+              return;
+            }
+            const result = await api.runGPUDetect();
             const kv     = parseKV(result.stdout);
 
             // Single assignment block — no duplicates
@@ -580,6 +598,12 @@
           }
 
           try {
+            const api = window?.electron;
+            if (!api?.runCompatibilityCheck) {
+              out.innerHTML = '<p class="setup-hint">⚠️ Electron bridge unavailable — restart the app and try again.</p>';
+              if (results) results.style.display = 'none';
+              return;
+            }
             const osLower = (detected.osPrettyName || detected.osFullName || '').toLowerCase();
             const osFamily = osLower.includes('windows') ? 'windows'
                            : osLower.includes('mac') || osLower.includes('darwin') ? 'macos'
@@ -599,7 +623,7 @@
               pythonVer:  detected.pythonVersion   || '',
             };
 
-            const result = await window.electron.runCompatibilityCheck(params);
+            const result = await api.runCompatibilityCheck(params);
             const kv     = parseKV(result.stdout);
             detected.compatResults = kv;
 
@@ -758,48 +782,52 @@
 
         let gridHtml = '';
         if (isTorch) {
+          const osChoices = [
+            { value: 'linux', label: 'Linux' },
+            { value: 'macos', label: 'Mac' },
+            { value: 'windows', label: 'Windows' },
+          ];
+          const packageChoices = [
+            { value: 'pip', label: 'Pip' },
+            { value: 'libtorch', label: 'LibTorch' },
+          ];
+          const languageChoices = [
+            { value: 'python', label: 'Python' },
+            { value: 'cplusplus', label: 'C++' },
+          ];
+          const computeChoices = [
+            { value: 'accnone', label: 'CPU / Default' },
+            { value: 'cuda.x', label: 'CUDA 12.6' },
+            { value: 'cuda.y', label: 'CUDA 13.0' },
+            { value: 'cuda.z', label: 'CUDA 13.2' },
+            { value: 'rocm5.x', label: 'ROCm 7.2' },
+          ];
+          const detectedOs = (detected.osPrettyName || '').toLowerCase();
+          const defaultOs = detectedOs.includes('windows') ? 'windows' : detectedOs.includes('mac') ? 'macos' : 'linux';
+          const defaultCompute = detected.gpuManufacturer === 'nvidia' ? 'cuda.x' : detected.gpuManufacturer === 'amd' ? 'rocm5.x' : 'accnone';
+
+          const matrixBlock = (name, items, defaultValue, legend) => `
+            <div class="setup-pytorch-matrix-block">
+              <div class="setup-pytorch-matrix-label">${escapeHtml(legend)}</div>
+              <div class="setup-pytorch-option-grid" data-group="${escapeHtml(name)}">
+                ${items.map(item => `
+                  <label class="setup-pytorch-option ${item.value === defaultValue ? 'selected' : ''}">
+                    <input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(item.value)}" ${item.value === defaultValue ? 'checked' : ''}>
+                    <span>${escapeHtml(item.label)}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+          `;
+
           gridHtml = `
             <div class="setup-pytorch-matrix" style="margin: 16px 0; padding: 16px; background: rgba(128,128,128,0.1); border-radius: 8px;">
               <p style="margin-top:0; margin-bottom: 12px; font-weight: bold; font-size: 14px;">PyTorch Installation Matrix</p>
-              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                <label style="width: 120px; font-size: 13px;">PyTorch Build</label>
-                <select id="pt-build" class="setup-select">
-                  <option value="stable" selected>Stable (2.13.0)</option>
-                  <option value="preview">Preview (Nightly)</option>
-                </select>
-              </div>
-              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                <label style="width: 120px; font-size: 13px;">Your OS</label>
-                <select id="pt-os" class="setup-select">
-                  <option value="linux" ${detected.osPrettyName?.toLowerCase().includes('linux') ? 'selected' : ''}>Linux</option>
-                  <option value="macos" ${detected.osPrettyName?.toLowerCase().includes('mac') ? 'selected' : ''}>Mac</option>
-                  <option value="windows" ${detected.osPrettyName?.toLowerCase().includes('windows') ? 'selected' : ''}>Windows</option>
-                </select>
-              </div>
-              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                <label style="width: 120px; font-size: 13px;">Package</label>
-                <select id="pt-pm" class="setup-select">
-                  <option value="pip" selected>Pip</option>
-                  <option value="libtorch">LibTorch</option>
-                </select>
-              </div>
-              <div class="setup-field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                <label style="width: 120px; font-size: 13px;">Language</label>
-                <select id="pt-lang" class="setup-select">
-                  <option value="python" selected>Python</option>
-                  <option value="cplusplus">C++</option>
-                </select>
-              </div>
-              <div class="setup-field" style="display:flex; align-items:center; gap:10px;">
-                <label style="width: 120px; font-size: 13px;">Compute Platform</label>
-                <select id="pt-cuda" class="setup-select">
-                  <option value="cuda.x" ${detected.gpuManufacturer === 'nvidia' ? 'selected' : ''}>CUDA 12.6</option>
-                  <option value="cuda.y">CUDA 13.0</option>
-                  <option value="cuda.z">CUDA 13.2</option>
-                  <option value="rocm5.x" ${detected.gpuManufacturer === 'amd' ? 'selected' : ''}>ROCm 7.2</option>
-                  <option value="accnone" ${['apple', 'intel', 'none'].includes(detected.gpuManufacturer) ? 'selected' : ''}>CPU / Default</option>
-                </select>
-              </div>
+              ${matrixBlock('pt-build', [{ value: 'stable', label: 'Stable (2.13.0)' }, { value: 'preview', label: 'Preview (Nightly)' }], 'stable', 'PyTorch Build')}
+              ${matrixBlock('pt-os', osChoices, defaultOs, 'Your OS')}
+              ${matrixBlock('pt-pm', packageChoices, 'pip', 'Package')}
+              ${matrixBlock('pt-lang', languageChoices, 'python', 'Language')}
+              ${matrixBlock('pt-cuda', computeChoices, defaultCompute, 'Compute Platform')}
             </div>
           `;
         }
@@ -819,89 +847,76 @@
           </div>
         `;
       },
-      afterRender: () => {
+      afterRender: async () => {
         // --- PYTORCH DYNAMIC MATRIX LOGIC ---
         if (selectedFramework === 'torch') {
           const cmdInput = document.getElementById('install-cmd-input');
-          const selects = ['pt-build', 'pt-pm', 'pt-os', 'pt-cuda', 'pt-lang'].map(id => document.getElementById(id));
-          
-          // Extracted mapping from pytorch.org quick-start-module.js
-          const pyTorchCommandMap = {
-            "preview,pip,linux,accnone,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
-            "preview,pip,linux,cuda.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu126", 
-            "preview,pip,linux,cuda.y,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130", 
-            "preview,pip,linux,cuda.z,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu132", 
-            "preview,pip,linux,rocm5.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/rocm7.2", 
-            "preview,libtorch,linux,accnone,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip", 
-            "preview,libtorch,linux,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu126/libtorch-shared-with-deps-latest.zip", 
-            "preview,libtorch,linux,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu130/libtorch-shared-with-deps-latest.zip", 
-            "preview,libtorch,linux,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu132/libtorch-shared-with-deps-latest.zip", 
-            "preview,libtorch,linux,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/rocm7.2/libtorch-shared-with-deps-latest.zip", 
-            "preview,pip,macos,cuda.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
-            "preview,pip,macos,cuda.y,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
-            "preview,pip,macos,cuda.z,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
-            "preview,pip,macos,rocm5.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
-            "preview,pip,macos,accnone,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
-            "preview,libtorch,macos,accnone,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
-            "preview,libtorch,macos,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
-            "preview,libtorch,macos,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
-            "preview,libtorch,macos,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
-            "preview,libtorch,macos,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-arm64-latest.zip", 
-            "preview,pip,windows,accnone,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu", 
-            "preview,pip,windows,cuda.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu126", 
-            "preview,pip,windows,cuda.y,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130", 
-            "preview,pip,windows,cuda.z,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu132", 
-            "preview,pip,windows,rocm5.x,python": "# ROCm is not available on Windows", 
-            "preview,libtorch,windows,accnone,cplusplus": "https://download.pytorch.org/libtorch/nightly/cpu/libtorch-win-shared-with-deps-latest.zip", 
-            "preview,libtorch,windows,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu126/libtorch-win-shared-with-deps-latest.zip", 
-            "preview,libtorch,windows,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu130/libtorch-win-shared-with-deps-latest.zip", 
-            "preview,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/nightly/cu132/libtorch-win-shared-with-deps-latest.zip", 
-            "preview,libtorch,windows,rocm5.x,cplusplus": "# ROCm is not available on Windows", 
-            "stable,pip,linux,accnone,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu", 
-            "stable,pip,linux,cuda.x,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126", 
-            "stable,pip,linux,cuda.y,python": "pip3 install torch torchvision", 
-            "stable,pip,linux,cuda.z,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132", 
-            "stable,pip,linux,rocm5.x,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.2", 
-            "stable,libtorch,linux,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.13.0%2Bcpu.zip", 
-            "stable,libtorch,linux,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cu126/libtorch-shared-with-deps-2.13.0%2Bcu126.zip", 
-            "stable,libtorch,linux,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cu130/libtorch-shared-with-deps-2.13.0%2Bcu130.zip", 
-            "stable,libtorch,linux,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-shared-with-deps-2.13.0%2Bcu132.zip", 
-            "stable,libtorch,linux,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/rocm7.2/libtorch-shared-with-deps-2.13.0%2Brocm7.2.zip", 
-            "stable,pip,macos,cuda.x,python": "pip3 install torch torchvision", 
-            "stable,pip,macos,cuda.y,python": "pip3 install torch torchvision", 
-            "stable,pip,macos,cuda.z,python": "pip3 install torch torchvision", 
-            "stable,pip,macos,rocm5.x,python": "pip3 install torch torchvision", 
-            "stable,pip,macos,accnone,python": "pip3 install torch torchvision", 
-            "stable,libtorch,macos,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
-            "stable,libtorch,macos,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
-            "stable,libtorch,macos,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
-            "stable,libtorch,macos,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
-            "stable,libtorch,macos,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip", 
-            "stable,pip,windows,accnone,python": "pip3 install torch torchvision", 
-            "stable,pip,windows,cuda.x,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126", 
-            "stable,pip,windows,cuda.y,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130", 
-            "stable,pip,windows,cuda.z,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132", 
-            "stable,pip,windows,rocm5.x,python": "# ROCm is not available on Windows", 
-            "stable,libtorch,windows,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.13.0%2Bcpu.zip", 
-            "stable,libtorch,windows,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cu126/libtorch-win-shared-with-deps-2.13.0%2Bcu126.zip", 
-            "stable,libtorch,windows,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cu130/libtorch-win-shared-with-deps-2.13.0%2Bcu130.zip", 
-            "stable,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-win-shared-with-deps-2.13.0%2Bcu132.zip", 
-            "stable,libtorch,windows,rocm5.x,cplusplus": "# ROCm is not available on Windows"
+          const pyTorchCommandMap = await Promise.resolve(window.electron?.getTorchCommands?.() || {});
+
+          const getSelection = (name) => {
+            const selected = document.querySelector(`input[name="${name}"]:checked`);
+            return selected?.value || '';
+          };
+
+          const syncSelectionVisuals = () => {
+            document.querySelectorAll('.setup-pytorch-option').forEach(label => {
+              const input = label.querySelector('input[type="radio"]');
+              label.classList.toggle('selected', !!input?.checked);
+            });
+          };
+
+          const syncSelectorAvailability = () => {
+            const osValue = getSelection('pt-os');
+            const isMacOS = osValue === 'macos';
+            const isWindows = osValue === 'windows';
+
+            document.querySelectorAll('input[name="pt-cuda"]').forEach(input => {
+              const label = input.closest('.setup-pytorch-option');
+              const isCuda = input.value.startsWith('cuda');
+              const isRocm = input.value.startsWith('rocm');
+              const allowed = input.value === 'accnone' || (!isMacOS && (isCuda || !isWindows));
+              const shouldDisable = !allowed || (isRocm && (isMacOS || isWindows));
+
+              input.disabled = shouldDisable;
+              label?.classList.toggle('disabled', shouldDisable);
+
+              if (shouldDisable && input.checked) {
+                const fallback = document.querySelector('input[name="pt-cuda"][value="accnone"]');
+                if (fallback) {
+                  fallback.checked = true;
+                }
+              }
+            });
           };
 
           const updateCommand = () => {
-            // Build the string key formatted exactly as the JSON map expects it
-            const key = selects.map(el => el.value).join(',');
+            syncSelectorAvailability();
+            syncSelectionVisuals();
+            const key = [getSelection('pt-build'), getSelection('pt-pm'), getSelection('pt-os'), getSelection('pt-cuda'), getSelection('pt-lang')].join(',');
             if (pyTorchCommandMap[key]) {
               cmdInput.value = pyTorchCommandMap[key];
             } else {
-              cmdInput.value = "# Follow instructions at https://github.com/pytorch/pytorch#from-source";
+              cmdInput.value = '# Follow instructions at https://github.com/pytorch/pytorch#from-source';
             }
           };
 
-          selects.forEach(el => el.addEventListener('change', updateCommand));
-          
-          // Initial fire to set the input box correctly
+          document.querySelectorAll('.setup-pytorch-option-grid').forEach(grid => {
+            grid.addEventListener('click', (event) => {
+              const label = event.target.closest('.setup-pytorch-option');
+              if (!label) return;
+              const input = label.querySelector('input[type="radio"]');
+              if (!input || input.disabled) return;
+              input.checked = true;
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+          });
+
+          document.querySelectorAll('input[name="pt-build"], input[name="pt-pm"], input[name="pt-os"], input[name="pt-cuda"], input[name="pt-lang"]').forEach(el => {
+            el.addEventListener('change', updateCommand);
+          });
+
+          syncSelectorAvailability();
+          syncSelectionVisuals();
           updateCommand();
         }
 
@@ -925,11 +940,10 @@
           btn.textContent      = '⏳ Installing…';
 
           const fw = selectedFramework || 'torch';
-          // Important: Grab the variant/version off the dropdowns if torch is selected
-          const gv = fw === 'torch' && document.getElementById('pt-cuda') ? 
-                     (document.getElementById('pt-cuda').value.includes('cuda') ? 'cuda' : 
-                     document.getElementById('pt-cuda').value.includes('rocm') ? 'rocm' : 'cpu') 
-                     : gpuVariant();
+          const ptCudaValue = document.querySelector('input[name="pt-cuda"]:checked')?.value || '';
+          const gv = fw === 'torch' && ptCudaValue
+            ? (ptCudaValue.includes('cuda') ? 'cuda' : ptCudaValue.includes('rocm') ? 'rocm' : 'cpu')
+            : gpuVariant();
           
           const accelVersion = detected.cudaVersion || detected.rocmVersion || '';
 
@@ -1308,7 +1322,7 @@
 
     // render() is always sync; await handles the rare Promise case gracefully
     container.innerHTML = await Promise.resolve(step.render(settingsCache));
-    if (step.afterRender) step.afterRender();
+    if (step.afterRender) await step.afterRender();
 
     // Progress dots
     const prog = document.getElementById('setup-progress');

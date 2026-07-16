@@ -43,6 +43,12 @@ contextBridge.exposeInMainWorld('electron', {
   settingsSetupComplete:   ()       => ipcRenderer.invoke('settings-setup-complete'),
   setupComplete:           ()       => ipcRenderer.invoke('setup-complete'),
 
+  // ── Setup data helpers ─────────────────────────────────────
+  getTorchCommands: () => {
+    const filePath = path.join(__dirname, 'components', 'setup', 'torchCommands.json');
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  },
+
   // ── System Detection (Python scripts) ──────────────────────
   runOSDetect:     ()                 => ipcRenderer.invoke('run-os-detect'),
   runPythonDetect: ()                 => ipcRenderer.invoke('run-python-detect'),

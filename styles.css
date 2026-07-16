@@ -564,6 +564,79 @@ a:hover {
     color: var(--body-color);
 }
 
+.setup-pytorch-matrix {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.setup-pytorch-matrix-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.setup-pytorch-matrix-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--page-text);
+}
+
+.setup-pytorch-option-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    gap: 6px;
+}
+
+.setup-pytorch-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px;
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        background 0.18s ease,
+        transform 0.18s ease;
+    text-align: center;
+}
+
+.setup-pytorch-option:hover {
+    border-color: var(--highlight-color);
+    transform: none;
+}
+
+.setup-pytorch-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+}
+
+.setup-pytorch-option span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--page-text);
+    line-height: 1.2;
+}
+
+.setup-pytorch-option.selected {
+    border-color: var(--highlight-color);
+    background: color-mix(in srgb, var(--highlight-color) 12%, transparent);
+}
+
+.setup-pytorch-option.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: grayscale(0.25);
+}
+
 /* ============================================
    Setup: Detection Output & Inline Actions
    ============================================ */

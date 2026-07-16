@@ -82,6 +82,7 @@
     osFullName:      '',
     osPrettyName:    '',
     osKernel:        '',
+    arch:            window?.versions?.arch?.() || '',
     pythonVersion:   null,
     pipAvailable:    false,
     cmakeAvailable:  false,
@@ -292,6 +293,10 @@
             <label>Kernel / Build <span class="setup-hint">— e.g. 10.0.26100 / 5.15.0-89-generic</span></label>
             <input type="text" id="setup-os-kernel" class="setup-input">
           </div>
+          <div class="setup-field">
+            <label>Architecture <span class="setup-hint">— e.g. arm64 / x86_64</span></label>
+            <input type="text" id="setup-arch" class="setup-input">
+          </div>
           <button id="os-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-scan</button>
         </div>
       `,
@@ -310,6 +315,7 @@
             detected.osFullName   = kv['OS_FULL']   || '';
             detected.osPrettyName = kv['OS_PRETTY'] || '';
             detected.osKernel     = kv['OS_KERNEL'] || '';
+            detected.arch         = kv['ARCH'] || detected.arch || window?.versions?.arch?.() || '';
 
             out.innerHTML = detected.osFullName
               ? `<div class="setup-success-msg">✅ <strong>${escapeHtml(detected.osFullName)}</strong></div>`
@@ -319,6 +325,7 @@
             set('setup-os-full',   detected.osFullName);
             set('setup-os-pretty', detected.osPrettyName);
             set('setup-os-kernel', detected.osKernel);
+            set('setup-arch',      detected.arch);
 
             if (result.stderr && result.code !== 0)
               out.innerHTML += `<pre class="setup-pre setup-pre-error">${escapeHtml(result.stderr)}</pre>`;
@@ -333,7 +340,8 @@
         detected.osFullName   = document.getElementById('setup-os-full')?.value   || detected.osFullName;
         detected.osPrettyName = document.getElementById('setup-os-pretty')?.value || detected.osPrettyName;
         detected.osKernel     = document.getElementById('setup-os-kernel')?.value || detected.osKernel;
-        return { 'OS full': detected.osFullName, 'OS pretty': detected.osPrettyName, 'OS kernel': detected.osKernel };
+        detected.arch         = document.getElementById('setup-arch')?.value      || detected.arch;
+        return { 'OS full': detected.osFullName, 'OS pretty': detected.osPrettyName, 'OS kernel': detected.osKernel, 'Architecture': detected.arch };
       }
     },
 
@@ -580,7 +588,7 @@
             const params = {
               osFamily,
               osVersion:  detected.osKernel      || '',
-              arch:       '',   // Python script detects this via platform.machine()
+              arch:       detected.arch || window?.versions?.arch?.() || '',
               gpuMfr:     detected.gpuManufacturer || '',
               gpuName:    detected.gpuName         || '',
               gpuVramMB:  detected.gpuVramMB       || '',
@@ -611,9 +619,16 @@
               tbody.innerHTML = checks
                 .filter(c => kv[c.key])   // only show checks the script actually ran
                 .map(c => {
+                  const mfr = (detected.gpuManufacturer || '').toLowerCase();
+                  const notApplicable =
+                    (c.key === 'COMPAT_CUDA' && mfr !== 'nvidia') ||
+                    (c.key === 'COMPAT_ROCM' && mfr !== 'amd') ||
+                    (c.key === 'COMPAT_METAL' && mfr !== 'apple');
                   const status = kv[c.key];
-                  const icon   = status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : '❌';
-                  return `<tr><td>${icon}</td><td>${escapeHtml(c.label)}</td><td class="setup-hint">${escapeHtml(kv[c.key + '_MSG'] || '')}</td></tr>`;
+                  const icon   = notApplicable ? '—' : status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : '❌';
+                  const msg    = notApplicable ? 'Not applicable for this system.' : (kv[c.key + '_MSG'] || '');
+                  const rowClass = notApplicable ? 'setup-status-muted' : '';
+                  return `<tr class="${rowClass}"><td>${icon}</td><td>${escapeHtml(c.label)}</td><td class="setup-hint">${escapeHtml(msg)}</td></tr>`;
                 }).join('');
             }
 

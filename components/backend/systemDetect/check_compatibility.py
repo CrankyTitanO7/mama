@@ -34,6 +34,7 @@ Exit 0 always; the verdict is in the output keys.
 """
 
 import argparse
+import platform
 import re
 import sys
 
@@ -179,6 +180,9 @@ def check_os(os_family, os_version_str):
 
 def check_arch(arch, gpu_mfr):
     """Validate architecture compatibility."""
+    if not arch:
+        arch = platform.machine() or ''
+
     if not arch:
         return check_result("warn", "Could not determine system architecture.")
 

@@ -659,6 +659,10 @@ a:hover {
     width: 180px;
 }
 
+.setup-status-muted {
+    opacity: 0.55;
+}
+
 .setup-status-table tr:last-child td {
     border-bottom: none;
 }

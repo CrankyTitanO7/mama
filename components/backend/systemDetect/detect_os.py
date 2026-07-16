@@ -49,6 +49,13 @@ def detect_linux():
     except Exception:
         kernel = platform.release()
 
+    try:
+        arch = subprocess.run(
+            ["uname", "-m"], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+    except Exception:
+        arch = platform.machine()
+
     # Distribution name via /etc/os-release (systemd standard)
     pretty_name = ""
     name        = ""
@@ -85,7 +92,7 @@ def detect_linux():
     os_full   = f"{pretty_name} (kernel {kernel})" if kernel else pretty_name
     os_pretty = pretty_name
     os_kernel = kernel
-    return os_full, os_pretty, os_kernel
+    return os_full, os_pretty, os_kernel, arch
 
 
 # macOS major version → marketing codename
@@ -106,9 +113,13 @@ def detect_macos():
         kernel = subprocess.run(
             ["uname", "-r"], capture_output=True, text=True, timeout=5
         ).stdout.strip()
+        arch = subprocess.run(
+            ["uname", "-m"], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
     except Exception:
         version = platform.mac_ver()[0]
         kernel  = platform.release()
+        arch = platform.machine()
 
     try:
         major    = int(version.split(".")[0])
@@ -120,7 +131,7 @@ def detect_macos():
     os_full   = f"macOS {version}{suffix}"
     os_pretty = f"macOS {version}"
     os_kernel = kernel
-    return os_full, os_pretty, os_kernel
+    return os_full, os_pretty, os_kernel, arch
 
 
 def main():
@@ -128,20 +139,23 @@ def main():
     try:
         if plat == "win32":
             os_full, os_pretty, os_kernel = detect_windows()
+            arch = platform.machine()
         elif plat == "darwin":
-            os_full, os_pretty, os_kernel = detect_macos()
+            os_full, os_pretty, os_kernel, arch = detect_macos()
         else:
-            os_full, os_pretty, os_kernel = detect_linux()
+            os_full, os_pretty, os_kernel, arch = detect_linux()
     except Exception as e:
         print(f"OS_FULL=", flush=True)
         print(f"OS_PRETTY=", flush=True)
         print(f"OS_KERNEL=", flush=True)
+        print(f"ARCH=", flush=True)
         print(f"ERROR={e}", file=sys.stderr, flush=True)
         sys.exit(1)
 
     print(f"OS_FULL={os_full}",   flush=True)
     print(f"OS_PRETTY={os_pretty}", flush=True)
     print(f"OS_KERNEL={os_kernel}", flush=True)
+    print(f"ARCH={arch}", flush=True)
     sys.exit(0)
 
 

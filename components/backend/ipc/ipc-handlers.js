@@ -461,6 +461,19 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     }
   });
 
+  // ── Torch commands ────────────────────────────────────────────────────────
+  // Reads the torchCommands.json file for the installation matrix.
+  ipcMain.handle('torch-commands-read', async () => {
+    try {
+      const commandsPath = path.join(__dirname, '..', '..', 'setup', 'torchCommands.json');
+      const content = fs.readFileSync(commandsPath, 'utf8');
+      return JSON.parse(content);
+    } catch (e) {
+      console.error('torch-commands-read failed:', e);
+      return {};
+    }
+  });
+
   // ── Setup complete ────────────────────────────────────────────────────────
   // Flip the setup flag in settings and emit an event for main.js to handle
   // (e.g. navigate to the main window or reload the BrowserWindow).

@@ -851,8 +851,14 @@
         // --- PYTORCH DYNAMIC MATRIX LOGIC ---
         if (selectedFramework === 'torch') {
           const cmdInput = document.getElementById('install-cmd-input');
-          const pyTorchCommandMap = await Promise.resolve(window.electron?.getTorchCommands?.() || {});
           const matrixGroups = ['pt-build', 'pt-pm', 'pt-os', 'pt-cuda', 'pt-lang'];
+          let pyTorchCommandMap = {};
+
+           try {
+             pyTorchCommandMap = await window.electron?.torchCommandsRead?.() || {};
+           } catch (error) {
+             console.error('Unable to load the PyTorch command matrix:', error);
+           }
 
           const getSelection = (name) => {
             const selected = document.querySelector(`input[name="${name}"]:checked`);
@@ -866,28 +872,28 @@
             });
           };
 
-          const syncSelectorAvailability = () => {
-            const osValue = getSelection('pt-os');
-            const isMacOS = osValue === 'macos';
-            const isWindows = osValue === 'windows';
-            const fallback = document.querySelector('input[name="pt-cuda"][value="accnone"]');
+           const syncSelectorAvailability = () => {
+             const osValue = getSelection('pt-os');
+             const isMacOS = osValue === 'macos';
+             const isWindows = osValue === 'windows';
+             const fallback = document.querySelector('input[name="pt-cuda"][value="accnone"]');
 
-            document.querySelectorAll('input[name="pt-cuda"]').forEach(input => {
-              const label = input.closest('.setup-pytorch-option');
-              const isCuda = input.value.startsWith('cuda');
-              const isRocm = input.value.startsWith('rocm');
-              const allowed = input.value === 'accnone' || (!isMacOS && (isCuda || !isWindows));
-              const shouldDisable = !allowed || (isRocm && (isMacOS || isWindows));
+             document.querySelectorAll('input[name="pt-cuda"]').forEach(input => {
+               const label = input.closest('.setup-pytorch-option');
+               const isCuda = input.value.startsWith('cuda');
+               const isRocm = input.value.startsWith('rocm');
+               const allowed = input.value === 'accnone' || (!isMacOS && (isCuda || !isWindows));
+               const shouldDisable = !allowed || (isRocm && (isMacOS || isWindows));
 
-              input.disabled = shouldDisable;
-              label?.classList.toggle('disabled', shouldDisable);
+               input.disabled = shouldDisable;
+               label?.classList.toggle('disabled', shouldDisable);
 
-              if (shouldDisable && input.checked && fallback) {
-                fallback.checked = true;
-                fallback.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            });
-          };
+               if (shouldDisable && input.checked && fallback) {
+                 fallback.checked = true;
+                 fallback.dispatchEvent(new Event('change', { bubbles: true }));
+               }
+             });
+           };
 
           const updateCommand = () => {
             syncSelectorAvailability();

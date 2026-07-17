@@ -852,6 +852,7 @@
         if (selectedFramework === 'torch') {
           const cmdInput = document.getElementById('install-cmd-input');
           const pyTorchCommandMap = await Promise.resolve(window.electron?.getTorchCommands?.() || {});
+          const matrixGroups = ['pt-build', 'pt-pm', 'pt-os', 'pt-cuda', 'pt-lang'];
 
           const getSelection = (name) => {
             const selected = document.querySelector(`input[name="${name}"]:checked`);
@@ -869,6 +870,7 @@
             const osValue = getSelection('pt-os');
             const isMacOS = osValue === 'macos';
             const isWindows = osValue === 'windows';
+            const fallback = document.querySelector('input[name="pt-cuda"][value="accnone"]');
 
             document.querySelectorAll('input[name="pt-cuda"]').forEach(input => {
               const label = input.closest('.setup-pytorch-option');
@@ -880,11 +882,9 @@
               input.disabled = shouldDisable;
               label?.classList.toggle('disabled', shouldDisable);
 
-              if (shouldDisable && input.checked) {
-                const fallback = document.querySelector('input[name="pt-cuda"][value="accnone"]');
-                if (fallback) {
-                  fallback.checked = true;
-                }
+              if (shouldDisable && input.checked && fallback) {
+                fallback.checked = true;
+                fallback.dispatchEvent(new Event('change', { bubbles: true }));
               }
             });
           };
@@ -892,27 +892,24 @@
           const updateCommand = () => {
             syncSelectorAvailability();
             syncSelectionVisuals();
-            const key = [getSelection('pt-build'), getSelection('pt-pm'), getSelection('pt-os'), getSelection('pt-cuda'), getSelection('pt-lang')].join(',');
-            if (pyTorchCommandMap[key]) {
-              cmdInput.value = pyTorchCommandMap[key];
-            } else {
-              cmdInput.value = '# Follow instructions at https://github.com/pytorch/pytorch#from-source';
+
+            const key = [
+              getSelection('pt-build'),
+              getSelection('pt-pm'),
+              getSelection('pt-os'),
+              getSelection('pt-cuda'),
+              getSelection('pt-lang')
+            ].join(',');
+
+            if (cmdInput) {
+              cmdInput.value = pyTorchCommandMap[key] || '# Follow instructions at https://github.com/pytorch/pytorch#from-source';
             }
           };
 
-          document.querySelectorAll('.setup-pytorch-option-grid').forEach(grid => {
-            grid.addEventListener('click', (event) => {
-              const label = event.target.closest('.setup-pytorch-option');
-              if (!label) return;
-              const input = label.querySelector('input[type="radio"]');
-              if (!input || input.disabled) return;
-              input.checked = true;
-              input.dispatchEvent(new Event('change', { bubbles: true }));
+          matrixGroups.forEach(groupName => {
+            document.querySelectorAll(`input[name="${groupName}"]`).forEach(el => {
+              el.addEventListener('change', updateCommand);
             });
-          });
-
-          document.querySelectorAll('input[name="pt-build"], input[name="pt-pm"], input[name="pt-os"], input[name="pt-cuda"], input[name="pt-lang"]').forEach(el => {
-            el.addEventListener('change', updateCommand);
           });
 
           syncSelectorAvailability();

@@ -1,4 +1,5 @@
 {
+  "_note": "For M-series MacBooks with MPS (Apple Silicon) in GPU mode, you must use the preview (nightly) build of PyTorch for proper MPS support. Stable releases may not include the latest MPS optimizations.",
   "preview,pip,linux,accnone,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu",
   "preview,pip,linux,cuda.x,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu126",
   "preview,pip,linux,cuda.y,python": "pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130",
@@ -57,6 +58,6 @@
   "stable,libtorch,windows,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.13.0%2Bcpu.zip",
   "stable,libtorch,windows,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cu126/libtorch-win-shared-with-deps-2.13.0%2Bcu126.zip",
   "stable,libtorch,windows,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cu130/libtorch-win-shared-with-deps-2.13.0%2Bcu130.zip",
-  "stable,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-win-shared-with-deps-2.13.0%2Bcu132.zip",
+  "stable,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-win-shared-with-deps-2.13.0%2Bcu130.zip",
   "stable,libtorch,windows,rocm5.x,cplusplus": "# ROCm is not available on Windows"
 }

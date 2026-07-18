@@ -835,6 +835,7 @@
         return `
           <h2>Install ${fw}</h2>
           <p>Installing <strong>${fw}</strong> with <strong>${escapeHtml(variant)}</strong> support.</p>
+          <p>note: if installing pytorch with MPS support (MacOS), choose nightly build!</p>
           ${gridHtml}
           <div class="setup-field">
             <label>Install command:</label>

@@ -10,7 +10,7 @@ const {
   readSettings: readSettingsFromStore,
   ensureUserSettings,
 } = require('./components/backend/settings-store');
-const { ensureUserRecents, clearOpenProjectFolder } = require('./components/backend/project-store');
+const { readRecents, ensureUserRecents, clearOpenProjectFolder } = require('./components/backend/project-store');
 
 let mainWindow;
 
@@ -68,6 +68,19 @@ function runPythonScript(scriptPath, args = []) {
   });
 }
 
+// ========== Download routing ==========
+
+function attachDownloadHandler(session) {
+  session.on('will-download', (event, item) => {
+    const recents = readRecents();
+    if (recents.open) {
+      const filePath = path.join(recents.open, item.getFilename());
+      item.setSavePath(filePath);
+    }
+    // If no open folder, Electron uses default behavior (Downloads folder + dialog)
+  });
+}
+
 // ========== Window ==========
 
 const createWindow = (page) => {
@@ -92,6 +105,9 @@ const createWindow = (page) => {
       webviewTag: true,
     }
   });
+
+  // Attach download handler to the main window's session
+  attachDownloadHandler(mainWindow.webContents.session);
 
   // Flag to prevent re-triggering the close check after user confirms
   let _closingConfirmed = false;
@@ -238,6 +254,13 @@ app.on('ready', () => {
     createWindow('public/setup.html');
   } else {
     createWindow('public/index.html');
+  }
+});
+
+// ── Attach download handler to webview sessions ──
+app.on('web-contents-created', (_event, contents) => {
+  if (contents.getType() === 'webview') {
+    attachDownloadHandler(contents.session);
   }
 });
 

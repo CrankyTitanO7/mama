@@ -76,7 +76,7 @@ async function getExplorerLabel() {
   return '🗂 Open in Explorer';
 }
 
-function renderExplorer(folderData) {
+async function renderExplorer(folderData) {
   const container = document.getElementById('project-content');
   if (!container || !folderData) return;
 

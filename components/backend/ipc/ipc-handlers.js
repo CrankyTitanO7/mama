@@ -62,7 +62,8 @@ function findPython() {
 }
 
 // Cache the resolved executable for the lifetime of the app.
-let _pythonExe = null;
+// undefined = not yet checked, null = checked and not found, string = found
+let _pythonExe;
 function getPython() {
   if (_pythonExe === undefined) _pythonExe = findPython();
   return _pythonExe;

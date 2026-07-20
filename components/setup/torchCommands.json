@@ -50,7 +50,7 @@
   "stable,libtorch,macos,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip",
   "stable,libtorch,macos,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip",
   "stable,libtorch,macos,rocm5.x,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.13.0.zip",
-  "stable,pip,windows,accnone,python": "pip3 install torch torchvision",
+  "stable,pip,windows,accnone,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu",
   "stable,pip,windows,cuda.x,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126",
   "stable,pip,windows,cuda.y,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130",
   "stable,pip,windows,cuda.z,python": "pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132",
@@ -58,6 +58,6 @@
   "stable,libtorch,windows,accnone,cplusplus": "https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.13.0%2Bcpu.zip",
   "stable,libtorch,windows,cuda.x,cplusplus": "https://download.pytorch.org/libtorch/cu126/libtorch-win-shared-with-deps-2.13.0%2Bcu126.zip",
   "stable,libtorch,windows,cuda.y,cplusplus": "https://download.pytorch.org/libtorch/cu130/libtorch-win-shared-with-deps-2.13.0%2Bcu130.zip",
-  "stable,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-win-shared-with-deps-2.13.0%2Bcu130.zip",
+  "stable,libtorch,windows,cuda.z,cplusplus": "https://download.pytorch.org/libtorch/cu132/libtorch-win-shared-with-deps-2.13.0%2Bcu132.zip",
   "stable,libtorch,windows,rocm5.x,cplusplus": "# ROCm is not available on Windows"
 }

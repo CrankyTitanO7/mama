@@ -6,10 +6,10 @@
 
 function escapeHtml(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"');
 }
 
 function formatSize(bytes) {
@@ -74,6 +74,107 @@ async function getExplorerLabel() {
   if (platform.includes('Mac')) return '🗂 Open in Finder';
   if (platform.includes('Linux')) return '🗂 Open in File Manager';
   return '🗂 Open in Explorer';
+}
+
+function showProjectInitDialog(folderPath, status) {
+  const container = document.getElementById('project-content');
+  if (!container) return;
+
+  // Build checklist of missing items
+  const missing = [];
+  if (!status.hasProjectJson) missing.push('project.json');
+  if (!status.hasVenv) missing.push('.venv (Python virtual environment)');
+
+  if (missing.length === 0) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'project-init-overlay';
+  overlay.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+  `;
+
+  const modal = document.createElement('div');
+  modal.className = 'project-init-modal';
+  modal.style.cssText = `
+    background: var(--background-color, #1e1e2e);
+    color: var(--text-color, #cdd6f4);
+    border-radius: 12px; padding: 24px; max-width: 480px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  `;
+
+  modal.innerHTML = `
+    <h3 style="margin-top:0">Project Initialization</h3>
+    <p>This folder doesn't have the following project files:</p>
+    <ul>
+      ${missing.map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+    </ul>
+    <p>What would you like to create?</p>
+    <div id="init-results" style="margin-bottom:12px"></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-top:16px">
+      <button id="init-cancel-btn" class="settings-btn settings-btn-secondary">Cancel</button>
+      ${!status.hasProjectJson ? '<button id="init-json-btn" class="settings-btn settings-btn-primary">Create project.json</button>' : ''}
+      ${!status.hasVenv ? '<button id="init-venv-btn" class="settings-btn settings-btn-primary">Create .venv</button>' : ''}
+      ${missing.length > 1 ? '<button id="init-both-btn" class="settings-btn settings-btn-success">Create both</button>' : ''}
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  const resultsDiv = document.getElementById('init-results');
+
+  function appendResult(msg, isError) {
+    if (!resultsDiv) return;
+    const div = document.createElement('div');
+    div.style.cssText = `padding:4px 0; font-size:13px; color:${isError ? 'var(--error-color, #f38ba8)' : 'var(--success-color, #a6e3a1)'}`;
+    div.textContent = msg;
+    resultsDiv.appendChild(div);
+  }
+
+  function disableAllButtons() {
+    document.querySelectorAll('#init-json-btn, #init-venv-btn, #init-both-btn, #init-cancel-btn').forEach(b => {
+      if (b) b.disabled = true;
+    });
+  }
+
+  document.getElementById('init-cancel-btn')?.addEventListener('click', () => {
+    if (document.body.contains(overlay)) document.body.removeChild(overlay);
+  });
+
+  document.getElementById('init-json-btn')?.addEventListener('click', async () => {
+    disableAllButtons();
+    const res = await window.electron.projectCreateJson(folderPath);
+    appendResult(`project.json: ${res.success ? '✅' : '❌ ' + (res.error || '')}`, !res.success);
+    document.getElementById('init-json-btn')?.remove();
+    // If both are now done, close after a moment
+    if (!document.getElementById('init-venv-btn') && !document.getElementById('init-both-btn')) {
+      setTimeout(() => { if (document.body.contains(overlay)) document.body.removeChild(overlay); }, 1500);
+    }
+  });
+
+  document.getElementById('init-venv-btn')?.addEventListener('click', async () => {
+    disableAllButtons();
+    const res = await window.electron.projectCreateVenv(folderPath);
+    appendResult(`.venv: ${res.success ? '✅' : '❌ ' + (res.error || '')}`, !res.success);
+    document.getElementById('init-venv-btn')?.remove();
+    if (!document.getElementById('init-json-btn') && !document.getElementById('init-both-btn')) {
+      setTimeout(() => { if (document.body.contains(overlay)) document.body.removeChild(overlay); }, 1500);
+    }
+  });
+
+  document.getElementById('init-both-btn')?.addEventListener('click', async () => {
+    disableAllButtons();
+    const jsonRes = await window.electron.projectCreateJson(folderPath);
+    appendResult(`project.json: ${jsonRes.success ? '✅' : '❌ ' + (jsonRes.error || '')}`, !jsonRes.success);
+    const venvRes = await window.electron.projectCreateVenv(folderPath);
+    appendResult(`.venv: ${venvRes.success ? '✅' : '❌ ' + (venvRes.error || '')}`, !venvRes.success);
+    document.getElementById('init-json-btn')?.remove();
+    document.getElementById('init-venv-btn')?.remove();
+    document.getElementById('init-both-btn')?.remove();
+    setTimeout(() => { if (document.body.contains(overlay)) document.body.removeChild(overlay); }, 2000);
+  });
 }
 
 async function renderExplorer(folderData) {
@@ -201,6 +302,10 @@ async function openFolder(folderPath, updateRecents = true) {
     }
 
     await renderExplorer(folderData);
+
+    // Check for project.json and .venv, and show init dialog if missing
+    const initStatus = await window.electron.projectInit(folderPath);
+    showProjectInitDialog(folderPath, initStatus);
   } catch (e) {
     console.error('Failed to open folder:', e);
   }

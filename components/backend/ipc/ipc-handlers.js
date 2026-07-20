@@ -41,6 +41,7 @@ const SCRIPT = {
  * Try to find a working Python 3 interpreter.
  * Checks the candidates in order; returns the first one that's on PATH.
  * On Windows 'py' is the Python Launcher and handles version selection.
+ * Returns null if no Python 3 is found.
  */
 function findPython() {
   const { execSync } = require('child_process');
@@ -57,14 +58,13 @@ function findPython() {
       // not found or wrong version — try next
     }
   }
-  // Return 'python3' as a final guess; the error surface will be clear.
-  return 'python3';
+  return null;
 }
 
 // Cache the resolved executable for the lifetime of the app.
 let _pythonExe = null;
 function getPython() {
-  if (!_pythonExe) _pythonExe = findPython();
+  if (_pythonExe === undefined) _pythonExe = findPython();
   return _pythonExe;
 }
 
@@ -84,6 +84,11 @@ function runScript(scriptPath, args = [], opts = {}) {
 
   return new Promise((resolve) => {
     const python = getPython();
+    if (!python) {
+      resolve({ code: 1, stdout: '', stderr: 'Python 3 not found on PATH.' });
+      return;
+    }
+
     let stdout   = '';
     let stderr   = '';
     let settled  = false;
@@ -135,6 +140,7 @@ const {
   readRecents,
   openProjectFolder,
   listDirectory,
+  addRecentFolder,
 } = require('../project-store');
 
 const {
@@ -277,6 +283,12 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
 
     return new Promise((resolve) => {
       const python = getPython();
+      if (!python) {
+        event.sender.send('install-chunk', { type: 'done', code: 1 });
+        resolve({ code: 1 });
+        return;
+      }
+
       let settled = false;
 
       const proc = spawn(python, [SCRIPT.install, ...args], {
@@ -441,6 +453,82 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
       return await importTemplate(templateKey);
     } catch (e) {
       console.error('project-import-template failed:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  // ── Project init check ──────────────────────────────────────────────────
+  // Checks if a folder has project.json and .venv
+  ipcMain.handle('project-init', async (_event, folderPath) => {
+    try {
+      if (!folderPath) return { hasProjectJson: false, hasVenv: false };
+      const projectJsonPath = path.join(folderPath, 'project.json');
+      const venvPath = path.join(folderPath, '.venv');
+      return {
+        hasProjectJson: fs.existsSync(projectJsonPath),
+        hasVenv: fs.existsSync(venvPath) && fs.statSync(venvPath).isDirectory(),
+      };
+    } catch (e) {
+      console.error('project-init failed:', e);
+      return { hasProjectJson: false, hasVenv: false };
+    }
+  });
+
+  // ── Create project.json ─────────────────────────────────────────────────
+  ipcMain.handle('project-create-json', async (_event, folderPath) => {
+    try {
+      if (!folderPath) return { success: false, error: 'No folder path provided.' };
+      const projectJsonPath = path.join(folderPath, 'project.json');
+      if (fs.existsSync(projectJsonPath)) {
+        return { success: true, message: 'project.json already exists.' };
+      }
+      const projectJson = {
+        name: path.basename(folderPath),
+        version: '0.1.0',
+        description: '',
+        framework: null,
+        created: new Date().toISOString(),
+      };
+      fs.writeFileSync(projectJsonPath, JSON.stringify(projectJson, null, 2), 'utf8');
+      return { success: true, message: 'project.json created.' };
+    } catch (e) {
+      console.error('project-create-json failed:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  // ── Create .venv ────────────────────────────────────────────────────────
+  ipcMain.handle('project-create-venv', async (_event, folderPath) => {
+    try {
+      if (!folderPath) return { success: false, error: 'No folder path provided.' };
+      const venvPath = path.join(folderPath, '.venv');
+      if (fs.existsSync(venvPath)) {
+        return { success: true, message: '.venv already exists.' };
+      }
+      const python = getPython();
+      if (!python) {
+        return { success: false, error: 'Python 3 not found on PATH. Install Python 3.8+ to create a virtual environment.' };
+      }
+      return new Promise((resolve) => {
+        const proc = spawn(python, ['-m', 'venv', venvPath], {
+          env: { ...process.env },
+          cwd: folderPath,
+        });
+        let stderr = '';
+        proc.stderr.on('data', (data) => { stderr += data.toString(); });
+        proc.on('close', (code) => {
+          if (code === 0) {
+            resolve({ success: true, message: '.venv created.' });
+          } else {
+            resolve({ success: false, error: stderr || 'Failed to create .venv.' });
+          }
+        });
+        proc.on('error', (err) => {
+          resolve({ success: false, error: err.message });
+        });
+      });
+    } catch (e) {
+      console.error('project-create-venv failed:', e);
       return { success: false, error: e.message };
     }
   });

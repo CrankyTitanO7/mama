@@ -88,6 +88,11 @@ contextBridge.exposeInMainWorld('electron', {
   projectTemplatesRead: ()          => ipcRenderer.invoke('project-templates-read'),
   projectImportTemplate: (templateKey) => ipcRenderer.invoke('project-import-template', templateKey),
 
+  // ── Project init (project.json + .venv) ─────────────────────
+  projectInit:       (folderPath) => ipcRenderer.invoke('project-init', folderPath),
+  projectCreateJson: (folderPath) => ipcRenderer.invoke('project-create-json', folderPath),
+  projectCreateVenv: (folderPath) => ipcRenderer.invoke('project-create-venv', folderPath),
+
   // ── Before-quit hook (settings unsaved changes dialog) ─────
   onBeforeQuit: (callback) => {
     _beforeQuitCallback = callback;

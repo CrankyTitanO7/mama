@@ -4,15 +4,12 @@
     <meta charset="UTF-8">
     <title>mama - Setup</title>
     <link rel="stylesheet" href="../styles.css">
+    <style>
+      /* Hide topbar during setup */
+      .topbar { display: none !important; }
+    </style>
   </head>
   <body>
-    <script src="../components/elements/topbar.js"></script>
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        Topbar.init('setup');
-      });
-    </script>
-
     <div class="page-content">
       <div id="setup-app">
         <p class="loading-text">Loading setup wizard...</p>

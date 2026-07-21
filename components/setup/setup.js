@@ -283,7 +283,7 @@
         <div id="os-py-missing" style="display:none" class="setup-warn-msg">
           <p style="font-weight:bold; margin-top:0">⚠️ Python not detected</p>
           <p>Auto-detection requires Python 3.8+. Please install it, then click <strong>Re-scan</strong>, or fill in the details manually below.</p>
-          <p>Download from <a href="https://python.org" target="_blank">python.org</a></p>
+          <p>Download from <a href="https://www.python.org/downloads/" target="_blank">python.org</a></p>
         </div>
         <div id="os-fields" style="display:none">
           <div class="setup-field">
@@ -463,9 +463,9 @@
           <p style="font-weight:bold; margin-top:0">❌ Python 3 not found!</p>
           <p>mama requires Python 3.8 or higher to function. Please install it from:</p>
           <ul>
-            <li><strong>macOS:</strong> <code>brew install python</code> or download from <a href="https://python.org" target="_blank">python.org</a></li>
+            <li><strong>macOS:</strong> <code>brew install python</code> or download from <a href="https://www.python.org/downloads/" target="_blank">python.org</a></li>
             <li><strong>Linux:</strong> <code>sudo apt install python3 python3-venv python3-pip</code> (Debian/Ubuntu) or <code>sudo dnf install python3</code> (Fedora)</li>
-            <li><strong>Windows:</strong> Download from <a href="https://python.org" target="_blank">python.org</a> — ensure "Add Python to PATH" is checked</li>
+            <li><strong>Windows:</strong> Download from <a href="https://www.python.org/downloads/" target="_blank">python.org</a> — ensure "Add Python to PATH" is checked</li>
           </ul>
           <p style="margin-bottom:0">After installing, click <strong>Re-check</strong> below.</p>
         </div>

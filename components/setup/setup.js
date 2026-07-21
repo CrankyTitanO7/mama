@@ -280,6 +280,11 @@
         <div id="os-out" class="setup-detect-output">
           <p class="setup-hint">⏳ Running detection…</p>
         </div>
+        <div id="os-py-missing" style="display:none" class="setup-warn-msg">
+          <p style="font-weight:bold; margin-top:0">⚠️ Python not detected</p>
+          <p>Auto-detection requires Python 3.8+. Please install it, then click <strong>Re-scan</strong>, or fill in the details manually below.</p>
+          <p>Download from <a href="https://python.org" target="_blank">python.org</a></p>
+        </div>
         <div id="os-fields" style="display:none">
           <div class="setup-field">
             <label>OS Full Name <span class="setup-hint">— e.g. Windows 11 Pro 24H2</span></label>
@@ -305,12 +310,37 @@
         document.getElementById('os-rescan-btn')?.addEventListener('click', runOSScan);
 
         async function runOSScan() {
-          const out    = document.getElementById('os-out');
-          const fields = document.getElementById('os-fields');
+          const out      = document.getElementById('os-out');
+          const fields   = document.getElementById('os-fields');
+          const pyMissing = document.getElementById('os-py-missing');
           if (!out) return;
           out.innerHTML = '<p class="setup-hint">⏳ Running detection…</p>';
+          if (pyMissing) pyMissing.style.display = 'none';
+
           try {
             const api = window?.electron;
+
+            // First check if Python is available — detection scripts depend on it
+            let pythonOk = false;
+            if (api?.runPythonDetect) {
+              const pyResult = await api.runPythonDetect();
+              const pyKv = parseKV(pyResult.stdout);
+              pythonOk = !!pyKv['PYTHON_VERSION'];
+            }
+
+            if (!pythonOk) {
+              out.innerHTML = '<div class="setup-error-msg">❌ Python 3 not found — auto-detection unavailable.</div>';
+              if (pyMissing) pyMissing.style.display = 'block';
+              // Pre-fill architecture from navigator
+              if (window?.versions?.arch) {
+                detected.arch = window.versions.arch();
+                const archEl = document.getElementById('setup-arch');
+                if (archEl) archEl.value = detected.arch;
+              }
+              if (fields) fields.style.display = 'block';
+              return;
+            }
+
             if (!api?.runOSDetect) {
               out.innerHTML = '<p class="setup-hint">⚠️ Electron bridge unavailable — restart the app and try again.</p>';
               if (fields) fields.style.display = 'block';

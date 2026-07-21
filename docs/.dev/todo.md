@@ -8,7 +8,18 @@
 - finish multimodel designer
     - build basic training script-template
 
+### **COMPLETED: Install Scope Selection (2026-07-20)**
+- Added install scope option to Framework Install step: "Global (system Python)" or "Project (.venv only)"
+- When "Project" scope is selected without a project folder, a folder picker dialogue opens automatically
+- Updated `runInstallStream` IPC to accept `scope` and `projectFolder` parameters
+
 - build folder loader (important!) (also, do memory scan. make sure drive has enough memory for project)
+
+### **COMPLETED: Install Scope Selection (2026-07-20)**
+- Added install scope option to Framework Install step: "Global (system Python)" or "Project (.venv only)"
+- When "Project" scope is selected without a project folder, a folder picker dialogue opens automatically
+- Updated `runInstallStream` IPC to accept `scope` and `projectFolder` parameters
+- For project scope, automatically creates .venv if needed and uses venv's python for installation
 
 - create prereq loaders
     - <del>pytorch (from site)
@@ -46,24 +57,21 @@
     xattr -cr /path/to/application
     ```
 
+# idea
+
 Yeah, I've got a pretty clear picture. You're building something like a local, open-source Axolotl with a GUI — the gap I mentioned earlier. Here's how I'd actually approach the implementation:
-
-## The core insight: don't write a training loop
-
+The core insight: don't write a training loop
 Your instinct to "write a Python script that pulls a model and tunes it" will lead you down a path of reimplementing things that already exist and are very hard to get right (gradient accumulation, mixed precision, checkpointing, OOM handling). Instead, your Python scripts should be thin wrappers around HuggingFace's training stack:
 
-- **`transformers`** — model loading, tokenization, saving
-- **`datasets`** — dataset loading from HF Hub or local files
-- **`peft`** — LoRA / QLoRA (this is what makes large models trainable on consumer hardware)
-- **`trl`** — `SFTTrainer`, `DPOTrainer` etc. — the highest-level training API; one object handles the entire loop
-- **`accelerate`** — device management, handles CPU/GPU/MPS/multi-GPU transparently
-- **`bitsandbytes`** — 4-bit/8-bit quantization (required for QLoRA on consumer VRAM)
+transformers — model loading, tokenization, saving
+datasets — dataset loading from HF Hub or local files
+peft — LoRA / QLoRA (this is what makes large models trainable on consumer hardware)
+trl — SFTTrainer, DPOTrainer etc. — the highest-level training API; one object handles the entire loop
+accelerate — device management, handles CPU/GPU/MPS/multi-GPU transparently
+bitsandbytes — 4-bit/8-bit quantization (required for QLoRA on consumer VRAM)
 
-`trl`'s `SFTTrainer` in particular is the right starting point — it's literally designed for "take a model, take a dataset, fine-tune it" in about 20 lines.
-
-## Architecture
-
-```
+trl's SFTTrainer in particular is the right starting point — it's literally designed for "take a model, take a dataset, fine-tune it" in about 20 lines.
+Architecture
 Electron UI
     │
     ├── generates a training config JSON (the "project")
@@ -75,12 +83,8 @@ Electron UI
                     │
                     ├── writes checkpoints to output dir
                     └── writes final model to output dir
-```
-
 The config JSON becomes the central data structure — it's what a "training project" is. Users create, save, and load these. Something like:
-
-```json
-{
+json{
   "model": {
     "id": "microsoft/phi-2",
     "source": "huggingface"
@@ -111,26 +115,17 @@ The config JSON becomes the central data structure — it's what a "training pro
     "push_to_hub": false
   }
 }
-```
-
-## Training methods to support, in priority order
-
-**1. LoRA fine-tuning (build this first)**
+Training methods to support, in priority order
+1. LoRA fine-tuning (build this first)
 Works on any NVIDIA GPU with 6+ GB VRAM, AMD with ROCm, Apple Silicon via MPS. Covers 90% of your user base. The model stays frozen; small adapter weights are trained and merged later.
-
-**2. QLoRA (build this second)**
-LoRA + 4-bit quantization via `bitsandbytes`. Lets users fine-tune 7B–13B models on 8 GB VRAM. Only works on NVIDIA (bitsandbytes has limited AMD/Apple support as of now — worth flagging in the UI).
-
-**3. Full fine-tuning (build this third, gate it behind a warning)**
+2. QLoRA (build this second)
+LoRA + 4-bit quantization via bitsandbytes. Lets users fine-tune 7B–13B models on 8 GB VRAM. Only works on NVIDIA (bitsandbytes has limited AMD/Apple support as of now — worth flagging in the UI).
+3. Full fine-tuning (build this third, gate it behind a warning)
 No adapters — the whole model trains. Requires massive VRAM or multi-GPU. Only practical for small models (< 1B params) on consumer hardware. Still useful for image classifiers etc.
-
-**4. Multimodal (later)**
+4. Multimodal (later)
 Whisper fine-tuning (audio→text) is actually the easiest entry point because the architecture is simple. Vision-language (LLaVA-style) is significantly harder. I'd punt on multimodal until the text pipeline is solid.
-
-## What the minimal train.py looks like
-
-```python
-# train.py — receives config path as argv[1], streams progress to stdout
+What the minimal train.py looks like
+python# train.py — receives config path as argv[1], streams progress to stdout
 import json, sys
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from datasets import load_dataset
@@ -198,11 +193,7 @@ trainer = SFTTrainer(
 trainer.train()
 trainer.save_model(config['output']['dir'])
 print("DONE", flush=True)
-```
-
-## UI flow (what pages you need)
-
-```
+UI flow (what pages you need)
 Model Browser
   → search HF Hub or paste model ID
   → shows model size, architecture, license
@@ -229,22 +220,93 @@ Output / Export
   → merge LoRA adapters into base model
   → push to HF Hub (optional)
   → test with a chat UI inline
-```
+The hardest parts to get right
+OOM handling — when the user's GPU runs out of memory mid-training, you need to catch it gracefully and suggest fixes (reduce batch size, enable gradient checkpointing, switch to QLoRA). The Python script should catch torch.cuda.OutOfMemoryError and print a structured error code that Electron can surface as a helpful suggestion rather than a raw traceback.
+Model compatibility — not every HF model works with every training method. You need a compatibility layer that checks whether a model supports LoRA target modules before the user starts a run. HF's model cards have enough metadata to do this.
+Resume from checkpoint — training runs fail. The output dir already has checkpoints; you need a "resume" flow that detects the last checkpoint and continues from there.
+What to actually build first
 
-## The hardest parts to get right
+The model downloader (HF Hub → local folder, with streaming progress)
+The dataset loader (HF datasets + local JSONL)
+The config builder UI (the form that generates the JSON)
+train.py with SFTTrainer + streaming callback, LoRA only
+The training view that reads stdout progress and draws the loss curve
 
-**OOM handling** — when the user's GPU runs out of memory mid-training, you need to catch it gracefully and suggest fixes (reduce batch size, enable gradient checkpointing, switch to QLoRA). The Python script should catch `torch.cuda.OutOfMemoryError` and print a structured error code that Electron can surface as a helpful suggestion rather than a raw traceback.
+Get that end-to-end working on one model (Phi-2 or TinyLlama are good test targets — small enough to run on anything) before adding more training methods or multimodal support. The pipeline is more complex than it looks even for the simple case.can I include axolotl in backend?Weighed licensing, practicality, and platform compatibility for integrationWeighed licensing, practicality, and platform compatibility for integrationYes, and it's actually a great idea. Axolotl is Apache 2.0 licensed so there are no restrictions on bundling or wrapping it.
+The right way to include it is not to bundle it with the Electron app but to install it via pip during your setup wizard — same as PyTorch. Then your app generates Axolotl YAML configs and spawns its CLI:
+bashaccelerate launch -m axolotl.cli.train config.yaml
+That's it. Axolotl handles the entire training loop, LoRA/QLoRA/full fine-tuning, checkpointing, dataset processing — everything. Your job becomes generating the right YAML and streaming the output.
+What a generated Axolotl config looks like:
+yamlbase_model: microsoft/phi-2
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
 
-**Model compatibility** — not every HF model works with every training method. You need a compatibility layer that checks whether a model supports LoRA target modules before the user starts a run. HF's model cards have enough metadata to do this.
+load_in_4bit: true
+strict: false
 
-**Resume from checkpoint** — training runs fail. The output dir already has checkpoints; you need a "resume" flow that detects the last checkpoint and continues from there.
+datasets:
+  - path: tatsu-lab/alpaca
+    type: alpaca
 
-## What to actually build first
+dataset_prepared_path: /tmp/mama-prepared
+val_set_size: 0.05
+output_dir: /Users/x/mama-projects/my-run
 
-1. The model downloader (HF Hub → local folder, with streaming progress)
-2. The dataset loader (HF datasets + local JSONL)
-3. The config builder UI (the form that generates the JSON)
-4. `train.py` with `SFTTrainer` + streaming callback, LoRA only
-5. The training view that reads stdout progress and draws the loss curve
+sequence_len: 2048
+sample_packing: true
 
-Get that end-to-end working on one model (Phi-2 or TinyLlama are good test targets — small enough to run on anything) before adding more training methods or multimodal support. The pipeline is more complex than it looks even for the simple case.
+adapter: lora
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - v_proj
+
+gradient_accumulation_steps: 4
+micro_batch_size: 2
+num_epochs: 3
+learning_rate: 0.0002
+optimizer: adamw_bnb_8bit
+lr_scheduler: cosine
+warmup_steps: 100
+
+logging_steps: 10
+save_steps: 500
+eval_steps: 500
+
+fp16: true
+tf32: false
+
+wandb_project:
+wandb_run_id:
+Your UI is essentially a form that produces this file, then launches the process.
+The real gotchas:
+Windows support is poor. Axolotl is primarily a Linux+CUDA tool. It technically runs on Windows via WSL2, but not natively. This is the biggest issue for you given your cross-platform goals. Your options:
+
+Target Linux+CUDA for Axolotl backend, fall back to your own train.py (using trl directly) for Windows and macOS
+Surface this clearly in the UI — "Axolotl backend requires Linux" with a fallback option
+Or just support WSL2 on Windows and document it
+
+Flash attention is optional but Axolotl will nag about it. It requires compilation from source (pip install flash-attn --no-build-isolation) and needs GCC and CUDA dev headers. Your setup wizard's GCC detection is already relevant here. You should make flash-attn optional and catch its install failure gracefully.
+bitsandbytes (required for QLoRA / 4-bit) has poor Windows and no Apple Silicon support. On macOS, QLoRA effectively doesn't work — users are limited to full LoRA or full fine-tuning with MPS.
+The install step for Axolotl is heavier than PyTorch alone:
+bashpip install axolotl[flash-attn,deepspeed]
+# or the minimal version without flash attention:
+pip install axolotl
+It pulls in a lot. Budget for 5–15 minutes on first install.
+Suggested architecture — two backends:
+mama
+ ├── Axolotl backend   (Linux + CUDA — full feature set)
+ │     generates YAML → axolotl.cli.train
+ │     supports: LoRA, QLoRA, full FT, DPO, RLHF
+ │
+ └── Built-in backend  (Windows / macOS / CPU — cross-platform)
+       generates JSON → your train.py using trl directly
+       supports: LoRA, basic full FT
+The config UI stays the same for both — you just have a backend selector and the app translates the project config to either a YAML (Axolotl) or JSON (built-in). The training view is identical either way since both stream stdout.
+Parsing Axolotl output for your progress bar — Axolotl uses HuggingFace's standard trainer logging, so you'll see lines like:
+{'loss': 1.4321, 'learning_rate': 0.0002, 'epoch': 0.12}
+[INFO] Step 120/1000 - loss: 1.4321
+You can regex these out of stdout to drive your loss curve and progress bar, same as with your own trainer callback.
+The bottom line: Axolotl as the primary backend on Linux+CUDA is the right call — it's well-maintained, supports every training method you'd want, and saves you from implementing the hard parts. Just be upfront in the UI that it's the "power" backend and have the built-in trl wrapper as the cross-platform fallback.

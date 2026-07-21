@@ -12,7 +12,7 @@
  *   run-install           (fw, gpuVariant, accelVersion?)
  *   run-import-test       (fw)
  *   settings-read
- *   settings-write        (settings)   — backs up first
+ *   settings-write        (settings) — backs up first
  *   settings-write-nonbackup (settings)
  *   setup-complete
  */
@@ -20,19 +20,19 @@
 'use strict';
 
 const { ipcMain, app, dialog, BrowserWindow, shell } = require('electron');
-const { spawn }        = require('child_process');
-const path             = require('path');
-const fs               = require('fs');
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
 // ── Script paths ──────────────────────────────────────────────────────────────
 
 const SCRIPT = {
-  osDetect:      path.join(__dirname, '..', 'systemDetect', 'detect_os.py'),
-  pythonDetect:  path.join(__dirname, '..', 'systemDetect', 'detect_python.py'),
-  gpuDetect:     path.join(__dirname, '..', 'systemDetect', 'detect_gpu.py'),
-  compatCheck:   path.join(__dirname, '..', 'systemDetect', 'check_compatibility.py'),
-  install:       path.join(__dirname, '..', 'installs', 'install_fw.py'),
-  importTest:    path.join(__dirname, '..', 'installs', 'import_test.py'),
+  osDetect: path.join(__dirname, '..', 'systemDetect', 'detect_os.py'),
+  pythonDetect: path.join(__dirname, '..', 'systemDetect', 'detect_python.py'),
+  gpuDetect: path.join(__dirname, '..', 'systemDetect', 'detect_gpu.py'),
+  compatCheck: path.join(__dirname, '..', 'systemDetect', 'check_compatibility.py'),
+  install: path.join(__dirname, '..', 'installs', 'install_fw.py'),
+  importTest: path.join(__dirname, '..', 'installs', 'import_test.py'),
 };
 
 // ── Python executable resolution ──────────────────────────────────────────────
@@ -45,7 +45,7 @@ const SCRIPT = {
  */
 function findPython() {
   const { execSync } = require('child_process');
-  const candidates   = process.platform === 'win32'
+  const candidates = process.platform === 'win32'
     ? ['python', 'py', 'python3']
     : ['python3', 'python'];
 
@@ -90,9 +90,9 @@ function runScript(scriptPath, args = [], opts = {}) {
       return;
     }
 
-    let stdout   = '';
-    let stderr   = '';
-    let settled  = false;
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
 
     const proc = spawn(python, [scriptPath, ...args], {
       env: { ...process.env },
@@ -191,16 +191,16 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     { osFamily, osVersion, arch, gpuMfr, gpuName, gpuVramMB, cudaVer, rocmVer, metalVer, mpsAvail, pythonVer }
   ) => {
     const args = [
-      '--os-family',  osFamily  || '',
+      '--os-family', osFamily || '',
       '--os-version', osVersion || '',
-      '--arch',       arch      || '',
-      '--gpu-mfr',    gpuMfr    || '',
-      '--gpu-name',   gpuName   || '',
+      '--arch', arch || '',
+      '--gpu-mfr', gpuMfr || '',
+      '--gpu-name', gpuName || '',
       '--gpu-vram-mb', String(gpuVramMB || ''),
-      '--cuda-ver',   cudaVer   || '',
-      '--rocm-ver',   rocmVer   || '',
-      '--metal-ver',  metalVer  || '',
-      '--mps-avail',  mpsAvail  || '',
+      '--cuda-ver', cudaVer || '',
+      '--rocm-ver', rocmVer || '',
+      '--metal-ver', metalVer || '',
+      '--mps-avail', mpsAvail || '',
       '--python-ver', pythonVer || '',
     ];
     return runScript(SCRIPT.compatCheck, args, { timeout: 30_000 });
@@ -233,7 +233,6 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
       osFamily = 'linux';
       // Read /etc/os-release for distro info
       try {
-        const fs = require('fs');
         const content = fs.readFileSync('/etc/os-release', 'utf8').toLowerCase();
         if (content.includes('ubuntu') || content.includes('debian')) {
           distro = 'debian-based';
@@ -267,71 +266,122 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
     return runScript(SCRIPT.install, args, { timeout: 20 * 60_000 });
   });
 
-  // ── Install (streaming) ─────────────────────────────────────────────────
-  // Streams stdout/stderr chunks to the renderer in real-time via
-  //   event.sender.send('install-chunk', { type: 'stdout'|'stderr', text })
-  // and sends a final message when done:
-  //   event.sender.send('install-chunk', { type: 'done', code })
-  ipcMain.handle('run-install-stream', async (event, fw, gpuVariant, accelVersion = '') => {
-    const args = [fw, gpuVariant];
-    if (accelVersion) args.push(accelVersion);
+   // ── Install (streaming) ─────────────────────────────────────────────────
+   // Streams stdout/stderr chunks to the renderer in real-time via
+   //   event.sender.send('install-progress', { type: 'stdout'|'stderr', text })
+   // and sends a final message when done:
+   //   event.sender.send('install-progress', { type: 'done', code })
+   // scope: 'global' | 'project' — determines whether to use venv or system python
+   // projectFolder: path to project folder (required for 'project' scope)
+   ipcMain.handle('run-install-stream', async (event, fw, gpuVariant, accelVersion = '', scope = 'global', projectFolder = '') => {
+     let args = [fw, gpuVariant];
+     if (accelVersion) args.push(accelVersion);
 
-    const osInfo = getOsInfo();
-    args.push('--os-family', osInfo.osFamily);
-    args.push('--distro', osInfo.distro);
+     const osInfo = getOsInfo();
+     args.push('--os-family', osInfo.osFamily);
+     args.push('--distro', osInfo.distro);
 
-    const timeout = 20 * 60_000;
+     const timeout = 20 * 60_000;
 
-    return new Promise((resolve) => {
-      const python = getPython();
-      if (!python) {
-        event.sender.send('install-chunk', { type: 'done', code: 1 });
-        resolve({ code: 1 });
-        return;
-      }
+     // For project scope, we need to use the venv's python if it exists, or create it first
+     let python = getPython();
+     let venvPath = null;
 
-      let settled = false;
+     if (scope === 'project' && projectFolder) {
+       venvPath = path.join(projectFolder, '.venv');
+       // Check if .venv exists and has a python executable
+       const venvPython = process.platform === 'win32' 
+         ? path.join(venvPath, 'Scripts', 'python.exe')
+         : path.join(venvPath, 'bin', 'python');
+       
+       if (fs.existsSync(venvPython)) {
+         python = venvPython;
+       } else {
+         // No .venv yet — need to create one first
+         if (!python) {
+           event.sender.send('install-progress', { type: 'stderr', text: 'Python 3 not found on PATH.' });
+           event.sender.send('install-progress', { type: 'done', code: 1 });
+           return { code: 1 };
+         }
+         // Create .venv
+         const venvCreated = await new Promise((resolveVenv) => {
+           const venvProc = spawn(python, ['-m', 'venv', venvPath], {
+             env: { ...process.env },
+             cwd: projectFolder,
+           });
+           venvProc.on('close', (code) => {
+             if (code === 0) {
+               python = process.platform === 'win32' 
+                 ? path.join(venvPath, 'Scripts', 'python.exe')
+                 : path.join(venvPath, 'bin', 'python');
+               resolveVenv(true);
+             } else {
+               event.sender.send('install-progress', { type: 'stderr', text: '.venv creation failed.' });
+               event.sender.send('install-progress', { type: 'done', code: 1 });
+               resolveVenv(false);
+             }
+           });
+           venvProc.on('error', (err) => {
+             event.sender.send('install-progress', { type: 'stderr', text: `Failed to create .venv: ${err.message}` });
+             event.sender.send('install-progress', { type: 'done', code: 1 });
+             resolveVenv(false);
+           });
+         });
+         if (!venvCreated) {
+           return { code: 1 };
+         }
+       }
+     }
 
-      const proc = spawn(python, [SCRIPT.install, ...args], {
-        env: { ...process.env },
-      });
+     return new Promise((resolve) => {
+       if (!python) {
+         event.sender.send('install-progress', { type: 'done', code: 1 });
+         resolve({ code: 1 });
+         return;
+       }
 
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          proc.kill();
-          event.sender.send('install-chunk', { type: 'done', code: 1 });
-          resolve({ code: 1 });
-        }
-      }, timeout);
+       let settled = false;
 
-      proc.stdout.on('data', (data) => {
-        event.sender.send('install-chunk', { type: 'stdout', text: data.toString() });
-      });
+       const proc = spawn(python, [SCRIPT.install, ...args], {
+         env: { ...process.env },
+       });
 
-      proc.stderr.on('data', (data) => {
-        event.sender.send('install-chunk', { type: 'stderr', text: data.toString() });
-      });
+       const timer = setTimeout(() => {
+         if (!settled) {
+           settled = true;
+           proc.kill();
+           event.sender.send('install-progress', { type: 'done', code: 1 });
+           resolve({ code: 1 });
+         }
+       }, timeout);
 
-      proc.on('close', (code) => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          event.sender.send('install-chunk', { type: 'done', code: code ?? 0 });
-          resolve({ code: code ?? 0 });
-        }
-      });
+       proc.stdout.on('data', (data) => {
+         event.sender.send('install-progress', { type: 'stdout', text: data.toString() });
+       });
 
-      proc.on('error', (err) => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          event.sender.send('install-chunk', { type: 'done', code: 1 });
-          resolve({ code: 1 });
-        }
-      });
-    });
-  });
+       proc.stderr.on('data', (data) => {
+         event.sender.send('install-progress', { type: 'stderr', text: data.toString() });
+       });
+
+       proc.on('close', (code) => {
+         if (!settled) {
+           settled = true;
+           clearTimeout(timer);
+           event.sender.send('install-progress', { type: 'done', code: code ?? 0 });
+           resolve({ code: code ?? 0 });
+         }
+       });
+
+       proc.on('error', (err) => {
+         if (!settled) {
+           settled = true;
+           clearTimeout(timer);
+           event.sender.send('install-progress', { type: 'done', code: 1 });
+           resolve({ code: 1 });
+         }
+       });
+     });
+   });
 
   // ── Import test ──────────────────────────────────────────────────────────
 

@@ -1,12 +1,12 @@
 // Preload script for secure context — mama
 const { contextBridge, ipcRenderer } = require('electron');
 
-// ── Streaming install state (internal, not exposed) ─────────────────────────
-let _installChunkCallback = null;
+// ── Streaming install state ───────────────────────────────────────────────
+let _installProgressCallback = null;
 let _beforeQuitCallback = null;
 
-ipcRenderer.on('install-chunk', (_event, chunk) => {
-  if (_installChunkCallback) _installChunkCallback(chunk);
+ipcRenderer.on('install-progress', (_event, chunk) => {
+  if (_installProgressCallback) _installProgressCallback(chunk);
 });
 
 ipcRenderer.on('before-quit-check', async (_event) => {
@@ -56,12 +56,19 @@ contextBridge.exposeInMainWorld('electron', {
   runInstall: (fw, gpuVariant = 'cpu', accelVersion = '') =>
                  ipcRenderer.invoke('run-install', fw, gpuVariant, accelVersion),
 
-  // ── Python: Streaming install (real-time output) ──────────
-  runInstallStream: (fw, gpuVariant, accelVersion, onChunk) => {
-    _installChunkCallback = onChunk || null;
-    return ipcRenderer.invoke('run-install-stream', fw, gpuVariant, accelVersion || '')
-      .finally(() => { _installChunkCallback = null; });
-  },
+   // ── Python: Streaming install (real-time output) ──────────
+   runInstallStream: (fw, gpuVariant, accelVersion, scope = 'global', projectFolder = null) => {
+     return ipcRenderer.invoke('run-install-stream', fw, gpuVariant, accelVersion || '', scope, projectFolder || '');
+   },
+
+   // ── Python: Install progress listener ───────────────────────
+   onInstallProgress: (callback) => {
+     _installProgressCallback = callback;
+   },
+
+   offInstallProgress: () => {
+     _installProgressCallback = null;
+   },
 
   // ── Python: Import test ────────────────────────────────────
   runImportTest: (framework) => ipcRenderer.invoke('run-import-test', framework),

@@ -22,8 +22,22 @@ const MC = (() => {
   let container = null;
   let cards = {};
   let settings = null;
+  let projectFolder = null;
+
+  // ── Load project folder from recents ────────────────────────
+  async function loadProjectFolder() {
+    try {
+      const recents = await window.electron.projectRecentsRead();
+      if (recents?.open) {
+        projectFolder = recents.open;
+      }
+    } catch (e) {
+      projectFolder = null;
+    }
+  }
 
   // ── Load settings ─────────────────────────────────────────
+
   async function loadSettings() {
     try {
       settings = await window.electron.settingsRead();
@@ -50,6 +64,9 @@ const MC = (() => {
 
     // Load settings first so we know which frameworks are active
     await loadSettings();
+
+    // Load project folder from recents for project-scoped checks
+    await loadProjectFolder();
 
     const title = document.createElement('h2');
     title.textContent = '🚀 Pre-Flight Checks';
@@ -221,7 +238,7 @@ const MC = (() => {
   async function runCheckImportTorch() {
     setStatus('torch', 'pending');
     try {
-      const result = await window.electron.runImportTest('torch');
+      const result = await window.electron.runImportTest('torch', projectFolder);
       if (result.code === 0 && result.stdout) {
         const lines = result.stdout.split('\n').filter(Boolean);
         const verLine = lines.find(l => l.toLowerCase().includes('version'));
@@ -239,7 +256,7 @@ const MC = (() => {
   async function runCheckImportTf() {
     setStatus('tensorflow', 'pending');
     try {
-      const result = await window.electron.runImportTest('tf');
+      const result = await window.electron.runImportTest('tf', projectFolder);
       if (result.code === 0 && result.stdout) {
         const lines = result.stdout.split('\n').filter(Boolean);
         const verLine = lines.find(l => l.toLowerCase().includes('version'));

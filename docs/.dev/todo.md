@@ -12,21 +12,21 @@
 - Added install scope option to Framework Install step: "Global (system Python)" or "Project (.venv only)"
 - When "Project" scope is selected without a project folder, a folder picker dialogue opens automatically
 - Updated `runInstallStream` IPC to accept `scope` and `projectFolder` parameters
-
-- build folder loader (important!) (also, do memory scan. make sure drive has enough memory for project)
-
-### **COMPLETED: Install Scope Selection (2026-07-20)**
-- Added install scope option to Framework Install step: "Global (system Python)" or "Project (.venv only)"
-- When "Project" scope is selected without a project folder, a folder picker dialogue opens automatically
-- Updated `runInstallStream` IPC to accept `scope` and `projectFolder` parameters
 - For project scope, automatically creates .venv if needed and uses venv's python for installation
 
-- create prereq loaders
-    - <del>pytorch (from site)
-        - solve refreshing problem (probably via web-analysis?)
-        - <del>REMEMBER MPS ONLY SUPPORTED ON NIGHTLY BUILD!!! HARDWARE DETECTION COMES FIRST</del>
+### **COMPLETED: Project-Scoped Install Verification (2026-07-20)**
+- Fixed verification step to use venv Python when testing imports after project-scope installs
+- Updated `runImportTest` IPC to accept optional `projectFolder` parameter
+- Verification now correctly tests framework installation in the correct Python environment
+
+### **COMPLETED: Mission Control Project-Scoped Checks (2026-07-20)**
+- Mission control now loads project folder from recents.json on init
+- Framework import tests use project venv when a folder is open
+
+    - ~~pytorch (from site)~~
+        - ~~solve refreshing problem (probably via web-analysis?)~~
+        - ~~REMEMBER MPS ONLY SUPPORTED ON NIGHTLY BUILD!!! HARDWARE DETECTION COMES FIRST~~
         - https://docs.pytorch.org/assets/quick-start-module.js
-        </del>
     - amd (rocm)
         - static load from documentation site
     - nvidia cuda

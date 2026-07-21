@@ -77,26 +77,29 @@
   let selectedMode      = 'gpu';  // 'gpu' | 'cpu'
   let installSucceeded  = false;
 
-  // Populated by detection steps; read by later steps.
-  const detected = {
-    osFullName:      '',
-    osPrettyName:    '',
-    osKernel:        '',
-    arch:            window?.versions?.arch?.() || '',
-    pythonVersion:   null,
-    pipAvailable:    false,
-    cmakeAvailable:  false,
-    gccAvailable:    false,
-    gpuManufacturer: 'none',
-    gpuName:         '',
-    gpuVramMB:       null,
-    cudaVersion:     '',
-    rocmVersion:     '',
-    driverVersion:   '',
-    metalVersion:    '',
-    mpsAvailable:    '',
-    compatResults:   null,
-  };
+   // Populated by detection steps; read by later steps.
+   const detected = {
+     osFullName:      '',
+     osPrettyName:    '',
+     osKernel:        '',
+     arch:            window?.versions?.arch?.() || '',
+     pythonVersion:   null,
+     pipAvailable:    false,
+     cmakeAvailable:  false,
+     gccAvailable:    false,
+     gpuManufacturer: 'none',
+     gpuName:         '',
+     gpuVramMB:       null,
+     cudaVersion:     '',
+     rocmVersion:     '',
+     driverVersion:   '',
+     metalVersion:    '',
+     mpsAvailable:    '',
+     compatResults:   null,
+   };
+   
+   // Selected project folder for project-scoped installs
+   let selectedProjectFolder = null;
 
   // ═══════════════════════════════════════════════════════════════
   // Utilities
@@ -980,8 +983,6 @@
        `;
      },
       afterRender: async () => {
-        let selectedProjectFolder = null;
-
         // --- PYTORCH DYNAMIC MATRIX LOGIC ---
         if (selectedFramework === 'torch') {
           const cmdInput = document.getElementById('install-cmd-input');
@@ -1057,38 +1058,39 @@
           updateCommand();
         }
 
-        // --- INSTALL SCOPE LOGIC ---
-        const scopeSelect = document.getElementById('install-scope');
-        const folderPrompt = document.getElementById('project-folder-prompt');
-        const selectFolderBtn = document.getElementById('select-project-folder-btn');
+         // --- INSTALL SCOPE LOGIC ---
+         // Use module-level selectedProjectFolder
+         const scopeSelect = document.getElementById('install-scope');
+         const folderPrompt = document.getElementById('project-folder-prompt');
+         const selectFolderBtn = document.getElementById('select-project-folder-btn');
 
-        const updateScopeUI = () => {
-          const isProjectScope = scopeSelect?.value === 'project';
-          if (folderPrompt) folderPrompt.style.display = isProjectScope && !selectedProjectFolder ? 'block' : 'none';
-        };
+         const updateScopeUI = () => {
+           const isProjectScope = scopeSelect?.value === 'project';
+           if (folderPrompt) folderPrompt.style.display = isProjectScope && !selectedProjectFolder ? 'block' : 'none';
+         };
 
-        scopeSelect?.addEventListener('change', updateScopeUI);
+         scopeSelect?.addEventListener('change', updateScopeUI);
 
-        // Load current project folder from recents
-        try {
-          const recents = await window.electron.projectRecentsRead();
-          if (recents?.open) {
-            selectedProjectFolder = recents.open;
-            updateScopeUI();
-          }
-        } catch (_) {}
+         // Load current project folder from recents
+         try {
+           const recents = await window.electron.projectRecentsRead();
+           if (recents?.open) {
+             selectedProjectFolder = recents.open;
+             updateScopeUI();
+           }
+         } catch (_) {}
 
-        // Handle project folder selection button
-        selectFolderBtn?.addEventListener('click', async () => {
-          try {
-            const folderPath = await window.electron.projectPickFolder();
-            if (!folderPath) return;
-            selectedProjectFolder = folderPath;
-            updateScopeUI();
-          } catch (e) {
-            console.error('Failed to pick project folder:', e);
-          }
-        });
+         // Handle project folder selection button
+         selectFolderBtn?.addEventListener('click', async () => {
+           try {
+             const folderPath = await window.electron.projectPickFolder();
+             if (!folderPath) return;
+             selectedProjectFolder = folderPath;
+             updateScopeUI();
+           } catch (e) {
+             console.error('Failed to pick project folder:', e);
+           }
+         });
 
         // --- EXISTING INSTALL PROCESS LOGIC ---
         document.getElementById('run-fw-install-btn')?.addEventListener('click', async () => {
@@ -1202,8 +1204,8 @@
           testBtn.disabled        = true;
           testBtn.style.opacity   = '0.5';
 
-          try {
-            const result = await window.electron.runImportTest(fw);
+           try {
+            const result = await window.electron.runImportTest(fw, selectedProjectFolder);
             if (result.code === 0) {
               statusDiv.innerHTML = `
                 <div class="setup-success-msg">✅ ${fwName} is working!</div>
@@ -1226,7 +1228,9 @@
                 if (retryBtn)   { retryBtn.disabled = true; retryBtn.textContent = '⏳ Installing…'; }
 
                 try {
-                  const ir = await window.electron.runInstall(fw, gpuVariant());
+                  const scope = document.getElementById('install-scope')?.value || 'global';
+                  const accelVersion = detected.cudaVersion || detected.rocmVersion || '';
+                  const ir = await window.electron.runInstallStream(fw, gpuVariant(), accelVersion, scope, selectedProjectFolder);
                   if (installDiv) {
                     installDiv.innerHTML = ir.code === 0
                       ? `<div class="setup-success-msg">✅ Installed!</div><pre class="setup-pre">${escapeHtml((ir.stdout || '').slice(0, 500))}</pre>`
@@ -1234,7 +1238,7 @@
                   }
                   if (ir.code === 0) {
                     statusDiv.innerHTML = '<p class="setup-hint">⏳ Re-testing…</p>';
-                    const retest = await window.electron.runImportTest(fw);
+                    const retest = await window.electron.runImportTest(fw, selectedProjectFolder);
                     statusDiv.innerHTML = retest.code === 0
                       ? `<div class="setup-success-msg">✅ ${fwName} verified!</div><pre class="setup-pre">${escapeHtml(retest.stdout || '')}</pre>`
                       : `<div class="setup-error-msg">❌ Still failing — check the install output.</div><pre class="setup-pre setup-pre-error">${escapeHtml(retest.stderr || retest.stdout || '')}</pre>`;

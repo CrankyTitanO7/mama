@@ -78,13 +78,14 @@ function getPython() {
  * @param {string[]} args        Command-line arguments for the script.
  * @param {object}   [opts]
  * @param {number}   [opts.timeout]  Kill the process after this many ms (default: 120 000).
+ * @param {string}   [opts.python] Explicit python executable to use (overrides getPython()).
  * @returns {Promise<{code: number, stdout: string, stderr: string}>}
  */
-function runScript(scriptPath, args = [], opts = {}) {
+function runScript(scriptPath, args = [], opts = {}, explicitPython = null) {
   const timeout = opts.timeout ?? 120_000;
 
   return new Promise((resolve) => {
-    const python = getPython();
+    const python = explicitPython || getPython();
     if (!python) {
       resolve({ code: 1, stdout: '', stderr: 'Python 3 not found on PATH.' });
       return;
@@ -385,9 +386,23 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
 
   // ── Import test ──────────────────────────────────────────────────────────
 
-  ipcMain.handle('run-import-test', async (_event, fw) => {
-    return runScript(SCRIPT.importTest, [fw], { timeout: 60_000 });
-  });
+   ipcMain.handle('run-import-test', async (_event, fw, projectFolder = null) => {
+     const python = getPython();
+     
+     // If project folder provided, use venv python if .venv exists
+     let pythonExe = python;
+     if (projectFolder) {
+       const venvPath = path.join(projectFolder, '.venv');
+       const venvPython = process.platform === 'win32'
+         ? path.join(venvPath, 'Scripts', 'python.exe')
+         : path.join(venvPath, 'bin', 'python');
+       if (fs.existsSync(venvPython)) {
+         pythonExe = venvPython;
+       }
+     }
+     
+     return runScript(SCRIPT.importTest, [fw], { timeout: 60_000 }, pythonExe);
+   });
 
   // ── Settings ─────────────────────────────────────────────────────────────
 

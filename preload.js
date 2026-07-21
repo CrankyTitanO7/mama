@@ -71,7 +71,8 @@ contextBridge.exposeInMainWorld('electron', {
    },
 
   // ── Python: Import test ────────────────────────────────────
-  runImportTest: (framework) => ipcRenderer.invoke('run-import-test', framework),
+   runImportTest: (framework, projectFolder = null) =>
+                  ipcRenderer.invoke('run-import-test', framework, projectFolder),
 
   // ── Python: Legacy system / GPU detection ──────────────────
   runSystemDetect: (framework) => ipcRenderer.invoke('run-system-detect', framework),

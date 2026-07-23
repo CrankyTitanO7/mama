@@ -16,37 +16,13 @@
 //     window.electron.runCompatibilityCheck(params)
 //     window.electron.runImportTest(fw)
 //
-//   Install — streaming variant (see notes below)
-//     window.electron.runInstallStream(fw, gpuVariant, accelVersion)
-//       → Promise<exitCode>   resolves when process exits
+//   Install — streaming variant
+//     window.electron.runInstallStream(fw, gpuVariant, accelVersion, scope, projectFolder)
+//       → Promise<{code: number}>   resolves when process exits
 //     window.electron.onInstallProgress(callback)
 //       → registers listener for { type:'stdout'|'stderr'|'done', text?, code? }
 //     window.electron.offInstallProgress()
 //       → removes all 'install-progress' listeners
-//
-//     Main-process side of streaming install (add to ipc-handlers.js):
-//
-//       ipcMain.handle('run-install-stream', async (event, fw, gv, accelVer = '') => {
-//         const args = [fw, gv];
-//         if (accelVer) args.push(accelVer);
-//         return new Promise((resolve) => {
-//           const proc = spawn(getPython(), [SCRIPT.install, ...args]);
-//           proc.stdout.on('data', d => event.sender.send('install-progress',
-//             { type: 'stdout', text: d.toString() }));
-//           proc.stderr.on('data', d => event.sender.send('install-progress',
-//             { type: 'stderr', text: d.toString() }));
-//           proc.on('close', code => resolve(code ?? 0));
-//           proc.on('error', err => {
-//             event.sender.send('install-progress', { type: 'stderr', text: err.message });
-//             resolve(1);
-//           });
-//         });
-//       });
-//
-//     Preload additions:
-//       runInstallStream:   (fw, gv, av) => ipcRenderer.invoke('run-install-stream', fw, gv, av),
-//       onInstallProgress:  (cb)         => ipcRenderer.on('install-progress', (_e, c) => cb(c)),
-//       offInstallProgress: ()           => ipcRenderer.removeAllListeners('install-progress'),
 //
 //   Settings
 //     window.electron.settingsRead()
@@ -94,11 +70,16 @@
      rocmVersion:     '',
      driverVersion:   '',
      metalVersion:    '',
-     mpsAvailable:    '',
+     mpsAvailable:    false,
      compatResults:   null,
    };
-   
-   // Selected project folder for project-scoped installs
+
+   // Cached Python detection result — avoids re-running the same
+   // detection script in steps 3, 4, and 5.
+   let pythonDetectCache = null;
+
+   // Selected project folder for project-scoped installs.
+   // Updated by both the fw-install step and the project-folder step.
    let selectedProjectFolder = null;
 
   // ═══════════════════════════════════════════════════════════════
@@ -107,12 +88,13 @@
 
   function escapeHtml(text) {
     if (!text) return '';
+    const amp = String.fromCharCode(38);
     return String(text)
-      .replace(/&/g,  '&amp;')
-      .replace(/</g,  '&lt;')
-      .replace(/>/g,  '&gt;')
-      .replace(/"/g,  '&quot;')
-      .replace(/'/g,  '&#039;');
+      .replace(/&/g,  amp + 'amp;')
+      .replace(/</g,  amp + 'lt;')
+      .replace(/>/g,  amp + 'gt;')
+      .replace(/"/g,  amp + 'quot;')
+      .replace(/'/g,  amp + '#039;');
   }
 
   function parseKV(stdout) {
@@ -133,7 +115,7 @@
     if (selectedMode === 'cpu') return 'cpu';
     if (detected.gpuManufacturer === 'nvidia') return 'cuda';
     if (detected.gpuManufacturer === 'amd')    return 'rocm';
-    if (detected.gpuManufacturer === 'apple')  return 'mps';
+    if (detected.gpuManufacturer === 'apple') return 'mps';
     return 'cpu';
   }
 
@@ -170,6 +152,15 @@
 
     // PyTorch
     return `pip install torch torchvision torchaudio --index-url ${torchIndexURL()}`;
+  }
+
+  // Cached wrapper around runPythonDetect — returns {code, stdout, stderr}.
+  // Steps 3, 4, and 5 all need Python detection; this avoids running the
+  // detection script three times.
+  async function getPythonDetectResult() {
+    if (pythonDetectCache) return pythonDetectCache;
+    pythonDetectCache = await window.electron.runPythonDetect();
+    return pythonDetectCache;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -326,7 +317,7 @@
             // First check if Python is available — detection scripts depend on it
             let pythonOk = false;
             if (api?.runPythonDetect) {
-              const pyResult = await api.runPythonDetect();
+              const pyResult = await getPythonDetectResult();
               const pyKv = parseKV(pyResult.stdout);
               pythonOk = !!pyKv['PYTHON_VERSION'];
             }
@@ -419,7 +410,7 @@
               if (rescanW) rescanW.style.display = 'block';
               return;
             }
-            const result = await api.runPythonDetect();
+            const result = await getPythonDetectResult();
             const kv     = parseKV(result.stdout);
             detected.pythonVersion  = kv['PYTHON_VERSION']  || null;
             detected.pipAvailable   = boolVal(kv['PIP_AVAILABLE']);
@@ -494,7 +485,7 @@
               if (rescanW) rescanW.style.display = 'block';
               return;
             }
-            const result = await api.runPythonDetect();
+            const result = await getPythonDetectResult();
             const kv = parseKV(result.stdout);
             const pythonVer = kv['PYTHON_VERSION'] || null;
             const pipAvail  = boolVal(kv['PIP_AVAILABLE']);
@@ -605,14 +596,14 @@
             detected.rocmVersion     = kv['ROCM_VERSION']   || '';
             detected.driverVersion   = kv['DRIVER_VERSION'] || '';
             detected.metalVersion    = kv['METAL_VERSION']  || '';
-            detected.mpsAvailable    = kv['MPS_AVAILABLE']  || '';
+            detected.mpsAvailable    = boolVal(kv['MPS_AVAILABLE']);
 
             const vramStr  = detected.gpuVramMB  ? ` — ${(detected.gpuVramMB / 1024).toFixed(1)} GB VRAM` : '';
             const accelStr = detected.cudaVersion  ? ` (CUDA ${detected.cudaVersion})`
                            : detected.rocmVersion  ? ` (ROCm ${detected.rocmVersion})`
                            : detected.metalVersion ? ` (Metal ${detected.metalVersion})`
                            : '';
-            const mpsStr   = detected.mpsAvailable === 'true' ? ' — MPS available' : '';
+            const mpsStr   = detected.mpsAvailable ? ' — MPS available' : '';
 
             if (detected.gpuManufacturer !== 'none') {
               const display = detected.gpuName || detected.gpuManufacturer.toUpperCase();
@@ -1437,7 +1428,7 @@
         // We just return the folder for persistence
         const currentEl = document.getElementById('project-folder-current');
         const text = currentEl?.textContent || '';
-        const match = text.match(/Selected:|Current:\s*(.+)/);
+        const match = text.match(/(?:Selected|Current):\s*(.+)/);
         return match ? match[1].trim() : null;
       }
     },
@@ -1448,7 +1439,7 @@
       title: 'Quality of Life',
       render: (settings) => {
         const qol = settings['qol settings'] || {};
-        const res = qol['resources'] ?? qol['task manager'];
+        const res = qol['resources'];
         return `
           <h2>Quality of Life</h2>
           <div class="setup-field">
@@ -1597,7 +1588,7 @@
     switch (step.id) {
       case 'language':     settingsCache['general settings'].language = data; break;
       case 'appearance':   Object.assign(settingsCache['aesthetic settings'], data); break;
-      case 'os-detect':    Object.assign(si(), { 'OS full': data['OS full'], 'OS pretty': data['OS pretty'], 'OS kernel': data['OS kernel'] }); break;
+      case 'os-detect':    Object.assign(si(), { 'OS full': data['OS full'], 'OS pretty': data['OS pretty'], 'OS kernel': data['OS kernel'], 'Architecture': data['Architecture'] }); break;
       case 'gpu-detect':   Object.assign(hw(), { 'graphics manufacturer': data['graphics manufacturer'], 'target card name': data['target card name'], 'cuda version': data['cuda version'], 'rocm version': data['rocm version'] }); break;
       case 'compat-check': Object.assign(hw(), { mode: data.mode }); break;
       case 'framework':    selectedFramework = data; break;
@@ -1720,9 +1711,14 @@
     document.getElementById('setup-finish')?.addEventListener('click', collectAndSave);
     document.getElementById('setup-skip')?.addEventListener('click', async () => {
       try {
-        await window.electron.setupComplete();
-        await window.electron.navigateTo('public/index.html');
-      } catch (e) { console.error('Skip failed:', e); }
+        await collectAndSave();
+      } catch (e) {
+        console.error('Skip save failed:', e);
+        try {
+          await window.electron.setupComplete();
+          await window.electron.navigateTo('public/index.html');
+        } catch (e2) { console.error('Skip failed:', e2); }
+      }
     });
 
     await renderStep();

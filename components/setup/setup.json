@@ -1,4 +1,22 @@
 {
+  "setup_order": [
+    "welcome",
+    "language",
+    "appearance",
+    "os-detect",
+    "python-detect",
+    "python-dependency",
+    "gpu-detect",
+    "compat-check",
+    "framework",
+    "fw-install",
+    "fw-verify",
+    "resources",
+    "project-folder",
+    "qol",
+    "security",
+    "finish"
+  ],
   "steps": [
     { "id": "welcome",           "title": "Welcome",              "script": "modules/step-welcome.js" },
     { "id": "language",          "title": "Language",             "script": "modules/step-language.js" },

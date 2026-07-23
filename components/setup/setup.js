@@ -47,21 +47,33 @@
 
   document.addEventListener('DOMContentLoaded', async () => {
     try {
-      // 1. Load setup.json to get ordered step definitions
+      // 1. Load setup.json to get step definitions and ordering
       // Note: paths are relative to the HTML page (public/setup.html), so use ../ to reach root
       const response = await fetch('../components/setup/setup.json');
       const config = await response.json();
       const stepDefs = config.steps;
+      const setupOrder = config.setup_order;
 
       // 2. Load the shared module (populates window.__setupState, __setupUtils, etc.)
       await loadScript('../components/setup/modules/_shared.js');
 
-      // 3. Load each step module in order (each pushes itself to window.__setupSteps)
+      // 3. Load each step module (each pushes itself to window.__setupSteps)
       for (const stepDef of stepDefs) {
         await loadScript(`../components/setup/${stepDef.script}`);
       }
 
-      // 4. Build the wizard DOM
+      // 4. Reorder steps according to setup_order (if present)
+      if (Array.isArray(setupOrder) && setupOrder.length > 0) {
+        const stepMap = {};
+        for (const step of window.__setupSteps) {
+          stepMap[step.id] = step;
+        }
+        window.__setupSteps = setupOrder
+          .map(id => stepMap[id])
+          .filter(Boolean);
+      }
+
+      // 5. Build the wizard DOM
       const wizard = document.createElement('div');
       wizard.id    = 'setup-wizard';
       wizard.innerHTML = `
@@ -82,7 +94,7 @@
       if (app) { app.innerHTML = ''; app.appendChild(wizard); }
       else     { document.body.innerHTML = ''; document.body.appendChild(wizard); }
 
-      // 5. Load settings and wire up navigation
+      // 6. Load settings and wire up navigation
       await window.__setupSettings.loadSettings();
 
       document.getElementById('setup-next')?.addEventListener('click', () => window.__setupRender.nextStep());
@@ -100,7 +112,7 @@
         }
       });
 
-      // 6. Render the first step
+      // 7. Render the first step
       await window.__setupRender.renderStep();
     } catch (e) {
       console.error('Setup bootstrap failed:', e);

@@ -20,9 +20,9 @@ else:
         print(f"PyTorch version: {torch.__version__}")
         print("PyTorch imported successfully!")
         if torch.cuda.is_available():
-            print(f"CUDA available: {torch.cuda.get_device_name(0)}")
-        elif torch.mps.is_available():
-            print(f"MPS available: {torch.cuda.get_device_name(0)}")
+            print(f"gpu available: {torch.cuda.get_device_name(0)}")
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            print(f"MPS available: Apple Metal (MPS)")
         else:
             print("CUDA nor MPS available (CPU mode)")
     except ImportError as e:

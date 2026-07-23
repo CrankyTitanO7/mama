@@ -15,6 +15,8 @@ try:
     import torch
     print(f"✅ PyTorch version: {torch.__version__}")
     print(f"✅ CUDA available: {torch.cuda.is_available()}")
+    print(f"✅ MPS available: {torch.mps.is_available()}")
+    
     
     # Simple tensor operation test
     x = torch.rand(3, 3)

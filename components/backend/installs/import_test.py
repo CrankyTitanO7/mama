@@ -19,6 +19,7 @@ def test_torch():
 
     print(f"PyTorch version : {torch.__version__}", flush=True)
     print(f"CUDA available  : {torch.cuda.is_available()}", flush=True)
+    print(f"MPS available   : {torch.backends.mps.is_available() if hasattr(torch.backends, 'mps') else False}", flush=True)
 
     if torch.cuda.is_available():
         print(f"CUDA version    : {torch.version.cuda}", flush=True)
@@ -28,6 +29,8 @@ def test_torch():
             props = torch.cuda.get_device_properties(i)
             vram_gb = props.total_memory / (1024 ** 3)
             print(f"  GPU {i}         : {props.name} ({vram_gb:.1f} GB)", flush=True)
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        print(f"MPS backend     : Apple Metal (MPS)", flush=True)
     else:
         # Check ROCm (HIP)
         if hasattr(torch, "version") and hasattr(torch.version, "hip") and torch.version.hip:

@@ -1,0 +1,20 @@
+{
+  "steps": [
+    { "id": "welcome",           "title": "Welcome",              "script": "modules/step-welcome.js" },
+    { "id": "language",          "title": "Language",             "script": "modules/step-language.js" },
+    { "id": "appearance",        "title": "Appearance",           "script": "modules/step-appearance.js" },
+    { "id": "os-detect",         "title": "OS Detection",         "script": "modules/step-os-detect.js" },
+    { "id": "python-detect",     "title": "Python & Tools",       "script": "modules/step-python-detect.js" },
+    { "id": "python-dependency", "title": "Python Dependency",    "script": "modules/step-python-dependency.js" },
+    { "id": "gpu-detect",        "title": "GPU Detection",        "script": "modules/step-gpu-detect.js" },
+    { "id": "compat-check",      "title": "System Compatibility", "script": "modules/step-compat-check.js" },
+    { "id": "framework",         "title": "AI Framework",         "script": "modules/step-framework.js" },
+    { "id": "fw-install",        "title": "Framework Install",    "script": "modules/step-fw-install.js" },
+    { "id": "fw-verify",         "title": "Verify Install",       "script": "modules/step-fw-verify.js" },
+    { "id": "resources",         "title": "Resources",            "script": "modules/step-resources.js" },
+    { "id": "project-folder",    "title": "Project Folder",       "script": "modules/step-project-folder.js" },
+    { "id": "qol",               "title": "Quality of Life",      "script": "modules/step-qol.js" },
+    { "id": "security",          "title": "Security",             "script": "modules/step-security.js" },
+    { "id": "finish",            "title": "Done!",                "script": "modules/step-finish.js" }
+  ]
+}

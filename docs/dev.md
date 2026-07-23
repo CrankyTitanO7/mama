@@ -134,6 +134,95 @@ the `window.ThemeManager` object exposed by `theme.js` provides:
 - `initializeTheme()` — re-initialize (loads themes from IPC, applies stored preference)
 - `getResolvedTheme(themeName)` — returns the resolved palette key
 
+## Setup Wizard — Modular Architecture
+
+The setup wizard was refactored from a single 1727-line IIFE into a modular system. Each step lives in its own file under `components/setup/modules/`, and the order is controlled declaratively via `components/setup/setup.json`.
+
+### File Layout
+
+```
+components/setup/
+├── setup.js              # Parent loader — fetches setup.json, loads modules, bootstraps
+├── setup.json            # Step definitions + setup_order array
+└── modules/
+    ├── _shared.js        # Shared state, utilities, settings, rendering
+    ├── step-welcome.js
+    ├── step-language.js
+    ├── step-appearance.js
+    ├── step-os-detect.js
+    ├── step-python-detect.js
+    ├── step-python-dependency.js
+    ├── step-gpu-detect.js
+    ├── step-compat-check.js
+    ├── step-framework.js
+    ├── step-fw-install.js
+    ├── step-fw-verify.js
+    ├── step-resources.js
+    ├── step-project-folder.js
+    ├── step-qol.js
+    ├── step-security.js
+    └── step-finish.js
+```
+
+### Bootstrap Flow
+
+1. **`setup.js`** listens for `DOMContentLoaded`, then:
+   - Fetches `setup.json` to get `steps` (definitions) and `setup_order` (ordering).
+   - Loads `_shared.js` via dynamic `<script>` injection.
+   - Loads each step module in the order listed in `steps`.
+   - Reorders `window.__setupSteps` to match `setup_order`.
+   - Builds the wizard DOM (`#setup-wizard` with header, content, progress dots, and action buttons).
+   - Calls `window.__setupSettings.loadSettings()` to hydrate the settings cache.
+   - Wires up navigation event listeners (next, back, skip, finish).
+   - Renders the first step.
+
+### Shared Module (`_shared.js`)
+
+Exposes four global namespaces:
+
+| Namespace | Purpose |
+|-----------|---------|
+| `window.__setupState` | All mutable state — `selectedFramework`, `selectedMode`, `installSucceeded`, `detected` (OS, Python, GPU, compat), `pythonDetectCache`, `selectedProjectFolder`, `currentStep`, `settingsCache` |
+| `window.__setupUtils` | Pure utility functions — `escapeHtml`, `parseKV`, `boolVal`, `okIcon`, `warnIcon`, `gpuVariant`, `torchIndexURL`, `gpuVariantLabel`, `buildInstallCommand`, `getPythonDetectResult` |
+| `window.__setupSettings` | Settings persistence — `loadSettings`, `defaultSettings`, `applyStepData`, `collectAndSave` |
+| `window.__setupRender` | Rendering and navigation — `renderStep`, `nextStep`, `prevStep` |
+
+### Step Module Contract
+
+Each step module is an IIFE that pushes an object to `window.__setupSteps` with:
+
+```js
+{
+  id: 'unique-step-id',           // matches the id in setup.json
+  title: 'Display Title',         // shown in progress dots
+  render(settingsCache) { ... },  // returns HTML string (synchronous)
+  afterRender() { ... },          // async — runs after DOM is injected
+  collect() { ... }               // returns data to persist into settings
+}
+```
+
+- **`render()`** — must be synchronous. Returns the HTML for the step. Receives the current `settingsCache` as argument.
+- **`afterRender()`** — optional async hook. Runs after the HTML is in the DOM. Used for event binding, async detection, and dynamic UI updates.
+- **`collect()`** — optional. Called when the user navigates away from the step. Returns data that `applyStepData()` maps into the settings cache.
+
+### Step Ordering
+
+The `setup_order` array in `setup.json` is the single source of truth for navigation order. After all modules load, `setup.js` builds a lookup map by step ID and reassembles `window.__setupSteps` to follow `setup_order`. Steps not listed in `setup_order` are dropped. Steps listed but not found are silently skipped.
+
+### Adding a New Step
+
+1. Create `components/setup/modules/step-your-step.js` following the contract above.
+2. Add an entry to the `steps` array in `setup.json`:
+   ```json
+   { "id": "your-step", "title": "Your Step", "script": "modules/step-your-step.js" }
+   ```
+3. Insert the step ID into `setup_order` at the desired position.
+
+### Removing or Skipping a Step
+
+- To remove: delete its entry from `steps` and remove its ID from `setup_order`.
+- To skip without deleting: just remove its ID from `setup_order` — the module still loads but won't appear in the wizard.
+
 ## documentation
 
 the documentation system is quite simple. add the relative path of any md file to docs/register.json (it assumes it is in docs folder, but you can change the path). see example: 

@@ -1,0 +1,28 @@
+{
+  "name": "forest",
+  "title": "Forest",
+  "variables": {
+    "--highlight-color": "#22c55e",
+    "--main-color": "#0b1a0b",
+    "--shadow-color": "rgba(0, 0, 0, 0.45)",
+    "--heading-color": "#4ade80",
+    "--body-color": "#86efac",
+    "--page-bg": "#0b1a0b",
+    "--page-text": "#dcfce7",
+    "--page-muted": "#86efac",
+    "--panel-bg": "#122a12",
+    "--panel-border": "#1f4a1f",
+    "--widget-bg": "#122a12",
+    "--widget-border": "#1f4a1f",
+    "--topbar-bg": "#122a12",
+    "--topbar-border": "#1f4a1f",
+    "--topbar-text": "#dcfce7",
+    "--topbar-muted": "#86efac",
+    "--topbar-active": "#22c55e",
+    "--input-bg": "#0b1a0b",
+    "--input-text": "#dcfce7",
+    "--input-border": "#1f4a1f",
+    "--button-secondary-bg": "#1f4a1f",
+    "--button-secondary-text": "#dcfce7"
+  }
+}

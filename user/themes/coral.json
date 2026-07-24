@@ -1,0 +1,28 @@
+{
+  "name": "coral",
+  "title": "Coral",
+  "variables": {
+    "--highlight-color": "#f87171",
+    "--main-color": "#1f1410",
+    "--shadow-color": "rgba(0, 0, 0, 0.45)",
+    "--heading-color": "#fca5a5",
+    "--body-color": "#fecaca",
+    "--page-bg": "#1f1410",
+    "--page-text": "#fee2e2",
+    "--page-muted": "#fecaca",
+    "--panel-bg": "#2a1c18",
+    "--panel-border": "#4a2820",
+    "--widget-bg": "#2a1c18",
+    "--widget-border": "#4a2820",
+    "--topbar-bg": "#2a1c18",
+    "--topbar-border": "#4a2820",
+    "--topbar-text": "#fee2e2",
+    "--topbar-muted": "#fecaca",
+    "--topbar-active": "#f87171",
+    "--input-bg": "#1f1410",
+    "--input-text": "#fee2e2",
+    "--input-border": "#4a2820",
+    "--button-secondary-bg": "#3a241c",
+    "--button-secondary-text": "#fee2e2"
+  }
+}

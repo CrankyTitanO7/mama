@@ -1,0 +1,28 @@
+{
+  "name": "rose",
+  "title": "Rose",
+  "variables": {
+    "--highlight-color": "#fb7185",
+    "--main-color": "#1f0a10",
+    "--shadow-color": "rgba(0, 0, 0, 0.45)",
+    "--heading-color": "#fda4af",
+    "--body-color": "#fda4af",
+    "--page-bg": "#1f0a10",
+    "--page-text": "#ffe4e6",
+    "--page-muted": "#fda4af",
+    "--panel-bg": "#2a1218",
+    "--panel-border": "#4a1a2e",
+    "--widget-bg": "#2a1218",
+    "--widget-border": "#4a1a2e",
+    "--topbar-bg": "#2a1218",
+    "--topbar-border": "#4a1a2e",
+    "--topbar-text": "#ffe4e6",
+    "--topbar-muted": "#fda4af",
+    "--topbar-active": "#fb7185",
+    "--input-bg": "#1f0a10",
+    "--input-text": "#ffe4e6",
+    "--input-border": "#4a1a2e",
+    "--button-secondary-bg": "#3a1424",
+    "--button-secondary-text": "#ffe4e6"
+  }
+}

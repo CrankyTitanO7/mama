@@ -1,0 +1,28 @@
+{
+  "name": "amber",
+  "title": "Amber",
+  "variables": {
+    "--highlight-color": "#f59e0b",
+    "--main-color": "#1c1407",
+    "--shadow-color": "rgba(0, 0, 0, 0.4)",
+    "--heading-color": "#fbbf24",
+    "--body-color": "#fcd34d",
+    "--page-bg": "#1c1407",
+    "--page-text": "#fef3c7",
+    "--page-muted": "#fcd34d",
+    "--panel-bg": "#2a1f0f",
+    "--panel-border": "#453212",
+    "--widget-bg": "#2a1f0f",
+    "--widget-border": "#453212",
+    "--topbar-bg": "#2a1f0f",
+    "--topbar-border": "#453212",
+    "--topbar-text": "#fef3c7",
+    "--topbar-muted": "#fcd34d",
+    "--topbar-active": "#f59e0b",
+    "--input-bg": "#1c1407",
+    "--input-text": "#fef3c7",
+    "--input-border": "#453212",
+    "--button-secondary-bg": "#3a2c18",
+    "--button-secondary-text": "#fef3c7"
+  }
+}

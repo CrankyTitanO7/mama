@@ -1,0 +1,28 @@
+{
+  "name": "sunset",
+  "title": "Sunset",
+  "variables": {
+    "--highlight-color": "#f97316",
+    "--main-color": "#1c0e0a",
+    "--shadow-color": "rgba(0, 0, 0, 0.45)",
+    "--heading-color": "#fb923c",
+    "--body-color": "#fdba74",
+    "--page-bg": "#1c0e0a",
+    "--page-text": "#ffedd5",
+    "--page-muted": "#fdba74",
+    "--panel-bg": "#2a150f",
+    "--panel-border": "#431c12",
+    "--widget-bg": "#2a150f",
+    "--widget-border": "#431c12",
+    "--topbar-bg": "#2a150f",
+    "--topbar-border": "#431c12",
+    "--topbar-text": "#ffedd5",
+    "--topbar-muted": "#fdba74",
+    "--topbar-active": "#f97316",
+    "--input-bg": "#1c0e0a",
+    "--input-text": "#ffedd5",
+    "--input-border": "#431c12",
+    "--button-secondary-bg": "#3a1c14",
+    "--button-secondary-text": "#ffedd5"
+  }
+}

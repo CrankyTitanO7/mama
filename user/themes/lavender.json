@@ -1,0 +1,28 @@
+{
+  "name": "lavender",
+  "title": "Lavender",
+  "variables": {
+    "--highlight-color": "#a78bfa",
+    "--main-color": "#14101f",
+    "--shadow-color": "rgba(0, 0, 0, 0.4)",
+    "--heading-color": "#c4b5fd",
+    "--body-color": "#ddd6fe",
+    "--page-bg": "#14101f",
+    "--page-text": "#f3f0ff",
+    "--page-muted": "#ddd6fe",
+    "--panel-bg": "#1e1830",
+    "--panel-border": "#2e2550",
+    "--widget-bg": "#1e1830",
+    "--widget-border": "#2e2550",
+    "--topbar-bg": "#1e1830",
+    "--topbar-border": "#2e2550",
+    "--topbar-text": "#f3f0ff",
+    "--topbar-muted": "#ddd6fe",
+    "--topbar-active": "#a78bfa",
+    "--input-bg": "#14101f",
+    "--input-text": "#f3f0ff",
+    "--input-border": "#2e2550",
+    "--button-secondary-bg": "#2e2550",
+    "--button-secondary-text": "#f3f0ff"
+  }
+}

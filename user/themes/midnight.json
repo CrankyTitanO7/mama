@@ -1,0 +1,28 @@
+{
+  "name": "midnight",
+  "title": "Midnight",
+  "variables": {
+    "--highlight-color": "#818cf8",
+    "--main-color": "#0b1021",
+    "--shadow-color": "rgba(0, 0, 0, 0.5)",
+    "--heading-color": "#818cf8",
+    "--body-color": "#a5b4fc",
+    "--page-bg": "#0b1021",
+    "--page-text": "#e0e7ff",
+    "--page-muted": "#a5b4fc",
+    "--panel-bg": "#131b36",
+    "--panel-border": "#1e2b52",
+    "--widget-bg": "#131b36",
+    "--widget-border": "#1e2b52",
+    "--topbar-bg": "#131b36",
+    "--topbar-border": "#1e2b52",
+    "--topbar-text": "#e0e7ff",
+    "--topbar-muted": "#a5b4fc",
+    "--topbar-active": "#818cf8",
+    "--input-bg": "#0b1021",
+    "--input-text": "#e0e7ff",
+    "--input-border": "#1e2b52",
+    "--button-secondary-bg": "#1e2b52",
+    "--button-secondary-text": "#e0e7ff"
+  }
+}

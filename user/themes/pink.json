@@ -1,0 +1,28 @@
+{
+  "name": "pink",
+  "title": "Pink",
+  "variables": {
+    "--highlight-color": "#ec4899",
+    "--main-color": "#1a0a10",
+    "--shadow-color": "rgba(0, 0, 0, 0.4)",
+    "--heading-color": "#f472b6",
+    "--body-color": "#f9a8d4",
+    "--page-bg": "#1a0a10",
+    "--page-text": "#fce7f3",
+    "--page-muted": "#f9a8d4",
+    "--panel-bg": "#2a101a",
+    "--panel-border": "#4a1a2e",
+    "--widget-bg": "#2a101a",
+    "--widget-border": "#4a1a2e",
+    "--topbar-bg": "#2a101a",
+    "--topbar-border": "#4a1a2e",
+    "--topbar-text": "#fce7f3",
+    "--topbar-muted": "#f9a8d4",
+    "--topbar-active": "#ec4899",
+    "--input-bg": "#1a0a10",
+    "--input-text": "#fce7f3",
+    "--input-border": "#4a1a2e",
+    "--button-secondary-bg": "#3a1424",
+    "--button-secondary-text": "#fce7f3"
+  }
+}

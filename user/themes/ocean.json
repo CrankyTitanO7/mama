@@ -1,0 +1,28 @@
+{
+  "name": "ocean",
+  "title": "Ocean",
+  "variables": {
+    "--highlight-color": "#38bdf8",
+    "--main-color": "#082030",
+    "--shadow-color": "rgba(0, 20, 40, 0.4)",
+    "--heading-color": "#7dd3fc",
+    "--body-color": "#bae6fd",
+    "--page-bg": "#082030",
+    "--page-text": "#f0f9ff",
+    "--page-muted": "#bae6fd",
+    "--panel-bg": "#0c3a4e",
+    "--panel-border": "#145273",
+    "--widget-bg": "#0c3a4e",
+    "--widget-border": "#145273",
+    "--topbar-bg": "#0c3a4e",
+    "--topbar-border": "#145273",
+    "--topbar-text": "#f0f9ff",
+    "--topbar-muted": "#bae6fd",
+    "--topbar-active": "#38bdf8",
+    "--input-bg": "#082030",
+    "--input-text": "#f0f9ff",
+    "--input-border": "#145273",
+    "--button-secondary-bg": "#145273",
+    "--button-secondary-text": "#f0f9ff"
+  }
+}

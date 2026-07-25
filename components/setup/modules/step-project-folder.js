@@ -7,6 +7,7 @@
     render: () => `
       <h2>Project Folder</h2>
       <p>Select a project folder where your files and models will be stored.</p>
+      <p>you can skip this step if you plan to install your python libraries globally</p>
       <div id="project-folder-current" class="setup-detect-output">
         <p class="setup-hint">No folder selected yet.</p>
       </div>
@@ -70,6 +71,11 @@
           const folderPath = await window.electron.projectPickFolder();
           if (!folderPath) return;
           selectedFolder = folderPath;
+
+          // Persist to recents.json so later steps can find the project folder
+          try {
+            await window.electron.projectOpenFolder(folderPath);
+          } catch (_) {}
 
           const current = document.getElementById('project-folder-current');
           if (current) current.innerHTML = `<div class="setup-success-msg">📂 Selected: <strong>${U.escapeHtml(folderPath)}</strong></div>`;

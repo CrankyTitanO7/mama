@@ -37,6 +37,9 @@
         const detectedOs = (S.detected.osPrettyName || '').toLowerCase();
         const defaultOs = detectedOs.includes('windows') ? 'windows' : detectedOs.includes('mac') ? 'macos' : 'linux';
         const defaultCompute = S.detected.gpuManufacturer === 'nvidia' ? 'cuda.x' : S.detected.gpuManufacturer === 'amd' ? 'rocm5.x' : 'accnone';
+        // macOS ARM (Apple Silicon) needs nightly builds for MPS support
+        const isMacOSArm = defaultOs === 'macos' && (S.detected.arch || '').includes('arm');
+        const defaultBuild = isMacOSArm ? 'preview' : 'stable';
 
         const matrixBlock = (name, items, defaultValue, legend) => `
           <div class="setup-pytorch-matrix-block">
@@ -55,7 +58,7 @@
         gridHtml = `
           <div class="setup-pytorch-matrix" style="margin: 16px 0; padding: 16px; background: rgba(128,128,128,0.1); border-radius: 8px;">
             <p style="margin-top:0; margin-bottom: 12px; font-weight: bold; font-size: 14px;">PyTorch Installation Matrix</p>
-            ${matrixBlock('pt-build', [{ value: 'stable', label: 'Stable (2.13.0)' }, { value: 'preview', label: 'Preview (Nightly)' }], 'stable', 'PyTorch Build')}
+            ${matrixBlock('pt-build', [{ value: 'stable', label: 'Stable (2.13.0)' }, { value: 'preview', label: 'Preview (Nightly)' }], defaultBuild, 'PyTorch Build')}
             ${matrixBlock('pt-os', osChoices, defaultOs, 'Your OS')}
             ${matrixBlock('pt-pm', packageChoices, 'pip', 'Package')}
             ${matrixBlock('pt-lang', languageChoices, 'python', 'Language')}

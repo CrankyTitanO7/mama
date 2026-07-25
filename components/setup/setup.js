@@ -100,6 +100,12 @@
       // 6. Load settings and wire up navigation
       await window.__setupSettings.loadSettings();
 
+      // If the difficulty step module is missing (e.g. failed to load), default to hard mode
+      const hasDifficultyStep = (window.__setupSteps || []).some(st => st.id === 'difficulty');
+      if (!hasDifficultyStep) {
+        window.__setupState.difficulty = 'hard';
+      }
+
       // Override next button to inject reading modules after difficulty selection
       document.getElementById('setup-next')?.addEventListener('click', async () => {
         const s = window.__setupState;

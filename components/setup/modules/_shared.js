@@ -11,6 +11,7 @@
     selectedFramework: null,   // 'torch' | 'tf'
     selectedMode:      'gpu',  // 'gpu' | 'cpu'
     installSucceeded:  false,
+    difficulty:        'easy', // 'easy' | 'medium' | 'hard' — not persisted to settings
 
     // Populated by detection steps; read by later steps.
     detected: {

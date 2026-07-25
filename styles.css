@@ -185,6 +185,107 @@ a:hover {
     margin-bottom: 16px;
 }
 
+/* Difficulty mode cards */
+.difficulty-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.difficulty-card {
+    display: block;
+    border: 2px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--widget-bg);
+}
+
+.difficulty-card:hover {
+    border-color: var(--highlight-color);
+    background: color-mix(in srgb, var(--highlight-color) 6%, var(--widget-bg));
+}
+
+.difficulty-card input[type="radio"] {
+    display: none;
+}
+
+.difficulty-card input[type="radio"]:checked + .difficulty-card-content {
+    border-color: var(--highlight-color);
+}
+
+.difficulty-card input[type="radio"]:checked ~ .difficulty-card-content .difficulty-title {
+    color: var(--highlight-color);
+}
+
+.difficulty-card:has(input[type="radio"]:checked) {
+    border-color: var(--highlight-color);
+    background: color-mix(in srgb, var(--highlight-color) 10%, var(--widget-bg));
+}
+
+.difficulty-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.difficulty-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.difficulty-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--page-text);
+    transition: color 0.2s;
+}
+
+.difficulty-desc {
+    font-size: 13px;
+    color: var(--body-color);
+    line-height: 1.5;
+}
+
+/* Reading modules */
+.reading-module {
+    line-height: 1.7;
+}
+
+.reading-module h3 {
+    color: var(--heading-color);
+    margin: 18px 0 8px;
+    font-size: 15px;
+}
+
+.reading-module ul,
+.reading-module ol {
+    padding-left: 20px;
+    margin: 8px 0;
+}
+
+.reading-module li {
+    margin-bottom: 6px;
+    color: var(--page-text);
+    line-height: 1.6;
+}
+
+.reading-note {
+    background: color-mix(in srgb, var(--highlight-color) 8%, var(--widget-bg));
+    border-left: 3px solid var(--highlight-color);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-top: 20px;
+}
+
+.reading-note p {
+    margin: 0;
+    color: var(--page-text);
+    font-size: 14px;
+}
+
 /* Setup form fields */
 .setup-field {
     margin-bottom: 16px;

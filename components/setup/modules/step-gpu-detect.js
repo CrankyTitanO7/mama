@@ -123,6 +123,8 @@
         'target card name':      S.detected.gpuName   || null,
         'cuda version':          S.detected.cudaVersion || null,
         'rocm version':          S.detected.rocmVersion || null,
+        'metal version':         S.detected.metalVersion || null,
+        'mps available':         S.detected.mpsAvailable || false,
       };
     }
   });

@@ -174,7 +174,7 @@
         case 'language':     sc['general settings'].language = data; break;
         case 'appearance':   Object.assign(sc['aesthetic settings'], data); break;
         case 'os-detect':    Object.assign(si(), { 'OS full': data['OS full'], 'OS pretty': data['OS pretty'], 'OS kernel': data['OS kernel'], 'Architecture': data['Architecture'] }); break;
-        case 'gpu-detect':   Object.assign(hw(), { 'graphics manufacturer': data['graphics manufacturer'], 'target card name': data['target card name'], 'cuda version': data['cuda version'], 'rocm version': data['rocm version'] }); break;
+        case 'gpu-detect':   Object.assign(hw(), { 'graphics manufacturer': data['graphics manufacturer'], 'target card name': data['target card name'], 'cuda version': data['cuda version'], 'rocm version': data['rocm version'], 'metal version': data['metal version'], 'mps available': data['mps available'] }); break;
         case 'compat-check': Object.assign(hw(), { mode: data.mode }); break;
         case 'framework':    s.selectedFramework = data; break;
         case 'resources':    Object.assign(sc['resource settings'], data); break;

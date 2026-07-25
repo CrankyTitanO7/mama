@@ -258,17 +258,44 @@
           terminal.scrollTop = terminal.scrollHeight;
         }
 
+        // Capture full output for the install parser
+        let installStdout = '';
+        let installStderr = '';
+
         try {
           window.electron.onInstallProgress((chunk) => {
-            if (chunk.type === 'stdout') appendTerminal(chunk.text, 'terminal-stdout');
-            if (chunk.type === 'stderr') appendTerminal(chunk.text, 'terminal-stderr');
+            if (chunk.type === 'stdout') {
+              installStdout += chunk.text;
+              appendTerminal(chunk.text, 'terminal-stdout');
+            }
+            if (chunk.type === 'stderr') {
+              installStderr += chunk.text;
+              appendTerminal(chunk.text, 'terminal-stderr');
+            }
           });
 
-          const exitCode = await window.electron.runInstallStream(fw, gv, accelVersion, scope, S.selectedProjectFolder);
+          const result = await window.electron.runInstallStream(fw, gv, accelVersion, scope, S.selectedProjectFolder);
 
           window.electron.offInstallProgress();
 
-          if (exitCode === 0) {
+          // runInstallStream returns { code: number } — extract the numeric code
+          const exitCode = result?.code ?? result ?? -1;
+
+          // Use the install parser to determine the actual result
+          const parseResult = window.__setupUtils?.parseInstallOutput
+            ? window.__setupUtils.parseInstallOutput(installStdout, installStderr, exitCode)
+            : null;
+
+          if (parseResult) {
+            appendTerminal('\\n── ' + parseResult.message + '\\n', parseResult.success ? 'terminal-success' : 'terminal-error');
+            if (parseResult.success) {
+              S.installSucceeded = true;
+              btn.textContent = '✓ Installed';
+            } else {
+              btn.textContent = '⬇️ Retry';
+              btn.disabled    = false;
+            }
+          } else if (exitCode === 0) {
             S.installSucceeded = true;
             appendTerminal('✅ Installation complete!\\n', 'terminal-success');
             btn.textContent = '✓ Installed';

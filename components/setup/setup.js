@@ -57,6 +57,9 @@
       // 2. Load the shared module (populates window.__setupState, __setupUtils, etc.)
       await loadScript('../components/setup/modules/_shared.js');
 
+      // 2b. Load the install output parser (adds parseInstallOutput to __setupUtils)
+      await loadScript('../components/setup/install-parser.js');
+
       // 3. Load each step module (each pushes itself to window.__setupSteps)
       for (const stepDef of stepDefs) {
         await loadScript(`../components/setup/${stepDef.script}`);

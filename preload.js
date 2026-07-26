@@ -70,9 +70,12 @@ contextBridge.exposeInMainWorld('electron', {
      _installProgressCallback = null;
    },
 
-  // ── Python: Import test ────────────────────────────────────
+   // ── Python: Import test ────────────────────────────────────
    runImportTest: (framework, projectFolder = null) =>
                   ipcRenderer.invoke('run-import-test', framework, projectFolder),
+
+   // ── Python: FLOPS benchmark test ──────────────────────────
+   runFlopsTest: (batchSize = 1) => ipcRenderer.invoke('run-flops-test', batchSize),
 
   // ── Python: Legacy system / GPU detection ──────────────────
   runSystemDetect: (framework) => ipcRenderer.invoke('run-system-detect', framework),

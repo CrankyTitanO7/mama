@@ -29,7 +29,7 @@ const fs = require('fs');
 const SCRIPT = {
   osDetect: path.join(__dirname, '..', 'systemDetect', 'detect_os.py'),
   pythonDetect: path.join(__dirname, '..', 'systemDetect', 'detect_python.py'),
-  gpuDetect: path.join(__dirname, '..', 'systemDetect', 'detect_gpu.py'),
+  gpuDetect: path.join(__dirname, '..', 'systemDetect', 'detect_gpu', '__init__.py'),
   compatCheck: path.join(__dirname, '..', 'systemDetect', 'check_compatibility.py'),
   install: path.join(__dirname, '..', 'installs', 'install_fw.py'),
   importTest: path.join(__dirname, '..', 'installs', 'import_test.py'),

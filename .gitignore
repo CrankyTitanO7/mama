@@ -34,5 +34,7 @@ user/settings.json.bak
 /playwright/.auth/
 components/recents.json
 
-# python
-components\backend\systemDetect\detect_gpu\__pycache__
+# Python cache files
+**/__pycache__/
+*.py[cod]
+*$py.class

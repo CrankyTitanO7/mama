@@ -7,6 +7,7 @@
 ## features
 - finish multimodel designer
     - build basic training script-template
+- switch from json to yaml
 
 ### **COMPLETED: Install Scope Selection (2026-07-20)**
 - Added install scope option to Framework Install step: "Global (system Python)" or "Project (.venv only)"

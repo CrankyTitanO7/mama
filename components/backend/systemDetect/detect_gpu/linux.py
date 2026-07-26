@@ -1,12 +1,12 @@
 """Linux fallbacks: lspci."""
-from .base import run
+import base
 
 
 def try_lspci():
     if not __import__("shutil").which("lspci"):
         return None
 
-    _, out, _ = run(["lspci"])
+    _, out, _ = base.run(["lspci"])
     if not out.strip():
         return None
 

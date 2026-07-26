@@ -2,7 +2,7 @@
 import os
 import re
 import sys
-from .base import run
+import base
 
 
 def try_metal():
@@ -14,7 +14,7 @@ def try_metal():
         return None
     if sys.platform != "darwin":
         return None
-    rc, out, _ = run([sys.executable, metal_detect], timeout=90)
+    rc, out, _ = base.run([sys.executable, metal_detect], timeout=90)
     if rc != 0 or not out.strip():
         return None
     result = {"manufacturer": "none", "name": "", "vram_mb": "",

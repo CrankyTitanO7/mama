@@ -11,6 +11,16 @@ Exit 0 always.
 import sys
 import os
 
+# When executed directly (e.g. from IPC handlers), Python sets __package__ to None,
+# which breaks relative imports. Register this directory's parent as a package root
+# and temporarily set __package__ so all intra-package relative imports work.
+pkg_dir = os.path.dirname(os.path.abspath(__file__))
+if __package__ is None:
+    parent_dir = os.path.dirname(pkg_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    __package__ = "detect_gpu"
+
 from .base import emit
 from . import nvidia
 from . import amd

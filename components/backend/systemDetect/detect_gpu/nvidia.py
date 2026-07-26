@@ -1,12 +1,12 @@
 """NVIDIA GPU detection via nvidia-smi."""
-from .base import run
+import base
 
 
 def try_nvidia():
     if not __import__("shutil").which("nvidia-smi"):
         return None
 
-    code, out, _ = run([
+    code, out, _ = base.run([
         "nvidia-smi",
         "--query-gpu=name,memory.total,driver_version",
         "--format=csv,noheader,nounits"
@@ -21,7 +21,7 @@ def try_nvidia():
     driver_version = parts[2] if len(parts) > 2 else ""
 
     cuda_version = ""
-    _, banner, _ = run(["nvidia-smi"])
+    _, banner, _ = base.run(["nvidia-smi"])
     match = __import__("re").search(r"CUDA Version:\s*([\d.]+)", banner)
     if match:
         cuda_version = match.group(1)

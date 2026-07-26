@@ -33,3 +33,6 @@ user/settings.json.bak
 /playwright/.cache/
 /playwright/.auth/
 components/recents.json
+
+# python
+components\backend\systemDetect\detect_gpu\__pycache__

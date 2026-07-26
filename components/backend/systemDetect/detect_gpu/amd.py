@@ -1,13 +1,13 @@
 """AMD GPU detection via rocm-smi (Linux)."""
 import re
-from .base import run
+import base
 
 
 def try_rocm():
     if not __import__("shutil").which("rocm-smi"):
         return None
 
-    code, out, _ = run(["rocm-smi", "--showproductname"])
+    code, out, _ = base.run(["rocm-smi", "--showproductname"])
     if code != 0 or not out.strip():
         return None
 
@@ -20,13 +20,13 @@ def try_rocm():
                 break
 
     rocm_version = ""
-    _, ver_out, _ = run(["rocm-smi", "--version"])
+    _, ver_out, _ = base.run(["rocm-smi", "--version"])
     match = re.search(r"([\d]+\.[\d]+\.?[\d]*)", ver_out)
     if match:
         rocm_version = match.group(1)
 
     vram_mb = ""
-    _, mem_out, _ = run(["rocm-smi", "--showmeminfo", "vram"])
+    _, mem_out, _ = base.run(["rocm-smi", "--showmeminfo", "vram"])
     match = re.search(r"Total Memory.*?:\s*(\d+)", mem_out, re.IGNORECASE)
     if match:
         try:

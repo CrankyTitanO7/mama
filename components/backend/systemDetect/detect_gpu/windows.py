@@ -1,13 +1,13 @@
 """Windows GPU detection via wmic and PowerShell."""
 import sys
-from .base import run, _name_to_manufacturer
+import base
 
 
 def try_windows_wmi():
     if sys.platform != "win32":
         return None
 
-    code, out, _ = run([
+    code, out, _ = base.run([
         "wmic", "path", "Win32_VideoController",
         "get", "Name,AdapterRAM,DriverVersion",
         "/format:csv"
@@ -24,7 +24,7 @@ def try_windows_wmi():
             gpu_name       = parts[3]
             if not gpu_name:
                 continue
-            manufacturer = _name_to_manufacturer(gpu_name)
+            manufacturer = base._name_to_manufacturer(gpu_name)
             if manufacturer == "none":
                 continue
             vram_mb = ""
@@ -48,7 +48,7 @@ def try_windows_wmi():
         "Select-Object Name,AdapterRAM,DriverVersion | "
         "ConvertTo-Csv -NoTypeInformation"
     )
-    code, out, _ = run(["powershell", "-NoProfile", "-Command", ps_cmd], timeout=20)
+    code, out, _ = base.run(["powershell", "-NoProfile", "-Command", ps_cmd], timeout=20)
     if code != 0 or not out.strip():
         return None
 
@@ -62,7 +62,7 @@ def try_windows_wmi():
         driver_version = parts[2]
         if not gpu_name:
             continue
-        manufacturer = _name_to_manufacturer(gpu_name)
+        manufacturer = base._name_to_manufacturer(gpu_name)
         if manufacturer == "none":
             continue
         vram_mb = ""

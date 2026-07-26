@@ -33,6 +33,7 @@ const SCRIPT = {
   compatCheck: path.join(__dirname, '..', 'systemDetect', 'check_compatibility.py'),
   install: path.join(__dirname, '..', 'installs', 'install_fw.py'),
   importTest: path.join(__dirname, '..', 'installs', 'import_test.py'),
+  flopsTest: path.join(__dirname, '..', '..', 'python', 'tests', 'flops.py'),
 };
 
 // ── Python executable resolution ──────────────────────────────────────────────
@@ -403,6 +404,14 @@ function registerIPCHandlers(electronApp, settingsFilePath) {
      
      return runScript(SCRIPT.importTest, [fw], { timeout: 60_000 }, pythonExe);
    });
+
+  // ── FLOPS test ───────────────────────────────────────────────────────────
+  // Runs the flops.py benchmark with the given batch size.
+  // The script auto-detects the best available device (MPS/CUDA/CPU).
+  ipcMain.handle('run-flops-test', async (_event, batchSize = 1) => {
+    const args = ['--batch-size', String(batchSize)];
+    return runScript(SCRIPT.flopsTest, args, { timeout: 300_000 });
+  });
 
   // ── Settings ─────────────────────────────────────────────────────────────
 

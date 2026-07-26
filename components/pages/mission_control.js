@@ -8,8 +8,8 @@ const MC = (() => {
   const CHECKS = [
     { id: 'python',        label: 'Python',        action: 'python',        settingKey: null },
     { id: 'node',          label: 'Node.js',       action: 'node',          settingKey: null },
-    { id: 'npm',           label: 'npm',           action: 'npm',           settingKey: null },
-    { id: 'git',           label: 'Git',           action: 'git',           settingKey: null },
+    { id: 'npm',           label: 'npm',            action: 'npm',           settingKey: null },
+    { id: 'git',           label: 'Git',            action: 'git',           settingKey: null },
     { id: 'torch',         label: 'PyTorch',       action: 'import-torch',  settingKey: 'pyt' },
     { id: 'tensorflow',    label: 'TensorFlow',    action: 'import-tf',     settingKey: 'tf' },
     { id: 'docker',        label: 'Docker',        action: 'docker',        settingKey: null },
@@ -142,6 +142,97 @@ const MC = (() => {
     runBtn.textContent = '▶ Run All Checks';
     runBtn.addEventListener('click', runAll);
     container.appendChild(runBtn);
+
+    // ── FLOPS Benchmark Section (separate, not in Run All) ──
+    const flopsSection = document.createElement('div');
+    flopsSection.className = 'mc-flops-section';
+    flopsSection.style.marginTop = '2rem';
+    flopsSection.style.padding = '1rem';
+    flopsSection.style.borderTop = '1px solid #444';
+
+    const flopsTitle = document.createElement('h3');
+    flopsTitle.textContent = '⚡ GPU FLOPS Benchmark';
+    flopsSection.appendChild(flopsTitle);
+
+    const flopsDesc = document.createElement('p');
+    flopsDesc.style.color = '#aaa';
+    flopsDesc.style.fontSize = '0.85rem';
+    flopsDesc.textContent = 'Measures achieved FLOPS on the selected GPU using ResNet-18. Results below the chip\'s peak spec (10-40% of peak) are expected.';
+    flopsSection.appendChild(flopsDesc);
+
+    // Batch size input row
+    const flopsControls = document.createElement('div');
+    flopsControls.style.display = 'flex';
+    flopsControls.style.alignItems = 'center';
+    flopsControls.style.gap = '0.75rem';
+    flopsControls.style.marginTop = '0.5rem';
+
+    const batchLabel = document.createElement('label');
+    batchLabel.textContent = 'Batch size:';
+    batchLabel.style.color = '#ccc';
+
+    const batchInput = document.createElement('input');
+    batchInput.type = 'number';
+    batchInput.min = 1;
+    batchInput.max = 512;
+    batchInput.value = '8';
+    batchInput.style.width = '80px';
+    batchInput.style.padding = '0.3rem 0.5rem';
+    batchInput.style.border = '1px solid #555';
+    batchInput.style.borderRadius = '4px';
+    batchInput.style.backgroundColor = '#333';
+    batchInput.style.color = '#eee';
+    batchInput.style.fontSize = '0.9rem';
+
+    const flopsRunBtn = document.createElement('button');
+    flopsRunBtn.className = 'mc-run-btn mc-run-btn-flops';
+    flopsRunBtn.textContent = '▶ Run FLOPS Test';
+    flopsRunBtn.style.marginTop = '0';
+
+    // FLOPS status display
+    const flopsStatus = document.createElement('div');
+    flopsStatus.className = 'mc-flops-status';
+    flopsStatus.style.marginTop = '0.75rem';
+    flopsStatus.style.fontFamily = 'monospace';
+    flopsStatus.style.whiteSpace = 'pre-wrap';
+    flopsStatus.style.fontSize = '0.85rem';
+    flopsStatus.style.color = '#aaa';
+
+    flopsControls.appendChild(batchLabel);
+    flopsControls.appendChild(batchInput);
+    flopsControls.appendChild(flopsRunBtn);
+    flopsSection.appendChild(flopsControls);
+    flopsSection.appendChild(flopsStatus);
+    container.appendChild(flopsSection);
+
+    // FLOPS test runner
+    flopsRunBtn.addEventListener('click', async () => {
+      const batchSize = Math.max(1, parseInt(batchInput.value, 10) || 1);
+      flopsRunBtn.disabled = true;
+      flopsRunBtn.textContent = '⏳ Running…';
+      flopsStatus.textContent = '';
+      flopsStatus.style.color = '#aaa';
+
+      try {
+        const result = await window.electron.runFlopsTest(batchSize);
+        const output = result.stdout || '';
+        const err = result.stderr || '';
+
+        if (result.code === 0 && output) {
+          flopsStatus.textContent = output;
+          flopsStatus.style.color = '#4caf50';
+        } else {
+          flopsStatus.textContent = err || output || 'FLOPS test failed.';
+          flopsStatus.style.color = '#f44336';
+        }
+      } catch (e) {
+        flopsStatus.textContent = `Error: ${e.message}`;
+        flopsStatus.style.color = '#f44336';
+      } finally {
+        flopsRunBtn.disabled = false;
+        flopsRunBtn.textContent = '▶ Run FLOPS Test';
+      }
+    });
   }
 
   // ── Update UI ─────────────────────────────────────────────

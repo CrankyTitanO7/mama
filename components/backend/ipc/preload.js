@@ -96,6 +96,9 @@ contextBridge.exposeInMainWorld('electron', {
 
   runImportTest:   (fw, projectFolder = null) => ipcRenderer.invoke('run-import-test', fw, projectFolder),
 
+  // ── FLOPS test ──────────────────────────────────────────────────────────────
+  runFlopsTest:    (batchSize = 1) => ipcRenderer.invoke('run-flops-test', batchSize),
+
   // ── Settings ──────────────────────────────────────────────────────────────
   settingsRead:             ()       => ipcRenderer.invoke('settings-read'),
   settingsWrite:            (s)      => ipcRenderer.invoke('settings-write', s),

@@ -655,18 +655,30 @@ class MamaApi:
 
     def project_pick_folder(self) -> Optional[str]:
         """Open a native folder picker dialog."""
-        import tkinter as tk
-        from tkinter import filedialog
-
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        folder = filedialog.askdirectory(title='Select Project Folder')
-        root.destroy()
-        return folder if folder else None
+        try:
+            if sys.platform == 'darwin':
+                result = subprocess.run(
+                    ['osascript', '-e', 'return POSIX path of (choose folder with prompt "Select Project Folder")'],
+                    capture_output=True, text=True, timeout=120
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            else:
+                if not self._window:
+                    return None
+                import webview
+                result = self._window.create_file_dialog(
+                    webview.FOLDER_DIALOG,
+                    title='Select Project Folder'
+                )
+                if result and len(result) > 0:
+                    return result[0]
+        except Exception as e:
+            logger.error('Folder picker failed: %s', e)
+        return None
 
     def project_open_folder(self, folder_path: str) -> Optional[dict]:
-        """Open a project folder and update recents."""
+        """Open a project folder: update recents, then return folder listing."""
         try:
             if not folder_path:
                 return None
@@ -685,7 +697,7 @@ class MamaApi:
             recents['recent'] = recent_list[:10]  # Keep last 10
 
             self._write_recents(recents)
-            return recents
+            return self.project_list_folder(folder_path)
         except Exception as e:
             logger.error('project_open_folder failed: %s', e)
             return None

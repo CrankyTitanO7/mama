@@ -83,6 +83,8 @@ def main():
     # Give the API a reference to the window for evaluate_js (streaming, etc.)
     api.set_window(window)
 
+    window.events.closed += api.on_quit
+
     webview.start(debug=args.debug)
 
 

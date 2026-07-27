@@ -683,8 +683,7 @@ class MamaApi:
                     return None
                 import webview
                 result = self._window.create_file_dialog(
-                    webview.FOLDER_DIALOG,
-                    title='Select Project Folder'
+                    webview.FOLDER_DIALOG
                 )
                 if result and len(result) > 0:
                     return result[0]

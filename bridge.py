@@ -1251,64 +1251,98 @@ class MamaApi:
     # ═══════════════════════════════════════════════════════════════════════
 
     def dataset_preview(self, path: str, max_rows: int = 5) -> dict:
-        """Preview a dataset (JSONL, CSV, or parquet). Returns column names and sample rows."""
+        """Preview a dataset (JSONL, CSV, Parquet, or HF Hub dataset ID).
+        Returns column names and sample rows.
+        """
+        import csv
+        import json as pyjson
+
         try:
-            import csv
-            import json as pyjson
+            # ── Try local file/directory first ────────────────────────────
             p = Path(path)
-            if not p.exists():
-                return {'success': False, 'error': 'File not found'}
+            if p.exists():
+                if p.suffix == '.csv':
+                    with open(p, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        rows = []
+                        for i, row in enumerate(reader):
+                            if i >= max_rows:
+                                break
+                            rows.append(row)
+                        return {'success': True, 'columns': list(reader.fieldnames or []), 'rows': rows}
 
-            if p.suffix == '.csv':
-                with open(p, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
+                elif p.suffix in ('.jsonl', '.json'):
                     rows = []
-                    for i, row in enumerate(reader):
-                        if i >= max_rows:
-                            break
-                        rows.append(row)
-                    return {'success': True, 'columns': list(reader.fieldnames or []), 'rows': rows}
+                    columns = set()
+                    with open(p, 'r', encoding='utf-8') as f:
+                        for i, line in enumerate(f):
+                            if i >= max_rows:
+                                break
+                            line = line.strip()
+                            if line:
+                                try:
+                                    row = pyjson.loads(line)
+                                    if isinstance(row, dict):
+                                        rows.append(row)
+                                        columns.update(row.keys())
+                                except pyjson.JSONDecodeError:
+                                    pass
+                    return {'success': True, 'columns': sorted(columns), 'rows': rows}
 
-            elif p.suffix == '.jsonl' or p.suffix == '.json':
-                rows = []
-                columns = set()
-                with open(p, 'r', encoding='utf-8') as f:
-                    for i, line in enumerate(f):
-                        if i >= max_rows:
-                            break
-                        line = line.strip()
-                        if line:
-                            try:
-                                row = pyjson.loads(line)
-                                if isinstance(row, dict):
-                                    rows.append(row)
-                                    columns.update(row.keys())
-                            except pyjson.JSONDecodeError:
-                                pass
-                return {'success': True, 'columns': sorted(columns), 'rows': rows}
+                elif p.suffix == '.parquet':
+                    try:
+                        import pandas as pd
+                        df = pd.read_parquet(p)
+                        cols = list(df.columns)
+                        sample = df.head(max_rows).to_dict(orient='records')
+                        return {'success': True, 'columns': cols, 'rows': sample}
+                    except ImportError:
+                        return {'success': False, 'error': 'pandas required for parquet preview'}
 
-            elif p.suffix == '.parquet':
+                elif p.is_dir():
+                    try:
+                        from datasets import load_from_disk
+                        ds = load_from_disk(str(p))
+                        cols = ds.column_names
+                        rows = ds.select(range(min(max_rows, len(ds)))).to_list()
+                        return {'success': True, 'columns': cols, 'rows': rows}
+                    except Exception:
+                        return {'success': False, 'error': 'Not a valid dataset directory'}
+
+                return {'success': False, 'error': f'Unsupported file format: {p.suffix}'}
+
+            # ── Not a local path — try Hugging Face Hub ───────────────────
+            try:
+                from datasets import load_dataset, get_dataset_split_names
+                # Get available splits; default to 'train'
                 try:
-                    import pandas as pd
-                    df = pd.read_parquet(p)
-                    cols = list(df.columns)
-                    sample = df.head(max_rows).to_dict(orient='records')
-                    return {'success': True, 'columns': cols, 'rows': sample}
-                except ImportError:
-                    return {'success': False, 'error': 'pandas required for parquet preview'}
-
-            elif p.is_dir():
-                # Try to load as HF dataset
-                try:
-                    from datasets import load_from_disk
-                    ds = load_from_disk(str(p))
-                    cols = ds.column_names
-                    rows = ds.select(range(min(max_rows, len(ds)))).to_list()
-                    return {'success': True, 'columns': cols, 'rows': rows}
+                    splits = get_dataset_split_names(path)
+                    split = 'train' if 'train' in splits else (splits[0] if splits else 'train')
                 except Exception:
-                    return {'success': False, 'error': 'Not a valid dataset directory'}
+                    split = 'train'
 
-            return {'success': False, 'error': f'Unsupported file format: {p.suffix}'}
+                ds = load_dataset(path, split=split, streaming=True)
+                cols = ds.column_names
+                sample = []
+                for i, row in enumerate(ds):
+                    if i >= max_rows:
+                        break
+                    sample.append(row)
+                ds = None  # release
+
+                return {
+                    'success': True,
+                    'columns': cols,
+                    'rows': sample,
+                    'dataset_id': path,
+                    'split': split,
+                    'source': 'huggingface',
+                }
+            except ImportError:
+                return {'success': False, 'error': 'datasets library required for Hugging Face datasets. Run: pip install datasets'}
+            except Exception as e:
+                return {'success': False, 'error': f'Hugging Face dataset error: {e}'}
+
         except Exception as e:
             return {'success': False, 'error': str(e)}
 

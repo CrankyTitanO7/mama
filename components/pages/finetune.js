@@ -231,26 +231,51 @@ const Finetune = (() => {
 
   async function loadHardwareInfo() {
     try {
-      const result = await window.electron.trainPlatformCheck();
-      if (result.success) {
-        hwInfo = result;
-        const device = result.device || 'unknown';
-        const deviceLabel = device === 'cuda' ? 'CUDA GPU' : device === 'mps' ? 'Apple Silicon (MPS)' : 'CPU';
-        document.getElementById('ft-hw-text').textContent = `Device: ${deviceLabel} | PyTorch ${result.torch_version || '?'}`;
+      const settings = await window.electron.settingsRead();
+      const hw = settings?.['hardware settings'] || {};
+      const sw = settings?.['software information'] || {};
 
-        // Adjust defaults based on hardware
-        if (device === 'mps') {
-          document.getElementById('ft-method-hint').textContent = 'MPS does not support QLoRA. Using LoRA.';
-          document.getElementById('ft-use-bf16').checked = false;
-        } else if (device === 'cpu') {
-          document.getElementById('ft-method-hint').textContent = 'CPU training is slow. Consider using a very small model and batch size.';
-          document.getElementById('ft-use-bf16').checked = false;
-        }
+      let deviceLabel = 'Unknown';
+      let isMPS = false;
+      let isCUDA = false;
+
+      const mfr = (hw['graphics manufacturer'] || '').toLowerCase();
+      const mode = (hw['mode'] || 'gpu').toLowerCase();
+
+      if (mfr === 'apple') {
+        deviceLabel = 'Apple Silicon (MPS)';
+        isMPS = true;
+      } else if (mfr === 'nvidia') {
+        deviceLabel = 'NVIDIA GPU (CUDA)';
+        isCUDA = true;
+      } else if (mfr === 'amd') {
+        deviceLabel = 'AMD GPU (ROCm)';
+        isCUDA = true;
+      } else if (mode === 'cpu') {
+        deviceLabel = 'CPU';
       } else {
-        document.getElementById('ft-hw-text').textContent = 'Could not detect hardware. Defaulting to safe settings.';
+        // Fallback: try platform check script
+        const result = await window.electron.trainPlatformCheck();
+        if (result.success) {
+          if (result.device === 'cuda') { deviceLabel = 'CUDA GPU'; isCUDA = true; }
+          else if (result.device === 'mps') { deviceLabel = 'Apple Silicon (MPS)'; isMPS = true; }
+          else deviceLabel = 'CPU';
+        }
+      }
+
+      document.getElementById('ft-hw-text').textContent = `Device: ${deviceLabel} | Mode: ${mode}`;
+
+      if (isMPS) {
+        document.getElementById('ft-method-hint').textContent = 'MPS does not support QLoRA. Using LoRA.';
+        document.getElementById('ft-use-bf16').checked = false;
+        document.getElementById('ft-use-bf16').disabled = true;
+      } else if (!isCUDA) {
+        document.getElementById('ft-method-hint').textContent = 'CPU training is slow. Consider using a very small model and batch size.';
+        document.getElementById('ft-use-bf16').checked = false;
+        document.getElementById('ft-use-bf16').disabled = true;
       }
     } catch (e) {
-      document.getElementById('ft-hw-text').textContent = 'Hardware detection unavailable.';
+      document.getElementById('ft-hw-text').textContent = 'Could not detect hardware. Defaulting to safe settings.';
     }
   }
 

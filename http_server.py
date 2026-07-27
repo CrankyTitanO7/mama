@@ -10,6 +10,8 @@ import json
 import threading
 import logging
 import mimetypes
+import urllib.request
+import urllib.parse
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -179,6 +181,48 @@ class MamaHTTPRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         """Serve a GET request with optional shim injection for HTML files."""
+
+        # ── Reverse proxy for iframe embedding ───────────────────────────
+        if self.path.startswith('/proxy/'):
+            query = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(query)
+            target_url = params.get('url', [None])[0]
+            if not target_url:
+                self.send_response(400)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(b'Missing url parameter')
+                return
+
+            try:
+                req = urllib.request.Request(
+                    target_url,
+                    headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    body = resp.read()
+                    content_type = resp.headers.get('Content-Type', 'text/html') or 'text/html'
+
+                    # Insert <base> tag so relative URLs resolve against the target
+                    if 'text/html' in content_type:
+                        base_tag = f'<base href="{target_url.rstrip("/")}/">'.encode('utf-8')
+                        body = body.replace(b'<head>', b'<head>' + base_tag, 1)
+
+                    self.send_response(200)
+                    self.send_header('Content-Type', content_type)
+                    self.send_header('Content-Length', str(len(body)))
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+            except Exception as e:
+                logger.error('Proxy error for %s: %s', target_url, e)
+                self.send_response(502)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(f'<html><body><h2>Proxy error</h2><p>{e}</p></body></html>'.encode('utf-8'))
+                return
+
         path = self.translate_path(self.path)
 
         if os.path.isfile(path) and path.endswith('.html'):

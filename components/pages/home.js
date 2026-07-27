@@ -356,12 +356,9 @@ function initMuteButton(widgetRoot, embedEl, muteBtn) {
 }
 
 /**
- * Mount a mini browser (webview). Must use createElement — innerHTML does not
- * initialize <webview> guests in Electron.
+ * Mount a mini browser (iframe).
  */
 function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation, partitionName) {
-  // Give the container a flex column so the embed widget can stretch into it.
-  // Without this, flex:1 on the widget has nothing to measure against.
   Object.assign(container.style, {
     display:       'flex',
     flexDirection: 'column',
@@ -373,45 +370,38 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
 
   container.replaceChildren();
 
-  const webview = document.createElement('webview');
-  webview.className = 'embed-frame mini-browser';
-  webview.title = title;
-  webview.setAttribute('allowpopups', '');
-  webview.setAttribute('src', src);
-  // flex:1 + align-self:stretch fills the flex column correctly.
-  // height:100% alone is circular inside a flex container and collapses.
-  Object.assign(webview.style, {
+  const frame = document.createElement('iframe');
+  frame.className = 'embed-frame mini-browser';
+  frame.title = title;
+  frame.setAttribute('src', src);
+
+  Object.assign(frame.style, {
     flex:      '1',
     alignSelf: 'stretch',
     width:     '100%',
     minHeight: '0',
-    display:   'flex',
+    border:    'none',
   });
 
-  if (partitionName) {
-    webview.setAttribute('partition', `persist:${partitionName}`);
-  }
+  const widget = createEmbedWidget(frame, orientation);
 
-  const widget = createEmbedWidget(webview, orientation);
-
-  webview.addEventListener('did-fail-load', (event) => {
-    if (event.errorCode === -3) return;
-    console.error('embed webview load failed:', event.errorCode, event.validatedURL);
+  frame.addEventListener('error', () => {
+    console.error('embed iframe load failed:', src);
     if (!iframeFallbackSrc) return;
 
     const slot = widget.querySelector('.embed-widget-slot');
     if (!slot || slot.querySelector('iframe.site-fallback')) return;
 
-    const iframe = document.createElement('iframe');
-    iframe.className = 'embed-frame site-fallback';
-    iframe.title = title;
-    iframe.addEventListener('load', () => {
+    const fallback = document.createElement('iframe');
+    fallback.className = 'embed-frame site-fallback';
+    fallback.title = title;
+    fallback.addEventListener('load', () => {
       if (window.ThemeManager?.applyThemeToWindow) {
-        window.ThemeManager.applyThemeToWindow(iframe.contentWindow, window.ThemeManager.getActiveTheme?.() || 'system');
+        window.ThemeManager.applyThemeToWindow(fallback.contentWindow, window.ThemeManager.getActiveTheme?.() || 'system');
       }
     });
-    iframe.setAttribute('src', iframeFallbackSrc);
-    Object.assign(iframe.style, {
+    fallback.setAttribute('src', iframeFallbackSrc);
+    Object.assign(fallback.style, {
       flex:      '1',
       alignSelf: 'stretch',
       width:     '100%',
@@ -419,7 +409,7 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
       border:    'none',
       height:    '100%',
     });
-    slot.replaceChildren(iframe);
+    slot.replaceChildren(fallback);
   });
 
   container.appendChild(widget);
@@ -497,7 +487,11 @@ function sanitizeUrl(url) {
 function normalizeProviderUrl(url) {
   const trimmed = String(url || '').trim();
   if (!trimmed) return 'about:blank';
-  return (trimmed.startsWith('http://') || trimmed.startsWith('https://')) ? trimmed : `https://${trimmed}`;
+  let resolved = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+  if (window.pywebview && window.pywebview.api) {
+    resolved = '/proxy/?url=' + encodeURIComponent(resolved);
+  }
+  return resolved;
 }
 
 function escapeHtmlAttr(str) {

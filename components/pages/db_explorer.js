@@ -292,13 +292,9 @@ function initMuteButton(widgetRoot, embedEl, muteBtn) {
 }
 
 /**
- * Mount a mini browser (webview). Must use createElement — innerHTML does not
- * initialize <webview> guests in Electron.
+ * Mount a mini browser (iframe).
  */
 function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation, partitionName) {
-  // Ensure the container itself forms a full-height flex column.
-  // Without this, flex:1 on the embed widget has nothing to stretch against
-  // and the webview collapses to its intrinsic (near-zero) height.
   Object.assign(container.style, {
     display:       'flex',
     flexDirection: 'column',
@@ -310,50 +306,41 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
 
   container.replaceChildren();
 
-  const webview = document.createElement('webview');
-  webview.className = 'embed-frame mini-browser';
-  webview.title = title;
-  webview.setAttribute('allowpopups', '');
-  webview.setAttribute('src', src);
-  // In a flex column, flex:1 + align-self:stretch fills available space.
-  // height:100% alone doesn't work inside a flex container whose height
-  // is determined by its children — it creates a circular dependency.
-  webview.style.flex        = '1';
-  webview.style.alignSelf   = 'stretch';
-  webview.style.width       = '100%';
-  webview.style.minHeight   = '0';
-  webview.style.display     = 'flex';
+  const frame = document.createElement('iframe');
+  frame.className = 'embed-frame mini-browser';
+  frame.title = title;
+  frame.setAttribute('src', src);
 
-  // Persistent partition keeps cookies/auth across app restarts
-  if (partitionName) {
-    webview.setAttribute('partition', `persist:${partitionName}`);
-  }
+  frame.style.flex        = '1';
+  frame.style.alignSelf   = 'stretch';
+  frame.style.width       = '100%';
+  frame.style.minHeight   = '0';
+  frame.style.border      = 'none';
 
-  const widget = createEmbedWidget(webview, orientation);
+  const widget = createEmbedWidget(frame, orientation);
 
-  webview.addEventListener('did-fail-load', (event) => {
-    if (event.errorCode === -3) return; // Aborted, ignore
-    console.error('embed webview load failed:', event.errorCode, event.validatedURL);
+  frame.addEventListener('error', () => {
+    console.error('embed iframe load failed:', src);
     if (!iframeFallbackSrc) return;
 
     const slot = widget.querySelector('.embed-widget-slot');
     if (!slot || slot.querySelector('iframe.site-fallback')) return;
 
-    const iframe = document.createElement('iframe');
-    iframe.className = 'embed-frame site-fallback';
-    iframe.title = title;
-    iframe.addEventListener('load', () => {
+    const fallback = document.createElement('iframe');
+    fallback.className = 'embed-frame site-fallback';
+    fallback.title = title;
+    fallback.addEventListener('load', () => {
       if (window.ThemeManager?.applyThemeToWindow) {
-        window.ThemeManager.applyThemeToWindow(iframe.contentWindow, window.ThemeManager.getActiveTheme?.() || 'system');
+        window.ThemeManager.applyThemeToWindow(fallback.contentWindow, window.ThemeManager.getActiveTheme?.() || 'system');
       }
     });
-    iframe.setAttribute('src', iframeFallbackSrc);
-    iframe.style.flex      = '1';
-    iframe.style.alignSelf = 'stretch';
-    iframe.style.width     = '100%';
-    iframe.style.minHeight = '0';
-    iframe.style.border    = 'none';
-    slot.replaceChildren(iframe);
+    fallback.setAttribute('src', iframeFallbackSrc);
+    fallback.style.flex      = '1';
+    fallback.style.alignSelf = 'stretch';
+    fallback.style.width     = '100%';
+    fallback.style.minHeight = '0';
+    fallback.style.border    = 'none';
+    slot.replaceChildren(fallback);
   });
 
   container.appendChild(widget);
@@ -426,10 +413,11 @@ async function renderDbExplorer() {
 function normalizeProviderUrl(url) {
   const trimmed = String(url || '').trim();
   if (!trimmed) return 'about:blank';
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
+  let resolved = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+  if (window.pywebview && window.pywebview.api) {
+    resolved = '/proxy/?url=' + encodeURIComponent(resolved);
   }
-  return `https://${trimmed}`;
+  return resolved;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

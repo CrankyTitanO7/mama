@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>mama - Fine-Tune</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('finetune');
+      });
+    </script>
+
+    <div class="page-content ft-page">
+      <h1>Fine-Tune</h1>
+
+      <!-- Tab navigation -->
+      <div class="ft-tabs" id="ft-tabs">
+        <button class="ft-tab active" data-tab="model">1. Model</button>
+        <button class="ft-tab" data-tab="dataset">2. Dataset</button>
+        <button class="ft-tab" data-tab="config">3. Configure</button>
+        <button class="ft-tab" data-tab="train">4. Train</button>
+      </div>
+
+      <!-- Tab: Model Browser -->
+      <div class="ft-tab-content active" id="ft-tab-model">
+        <div class="ft-section">
+          <h2>Model Selection</h2>
+          <p>Choose a base model to fine-tune. Models are downloaded from Hugging Face Hub and cached locally.</p>
+
+          <div class="ft-model-controls">
+            <div class="ft-field">
+              <label>Model ID</label>
+              <input type="text" id="ft-model-id" class="ft-input" placeholder="e.g. mistralai/Mistral-7B-v0.1" value="HuggingFaceTB/SmolLM2-135M">
+              <span class="ft-hint">Hugging Face model identifier or local path</span>
+            </div>
+            <div class="ft-field ft-field-row">
+              <button id="ft-check-model" class="settings-btn settings-btn-primary">Check Compatibility</button>
+              <button id="ft-download-model" class="settings-btn settings-btn-success">Download Model</button>
+            </div>
+          </div>
+
+          <!-- Compatibility result -->
+          <div id="ft-compat-result" class="ft-compat-result" style="display:none"></div>
+
+          <!-- Download progress -->
+          <div id="ft-download-progress" style="display:none">
+            <div class="ft-progress-bar-track"><div class="ft-progress-bar" id="ft-dl-bar" style="width:0%"></div></div>
+            <div class="ft-progress-text" id="ft-dl-text">Starting download...</div>
+          </div>
+
+          <!-- Local models -->
+          <div class="ft-section">
+            <h3>Local Models</h3>
+            <div id="ft-local-models" class="ft-empty">No models downloaded yet. Use the form above to download one.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Dataset -->
+      <div class="ft-tab-content" id="ft-tab-dataset">
+        <div class="ft-section">
+          <h2>Dataset Selection</h2>
+          <p>Load a dataset from Hugging Face Hub or a local file (JSONL, CSV, Parquet).</p>
+
+          <div class="ft-field">
+            <label>Dataset Source</label>
+            <div class="ft-radio-group">
+              <label class="ft-radio">
+                <input type="radio" name="ds-source" value="hub" checked> Hugging Face Hub
+              </label>
+              <label class="ft-radio">
+                <input type="radio" name="ds-source" value="local"> Local File
+              </label>
+            </div>
+          </div>
+
+          <div id="ft-ds-hub" class="ft-field">
+            <label>Dataset ID</label>
+            <input type="text" id="ft-ds-hub-id" class="ft-input" placeholder="e.g. HuggingFaceH4/no_robots">
+          </div>
+
+          <div id="ft-ds-local" class="ft-field" style="display:none">
+            <label>File Path</label>
+            <div class="ft-file-picker">
+              <input type="text" id="ft-ds-path" class="ft-input" placeholder="/path/to/dataset.jsonl">
+              <button id="ft-ds-browse" class="settings-btn settings-btn-secondary">Browse</button>
+            </div>
+          </div>
+
+          <div class="ft-field">
+            <label>Text Column</label>
+            <input type="text" id="ft-ds-column" class="ft-input" placeholder="text" value="text">
+            <span class="ft-hint">Column name containing the training text</span>
+          </div>
+
+          <div class="ft-field">
+            <label>Max Samples (optional)</label>
+            <input type="number" id="ft-ds-max-samples" class="ft-input ft-input-narrow" placeholder="Leave empty for all" min="1">
+            <span class="ft-hint">Limit to a subset for testing</span>
+          </div>
+
+          <div class="ft-field ft-field-row">
+            <button id="ft-ds-load" class="settings-btn settings-btn-primary">Preview Dataset</button>
+          </div>
+
+          <!-- Dataset preview -->
+          <div id="ft-ds-preview" style="display:none">
+            <h3>Dataset Preview</h3>
+            <div id="ft-ds-info" class="ft-ds-info"></div>
+            <div class="ft-table-wrap" id="ft-ds-table-wrap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Configuration -->
+      <div class="ft-tab-content" id="ft-tab-config">
+        <div class="ft-section">
+          <h2>Training Configuration</h2>
+          <p>Configure hyperparameters and training options.</p>
+
+          <!-- Hardware info -->
+          <div id="ft-hw-info" class="ft-hardware-info">
+            <span id="ft-hw-text">Loading hardware info...</span>
+          </div>
+
+          <div class="ft-config-grid">
+            <div class="ft-field">
+              <label>Training Method</label>
+              <select id="ft-method" class="ft-select">
+                <option value="lora" selected>LoRA (recommended)</option>
+                <option value="qlora">QLoRA (4-bit)</option>
+                <option value="full">Full Fine-Tuning</option>
+              </select>
+              <span class="ft-hint ft-method-hint" id="ft-method-hint">Efficient for most GPUs with 6GB+ VRAM</span>
+            </div>
+
+            <div class="ft-field">
+              <label>LoRA Rank (r)</label>
+              <input type="number" id="ft-lora-r" class="ft-input ft-input-narrow" value="8" min="1" max="256">
+            </div>
+
+            <div class="ft-field">
+              <label>LoRA Alpha</label>
+              <input type="number" id="ft-lora-alpha" class="ft-input ft-input-narrow" value="16" min="1" max="512">
+            </div>
+
+            <div class="ft-field">
+              <label>LoRA Dropout</label>
+              <input type="number" id="ft-lora-dropout" class="ft-input ft-input-narrow" value="0.05" min="0" max="0.5" step="0.01">
+            </div>
+
+            <div class="ft-field">
+              <label>Learning Rate</label>
+              <input type="text" id="ft-lr" class="ft-input ft-input-narrow" value="2e-4">
+            </div>
+
+            <div class="ft-field">
+              <label>Batch Size (per device)</label>
+              <input type="number" id="ft-batch-size" class="ft-input ft-input-narrow" value="2" min="1" max="128">
+            </div>
+
+            <div class="ft-field">
+              <label>Gradient Accumulation Steps</label>
+              <input type="number" id="ft-grad-acc" class="ft-input ft-input-narrow" value="4" min="1" max="128">
+              <span class="ft-hint">Effective batch size = batch × accumulation</span>
+            </div>
+
+            <div class="ft-field">
+              <label>Max Sequence Length</label>
+              <input type="number" id="ft-max-seq" class="ft-input ft-input-narrow" value="2048" min="128" max="8192" step="128">
+            </div>
+
+            <div class="ft-field">
+              <label>Number of Epochs</label>
+              <input type="number" id="ft-epochs" class="ft-input ft-input-narrow" value="3" min="1" max="100">
+            </div>
+
+            <div class="ft-field">
+              <label>Max Steps</label>
+              <input type="number" id="ft-max-steps" class="ft-input ft-input-narrow" placeholder="-1 (use epochs)" min="-1">
+              <span class="ft-hint">Overrides epochs if set to a positive value</span>
+            </div>
+
+            <div class="ft-field">
+              <label>Warmup Steps</label>
+              <input type="number" id="ft-warmup" class="ft-input ft-input-narrow" value="100" min="0">
+            </div>
+
+            <div class="ft-field">
+              <label>Logging / Save Steps</label>
+              <input type="number" id="ft-log-steps" class="ft-input ft-input-narrow" value="10" min="1">
+              <input type="number" id="ft-save-steps" class="ft-input ft-input-narrow" value="500" min="1">
+              <span class="ft-hint">Log every N steps / Save every N steps</span>
+            </div>
+
+            <div class="ft-field">
+              <label>Learning Rate Scheduler</label>
+              <select id="ft-scheduler" class="ft-select">
+                <option value="cosine" selected>Cosine</option>
+                <option value="linear">Linear</option>
+                <option value="constant">Constant</option>
+                <option value="cosine_with_restarts">Cosine with Restarts</option>
+              </select>
+            </div>
+
+            <div class="ft-field ft-field-checkbox">
+              <label class="ft-checkbox-label">
+                <input type="checkbox" id="ft-grad-checkpoint" checked>
+                Gradient Checkpointing
+              </label>
+            </div>
+
+            <div class="ft-field ft-field-checkbox">
+              <label class="ft-checkbox-label">
+                <input type="checkbox" id="ft-use-flash">
+                Flash Attention 2 (CUDA only)
+              </label>
+            </div>
+
+            <div class="ft-field ft-field-checkbox">
+              <label class="ft-checkbox-label">
+                <input type="checkbox" id="ft-use-bf16" checked>
+                bfloat16 (CUDA only)
+              </label>
+            </div>
+
+            <div class="ft-field ft-field-checkbox">
+              <label class="ft-checkbox-label">
+                <input type="checkbox" id="ft-resume" checked>
+                Resume from checkpoint if available
+              </label>
+            </div>
+          </div>
+
+          <div class="ft-field ft-field-row">
+            <label>Output Directory</label>
+            <div class="ft-file-picker">
+              <input type="text" id="ft-output-dir" class="ft-input" placeholder="./training-output">
+              <button id="ft-output-browse" class="settings-btn settings-btn-secondary">Browse</button>
+            </div>
+          </div>
+
+          <!-- Config preview -->
+          <div class="ft-section">
+            <h3>Config Preview</h3>
+            <pre id="ft-config-preview" class="ft-config-preview">{
+  "model_name_or_path": "...",
+  "dataset_path": "...",
+  "output_dir": "..."
+}</pre>
+          </div>
+
+          <div class="ft-field ft-field-row">
+            <button id="ft-start-train" class="settings-btn settings-btn-success" style="font-size:16px;padding:14px 32px">Start Training</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Training View (embedded) -->
+      <div class="ft-tab-content" id="ft-tab-train">
+        <p>Training view will open here. You can also access it from the Training Monitor page.</p>
+        <div class="ft-field ft-field-row">
+          <button id="ft-go-training" class="settings-btn settings-btn-primary">Open Training Monitor</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../components/styling/theme.js"></script>
+    <script src="../components/pages/finetune.js"></script>
+  </body>
+</html>

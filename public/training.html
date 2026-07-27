@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>mama - Training Monitor</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('training');
+      });
+    </script>
+
+    <div class="page-content training-page">
+      <h1>Training Monitor</h1>
+
+      <!-- Controls bar -->
+      <div class="train-controls">
+        <div class="train-controls-left">
+          <button id="train-select-folder" class="settings-btn settings-btn-secondary">Select Output Folder</button>
+          <span id="train-current-folder" class="train-folder-label">No folder selected</span>
+        </div>
+        <div class="train-controls-right">
+          <button id="train-pause-btn" class="settings-btn settings-btn-secondary" style="display:none">Pause</button>
+          <button id="train-resume-btn" class="settings-btn settings-btn-success" style="display:none">Resume</button>
+          <button id="train-cancel-btn" class="settings-btn" style="display:none;background:#f44336;color:white">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Status banner -->
+      <div id="train-status-banner" class="train-status-banner">
+        <span id="train-status-text">Select a project output folder or start a new training run from the Fine-Tune page.</span>
+      </div>
+
+      <div class="train-layout">
+        <!-- Left: Chart / Metrics -->
+        <div class="train-main">
+          <!-- Loss chart -->
+          <div class="train-card">
+            <h3>Loss</h3>
+            <div class="train-chart-wrap">
+              <canvas id="train-loss-chart" width="600" height="300"></canvas>
+            </div>
+          </div>
+
+          <!-- Log output -->
+          <div class="train-card">
+            <h3>Training Log</h3>
+            <div id="train-log" class="train-log">
+              <div class="train-log-empty">Waiting for training data...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Sidebar info -->
+        <div class="train-sidebar">
+          <div class="train-card">
+            <h3>Progress</h3>
+            <div class="train-progress-bar-track">
+              <div class="train-progress-bar" id="train-progress-bar" style="width:0%"></div>
+            </div>
+            <div class="train-metric-row">
+              <span class="train-metric-label">Step</span>
+              <span class="train-metric-value" id="train-current-step">0</span>
+            </div>
+            <div class="train-metric-row">
+              <span class="train-metric-label">Total Steps</span>
+              <span class="train-metric-value" id="train-total-steps">—</span>
+            </div>
+            <div class="train-metric-row">
+              <span class="train-metric-label">Epoch</span>
+              <span class="train-metric-value" id="train-current-epoch">—</span>
+            </div>
+          </div>
+
+          <div class="train-card">
+            <h3>Current Metrics</h3>
+            <div class="train-metric-row">
+              <span class="train-metric-label">Loss</span>
+              <span class="train-metric-value" id="train-current-loss">—</span>
+            </div>
+            <div class="train-metric-row">
+              <span class="train-metric-label">Learning Rate</span>
+              <span class="train-metric-value" id="train-current-lr">—</span>
+            </div>
+            <div class="train-metric-row">
+              <span class="train-metric-label">Gradient Norm</span>
+              <span class="train-metric-value" id="train-current-grad">—</span>
+            </div>
+          </div>
+
+          <div class="train-card">
+            <h3>System Resources</h3>
+            <div id="train-resources-widget"></div>
+          </div>
+
+          <div class="train-card">
+            <h3>Checkpoints</h3>
+            <div id="train-checkpoints" class="train-checkpoints">
+              <span class="train-muted">No checkpoints found</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../components/styling/theme.js"></script>
+    <script src="../components/pages/training.js"></script>
+  </body>
+</html>

@@ -918,6 +918,423 @@ class MamaApi:
             return {'success': False, 'error': str(e)}
 
     # ═══════════════════════════════════════════════════════════════════════
+    # Training (Fine-Tuning)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    _training_process: Optional[subprocess.Popen] = None
+    _training_thread: Optional[threading.Thread] = None
+
+    def _emit_training_progress(self, chunk: dict):
+        if self._window:
+            js = f"""
+            (function() {{
+                if (window.electron && window.electron._trainingProgressCallback) {{
+                    window.electron._trainingProgressCallback({json.dumps(chunk)});
+                }}
+            }})();
+            """
+            try:
+                self._window.evaluate_js(js)
+            except Exception as e:
+                logger.debug('Failed to emit training progress: %s', e)
+
+    def train_start(self, config_json: str) -> dict:
+        """Start a training run from a JSON config string.
+        Streams stdout via IPC callback.
+        """
+        try:
+            cfg = json.loads(config_json)
+        except json.JSONDecodeError as e:
+            return {'success': False, 'error': f'Invalid config JSON: {e}'}
+
+        output_dir = cfg.get('output_dir', '')
+        if not output_dir:
+            return {'success': False, 'error': 'output_dir is required in config'}
+
+        # Write config to output dir
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        config_path = output_path / 'training_config.json'
+        config_path.write_text(json.dumps(cfg, indent=2), 'utf-8')
+
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train.py')
+        python = self._get_python()
+        if not python:
+            return {'success': False, 'error': 'Python 3 not found on PATH.'}
+
+        try:
+            proc = subprocess.Popen(
+                [python, script, '--config', str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env={**os.environ},
+            )
+            self._training_process = proc
+
+            def read_stream(stream, stream_type):
+                for line in iter(stream.readline, ''):
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            data['_stream'] = stream_type
+                            self._emit_training_progress(data)
+                        except json.JSONDecodeError:
+                            self._emit_training_progress({
+                                'type': stream_type,
+                                'text': line,
+                                '_stream': stream_type,
+                            })
+                stream.close()
+
+            stdout_thread = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
+            stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+
+            def wait_thread():
+                proc.wait()
+                stdout_thread.join(timeout=5)
+                stderr_thread.join(timeout=5)
+                self._emit_training_progress({'type': 'done', 'code': proc.returncode or 0})
+                self._training_process = None
+
+            self._training_thread = threading.Thread(target=wait_thread, daemon=True)
+            self._training_thread.start()
+
+            return {'success': True, 'config_path': str(config_path)}
+        except Exception as e:
+            logger.error('train_start failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def train_pause(self, output_dir: str) -> dict:
+        """Pause training by creating .pause file."""
+        try:
+            pause_file = Path(output_dir) / '.pause'
+            pause_file.write_text('pause', 'utf-8')
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def train_resume(self, output_dir: str) -> dict:
+        """Resume training by removing .pause file."""
+        try:
+            pause_file = Path(output_dir) / '.pause'
+            if pause_file.exists():
+                pause_file.unlink()
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def train_cancel(self, output_dir: str) -> dict:
+        """Cancel training by creating .cancel file."""
+        try:
+            cancel_file = Path(output_dir) / '.cancel'
+            cancel_file.write_text('cancel', 'utf-8')
+            # Also kill process if running
+            if self._training_process:
+                self._training_process.terminate()
+                self._training_process = None
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def train_status(self, output_dir: str) -> dict:
+        """Check training status in output directory."""
+        try:
+            out = Path(output_dir)
+            return {
+                'running': self._training_process is not None and self._training_process.poll() is None,
+                'has_checkpoint': len(list(out.glob('checkpoint-*'))) > 0,
+                'has_config': (out / 'training_config.json').exists(),
+                'is_paused': (out / '.pause').exists(),
+                'is_cancelled': (out / '.cancel').exists(),
+            }
+        except Exception as e:
+            return {'running': False, 'error': str(e)}
+
+    def train_list_checkpoints(self, output_dir: str) -> list:
+        """List checkpoints in output directory."""
+        try:
+            out = Path(output_dir)
+            checkpoints = sorted(out.glob('checkpoint-*'), key=lambda p: int(p.name.split('-')[-1]))
+            result = []
+            for cp in checkpoints:
+                trainer_state = cp / 'trainer_state.json'
+                metrics = {}
+                if trainer_state.exists():
+                    try:
+                        state = json.loads(trainer_state.read_text('utf-8'))
+                        log_history = state.get('log_history', [])
+                        if log_history:
+                            last = log_history[-1]
+                            metrics = {
+                                'step': last.get('step', 0),
+                                'loss': last.get('loss', None),
+                                'epoch': last.get('epoch', None),
+                            }
+                    except Exception:
+                        pass
+                result.append({
+                    'path': str(cp),
+                    'step': int(cp.name.split('-')[-1]),
+                    'size_bytes': sum(f.stat().st_size for f in cp.rglob('*') if f.is_file()),
+                    **metrics,
+                })
+            return result
+        except Exception as e:
+            logger.error('train_list_checkpoints failed: %s', e)
+            return []
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Model Management (Download / List / Check)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    _model_download_process: Optional[subprocess.Popen] = None
+
+    def _emit_model_progress(self, chunk: dict):
+        if self._window:
+            js = f"""
+            (function() {{
+                if (window.electron && window.electron._modelProgressCallback) {{
+                    window.electron._modelProgressCallback({json.dumps(chunk)});
+                }}
+            }})();
+            """
+            try:
+                self._window.evaluate_js(js)
+            except Exception as e:
+                logger.debug('Failed to emit model progress: %s', e)
+
+    def model_download(self, model_id: str, output_dir: str = '', revision: str = 'main') -> dict:
+        """Download a model from HF Hub with progress streaming."""
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
+        models_dir = output_dir or str(self._base_dir / 'models')
+        python = self._get_python()
+        if not python:
+            return {'success': False, 'error': 'Python 3 not found on PATH.'}
+
+        try:
+            proc = subprocess.Popen(
+                [python, script, '--model-id', model_id, '--output', models_dir, '--revision', revision],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env={**os.environ},
+            )
+            self._model_download_process = proc
+
+            def read_stream(stream, stream_type):
+                for line in iter(stream.readline, ''):
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            data['_stream'] = stream_type
+                            self._emit_model_progress(data)
+                        except json.JSONDecodeError:
+                            self._emit_model_progress({'type': stream_type, 'text': line, '_stream': stream_type})
+                stream.close()
+
+            stdout_thread = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
+            stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+
+            def wait_thread():
+                proc.wait()
+                stdout_thread.join(timeout=5)
+                stderr_thread.join(timeout=5)
+                self._emit_model_progress({'type': 'done', 'code': proc.returncode or 0})
+                self._model_download_process = None
+
+            threading.Thread(target=wait_thread, daemon=True).start()
+            return {'success': True}
+        except Exception as e:
+            logger.error('model_download failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def model_download_cancel(self) -> dict:
+        """Cancel an active model download."""
+        if self._model_download_process:
+            self._model_download_process.terminate()
+            self._model_download_process = None
+        return {'success': True}
+
+    def model_list(self, models_dir: str = '') -> list:
+        """List locally downloaded models."""
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
+        models_dir = models_dir or str(self._base_dir / 'models')
+        python = self._get_python()
+        if not python:
+            return []
+        result = self._run_script(script, ['--list', '--output', models_dir], timeout=30_000)
+        if result['code'] == 0 and result['stdout']:
+            try:
+                # Parse last JSON line
+                for line in reversed(result['stdout'].strip().split('\n')):
+                    if line.startswith('{'):
+                        data = json.loads(line)
+                        if data.get('type') == 'model_list':
+                            return data.get('models', [])
+            except Exception:
+                pass
+        return []
+
+    def model_check_compatibility(self, model_id: str) -> dict:
+        """Check model compatibility for fine-tuning."""
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
+        python = self._get_python()
+        if not python:
+            return {'compatible': False, 'error': 'Python 3 not found'}
+        result = self._run_script(script, ['--check', '--model-id', model_id], timeout=60_000)
+        if result['code'] == 0 and result['stdout']:
+            for line in reversed(result['stdout'].strip().split('\n')):
+                if line.startswith('{'):
+                    try:
+                        data = json.loads(line)
+                        if data.get('type') == 'compatibility':
+                            return data
+                    except Exception:
+                        pass
+        return {'compatible': False, 'error': result.get('stderr', 'Unknown error')}
+
+    def model_merge_adapter(self, base_model: str, adapter: str, output: str) -> dict:
+        """Merge LoRA adapter into base model with streaming."""
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'merge_adapter.py')
+        python = self._get_python()
+        if not python:
+            return {'success': False, 'error': 'Python 3 not found on PATH.'}
+
+        try:
+            proc = subprocess.Popen(
+                [python, script, '--base-model', base_model, '--adapter', adapter, '--output', output],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env={**os.environ},
+            )
+
+            def read_stream(stream, stream_type):
+                for line in iter(stream.readline, ''):
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            data['_stream'] = stream_type
+                            self._emit_training_progress(data)
+                        except json.JSONDecodeError:
+                            pass
+                stream.close()
+
+            stdout_thread = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
+            stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+
+            proc.wait(timeout=600)
+            stdout_thread.join(timeout=5)
+            stderr_thread.join(timeout=5)
+
+            if proc.returncode == 0:
+                return {'success': True, 'path': output}
+            return {'success': False, 'error': 'Merge failed'}
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            return {'success': False, 'error': 'Merge timed out'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Dataset Preview
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def dataset_preview(self, path: str, max_rows: int = 5) -> dict:
+        """Preview a dataset (JSONL, CSV, or parquet). Returns column names and sample rows."""
+        try:
+            import csv
+            import json as pyjson
+            p = Path(path)
+            if not p.exists():
+                return {'success': False, 'error': 'File not found'}
+
+            if p.suffix == '.csv':
+                with open(p, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    rows = []
+                    for i, row in enumerate(reader):
+                        if i >= max_rows:
+                            break
+                        rows.append(row)
+                    return {'success': True, 'columns': list(reader.fieldnames or []), 'rows': rows}
+
+            elif p.suffix == '.jsonl' or p.suffix == '.json':
+                rows = []
+                columns = set()
+                with open(p, 'r', encoding='utf-8') as f:
+                    for i, line in enumerate(f):
+                        if i >= max_rows:
+                            break
+                        line = line.strip()
+                        if line:
+                            try:
+                                row = pyjson.loads(line)
+                                if isinstance(row, dict):
+                                    rows.append(row)
+                                    columns.update(row.keys())
+                            except pyjson.JSONDecodeError:
+                                pass
+                return {'success': True, 'columns': sorted(columns), 'rows': rows}
+
+            elif p.suffix == '.parquet':
+                try:
+                    import pandas as pd
+                    df = pd.read_parquet(p)
+                    cols = list(df.columns)
+                    sample = df.head(max_rows).to_dict(orient='records')
+                    return {'success': True, 'columns': cols, 'rows': sample}
+                except ImportError:
+                    return {'success': False, 'error': 'pandas required for parquet preview'}
+
+            elif p.is_dir():
+                # Try to load as HF dataset
+                try:
+                    from datasets import load_from_disk
+                    ds = load_from_disk(str(p))
+                    cols = ds.column_names
+                    rows = ds.select(range(min(max_rows, len(ds)))).to_list()
+                    return {'success': True, 'columns': cols, 'rows': rows}
+                except Exception:
+                    return {'success': False, 'error': 'Not a valid dataset directory'}
+
+            return {'success': False, 'error': f'Unsupported file format: {p.suffix}'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Platform Check (training-specific)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def train_platform_check(self) -> dict:
+        """Check platform compatibility for training."""
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train.py')
+        python = self._get_python()
+        if not python:
+            return {'success': False, 'error': 'Python 3 not found'}
+        result = self._run_script(script, ['--platform-check'], timeout=60_000)
+        if result['code'] == 0 and result['stdout']:
+            for line in reversed(result['stdout'].strip().split('\n')):
+                if line.startswith('{'):
+                    try:
+                        data = json.loads(line)
+                        if data.get('type') == 'platform_check':
+                            return {'success': True, **data}
+                    except Exception:
+                        pass
+        return {'success': False, 'error': result.get('stderr', 'Unknown error')}
+
+    # ═══════════════════════════════════════════════════════════════════════
     # Docs
     # ═══════════════════════════════════════════════════════════════════════
 

@@ -43,3 +43,6 @@ components/recents.json
 *.egg-info/
 dist/
 build/
+
+# model training artifacts
+models/

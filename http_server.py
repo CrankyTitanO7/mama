@@ -156,6 +156,55 @@ SHIM_SCRIPT = """
     // ═══════════ Docs ═══════════
     readDocsFile: async (filename) => { try { return await (await api()).read_docs_file(filename); } catch(e) { return null; } },
 
+    // ═══════════ Training ═══════════
+    trainStart: async (configJson) => {
+      try { return await (await api()).train_start(configJson); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    trainPause: async (outputDir) => {
+      try { return await (await api()).train_pause(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    trainResume: async (outputDir) => {
+      try { return await (await api()).train_resume(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    trainCancel: async (outputDir) => {
+      try { return await (await api()).train_cancel(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    trainStatus: async (outputDir) => {
+      try { return await (await api()).train_status(outputDir); } catch(e) { return { running: false, error: String(e) }; }
+    },
+    trainListCheckpoints: async (outputDir) => {
+      try { return await (await api()).train_list_checkpoints(outputDir); } catch(e) { return []; }
+    },
+    trainPlatformCheck: async () => {
+      try { return await (await api()).train_platform_check(); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    onTrainingProgress: (callback) => { electron._trainingProgressCallback = callback; },
+    offTrainingProgress: () => { electron._trainingProgressCallback = null; },
+
+    // ═══════════ Model Management ═══════════
+    modelDownload: async (modelId, outputDir, revision) => {
+      try { return await (await api()).model_download(modelId, outputDir || '', revision || 'main'); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    modelDownloadCancel: async () => {
+      try { return await (await api()).model_download_cancel(); } catch(e) { return { success: false }; }
+    },
+    modelList: async (modelsDir) => {
+      try { return await (await api()).model_list(modelsDir || ''); } catch(e) { return []; }
+    },
+    modelCheckCompatibility: async (modelId) => {
+      try { return await (await api()).model_check_compatibility(modelId); } catch(e) { return { compatible: false, error: String(e) }; }
+    },
+    modelMergeAdapter: async (baseModel, adapter, output) => {
+      try { return await (await api()).model_merge_adapter(baseModel, adapter, output); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    onModelProgress: (callback) => { electron._modelProgressCallback = callback; },
+    offModelProgress: () => { electron._modelProgressCallback = null; },
+
+    // ═══════════ Dataset ═══════════
+    datasetPreview: async (path, maxRows) => {
+      try { return await (await api()).dataset_preview(path, maxRows || 5); } catch(e) { return { success: false, error: String(e) }; }
+    },
+
     // ═══════════ Before Quit ═══════════
     onBeforeQuit: (callback) => { /* no-op in pywebview */ },
   };

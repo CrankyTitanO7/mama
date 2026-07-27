@@ -11,11 +11,13 @@ class Topbar {
 
   getNavItems() {
     return [
-      { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
+      { label: 'fine-tune', page: 'finetune.html', key: 'finetune' },
+      { label: 'training', page: 'training.html', key: 'training' },
       { label: 'project', page: 'project.html', key: 'project' },
-      { label: '✏️ multimodel designer', page: 'multicon.html', key: 'multicon' },
-      { label: 'database explorer', page: 'db_explorer.html', key: 'db_explorer' },
-      { label: 'export model', page: 'export.html', key: 'export' }
+      { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
+      { label: 'export model', page: 'export.html', key: 'export' },
+      { label: '✏️ designer', page: 'multicon.html', key: 'multicon' },
+      { label: 'database', page: 'db_explorer.html', key: 'db_explorer' }
     ];
   }
 
@@ -34,7 +36,9 @@ class Topbar {
     const keyMap = {
       'loader': 'mission_control',
       'db_explorer': 'db_explorer',
-      'error': 'settings'
+      'error': 'settings',
+      'finetune': 'finetune',
+      'training': 'training',
     };
     return keyMap[this.currentPage] || this.currentPage;
   }

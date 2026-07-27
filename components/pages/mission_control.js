@@ -57,6 +57,124 @@ const MC = (() => {
     return false;
   }
 
+  // ── Helpers ────────────────────────────────────────────────
+  function humanFlops(flops) {
+    if (flops >= 1e12) return (flops / 1e12).toFixed(3) + ' TFLOPS';
+    if (flops >= 1e9) return (flops / 1e9).toFixed(3) + ' GFLOPS';
+    return flops.toFixed(1) + ' FLOPS';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ── Render structured FLOPS results ──────────────────────────
+  function renderFlopsResults(data, container, exportBtn) {
+    container.style.display = 'block';
+    container.dataset.rawJson = JSON.stringify(data, null, 2);
+
+    const pct = data.pct_of_peak;
+    const peakTflops = data.peak_tflops;
+
+    // Color-code utilization
+    let utilColor, utilLabel;
+    if (pct === null || pct === undefined) {
+      utilColor = '#aaa';
+      utilLabel = 'Unknown chip — no peak data';
+    } else if (pct >= 30) {
+      utilColor = '#4caf50';
+      utilLabel = 'Good utilization';
+    } else if (pct >= 10) {
+      utilColor = '#ffc107';
+      utilLabel = 'Moderate utilization';
+    } else {
+      utilColor = '#f44336';
+      utilLabel = 'Low utilization (expected for small models)';
+    }
+
+    // Build utilization bar
+    const barPct = pct !== null && pct !== undefined ? Math.min(pct, 100) : 0;
+
+    container.innerHTML = `
+      <div style="background:#2a2a2a;border:1px solid #444;border-radius:8px;padding:1.25rem;margin-top:0.5rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem">
+          <div>
+            <div style="color:#888;font-size:0.75rem;text-transform:uppercase">Model</div>
+            <div style="color:#eee;font-size:1rem">${escapeHtml(data.model)}</div>
+          </div>
+          <div>
+            <div style="color:#888;font-size:0.75rem;text-transform:uppercase">Device</div>
+            <div style="color:#eee;font-size:1rem">${escapeHtml(data.device)}</div>
+          </div>
+          <div>
+            <div style="color:#888;font-size:0.75rem;text-transform:uppercase">Batch Size</div>
+            <div style="color:#eee;font-size:1rem">${data.batch_size}</div>
+          </div>
+          <div>
+            <div style="color:#888;font-size:0.75rem;text-transform:uppercase">Input Size</div>
+            <div style="color:#eee;font-size:1rem">${data.input_size}×${data.input_size}</div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid #444;padding-top:1rem;margin-bottom:1rem">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+            <div>
+              <div style="color:#888;font-size:0.75rem;text-transform:uppercase">FLOPs / Pass</div>
+              <div style="color:#eee;font-size:1rem">${humanFlops(data.flops_per_pass)}</div>
+            </div>
+            <div>
+              <div style="color:#888;font-size:0.75rem;text-transform:uppercase">Parameters</div>
+              <div style="color:#eee;font-size:1rem">${(data.params / 1e6).toFixed(2)} M</div>
+            </div>
+            <div>
+              <div style="color:#888;font-size:0.75rem;text-transform:uppercase">Achieved FLOPS</div>
+              <div style="color:#4caf50;font-size:1.1rem;font-weight:bold">${humanFlops(data.achieved_flops)}</div>
+            </div>
+            <div>
+              <div style="color:#888;font-size:0.75rem;text-transform:uppercase">Throughput</div>
+              <div style="color:#eee;font-size:1rem">${data.inferences_per_sec.toFixed(1)} inf/s</div>
+            </div>
+          </div>
+        </div>
+
+        ${peakTflops ? `
+        <div style="border-top:1px solid #444;padding-top:1rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <div>
+              <span style="color:#888;font-size:0.75rem;text-transform:uppercase">Chip: </span>
+              <span style="color:#eee;font-size:0.9rem">${escapeHtml(data.chip_name || 'Unknown')}</span>
+            </div>
+            <div>
+              <span style="color:#888;font-size:0.75rem;text-transform:uppercase">Peak: </span>
+              <span style="color:#eee;font-size:0.9rem">${peakTflops.toFixed(1)} TFLOPS</span>
+            </div>
+          </div>
+          <div style="background:#444;border-radius:4px;height:20px;overflow:hidden;margin-bottom:0.3rem">
+            <div style="background:${utilColor};width:${barPct}%;height:100%;border-radius:4px;transition:width 0.5s ease"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:${utilColor};font-size:0.85rem;font-weight:bold">${pct.toFixed(1)}% of peak</span>
+            <span style="color:#aaa;font-size:0.8rem">${utilLabel}</span>
+          </div>
+        </div>
+        ` : `
+        <div style="border-top:1px solid #444;padding-top:0.75rem;color:#888;font-size:0.85rem">
+          ⚠ Peak FLOPS data not available for this chip. Compare manually to your spec sheet.
+        </div>
+        `}
+
+        <div style="border-top:1px solid #444;padding-top:0.75rem;margin-top:1rem;color:#666;font-size:0.75rem">
+          ${data.iterations} iterations × ${data.warmup} warmup — ${data.elapsed_seconds.toFixed(3)}s elapsed
+        </div>
+      </div>
+    `;
+
+    // Show export button
+    exportBtn.style.display = 'inline-block';
+  }
+
   // ── Render ────────────────────────────────────────────────
   async function render(target) {
     container = target;
@@ -157,16 +275,43 @@ const MC = (() => {
     const flopsDesc = document.createElement('p');
     flopsDesc.style.color = '#aaa';
     flopsDesc.style.fontSize = '0.85rem';
-    flopsDesc.textContent = 'Measures achieved FLOPS on the selected GPU using ResNet-18. Results below the chip\'s peak spec (10-40% of peak) are expected.';
+    flopsDesc.textContent = 'Measures achieved FLOPS on the selected GPU. Results below the chip\'s peak spec (10-40% of peak) are expected.';
     flopsSection.appendChild(flopsDesc);
 
-    // Batch size input row
+    // Controls row: model dropdown, batch size, run button
     const flopsControls = document.createElement('div');
     flopsControls.style.display = 'flex';
     flopsControls.style.alignItems = 'center';
     flopsControls.style.gap = '0.75rem';
     flopsControls.style.marginTop = '0.5rem';
+    flopsControls.style.flexWrap = 'wrap';
 
+    // Model selector
+    const modelLabel = document.createElement('label');
+    modelLabel.textContent = 'Model:';
+    modelLabel.style.color = '#ccc';
+
+    const modelSelect = document.createElement('select');
+    modelSelect.style.padding = '0.3rem 0.5rem';
+    modelSelect.style.border = '1px solid #555';
+    modelSelect.style.borderRadius = '4px';
+    modelSelect.style.backgroundColor = '#333';
+    modelSelect.style.color = '#eee';
+    modelSelect.style.fontSize = '0.9rem';
+
+    const models = [
+      { value: 'resnet18', label: 'ResNet-18' },
+      { value: 'resnet50', label: 'ResNet-50' },
+      { value: 'vit_b_16', label: 'ViT-B/16' },
+    ];
+    models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.value;
+      opt.textContent = m.label;
+      modelSelect.appendChild(opt);
+    });
+
+    // Batch size input
     const batchLabel = document.createElement('label');
     batchLabel.textContent = 'Batch size:';
     batchLabel.style.color = '#ccc';
@@ -189,48 +334,186 @@ const MC = (() => {
     flopsRunBtn.textContent = '▶ Run FLOPS Test';
     flopsRunBtn.style.marginTop = '0';
 
-    // FLOPS status display
-    const flopsStatus = document.createElement('div');
-    flopsStatus.className = 'mc-flops-status';
-    flopsStatus.style.marginTop = '0.75rem';
-    flopsStatus.style.fontFamily = 'monospace';
-    flopsStatus.style.whiteSpace = 'pre-wrap';
-    flopsStatus.style.fontSize = '0.85rem';
-    flopsStatus.style.color = '#aaa';
-
+    flopsControls.appendChild(modelLabel);
+    flopsControls.appendChild(modelSelect);
     flopsControls.appendChild(batchLabel);
     flopsControls.appendChild(batchInput);
     flopsControls.appendChild(flopsRunBtn);
     flopsSection.appendChild(flopsControls);
-    flopsSection.appendChild(flopsStatus);
+
+    // ── Progress Modal Overlay ──────────────────────────────────
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'mc-flops-modal';
+    modalOverlay.style.cssText = `
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const modalBox = document.createElement('div');
+    modalBox.style.cssText = `
+      background: #222;
+      border: 1px solid #555;
+      border-radius: 8px;
+      padding: 2rem;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+    `;
+
+    const modalSpinner = document.createElement('div');
+    modalSpinner.textContent = '⏳';
+    modalSpinner.style.fontSize = '2.5rem';
+    modalSpinner.style.marginBottom = '1rem';
+
+    const modalTitle = document.createElement('div');
+    modalTitle.textContent = 'Running FLOPS Benchmark…';
+    modalTitle.style.fontSize = '1.1rem';
+    modalTitle.style.fontWeight = 'bold';
+    modalTitle.style.marginBottom = '0.75rem';
+    modalTitle.style.color = '#eee';
+
+    const modalProgress = document.createElement('div');
+    modalProgress.style.cssText = `
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 1rem;
+      min-height: 1.5em;
+    `;
+
+    const modalCancelBtn = document.createElement('button');
+    modalCancelBtn.textContent = '✕ Cancel';
+    modalCancelBtn.style.cssText = `
+      padding: 0.5rem 1.2rem;
+      border: 1px solid #f44336;
+      border-radius: 4px;
+      background: transparent;
+      color: #f44336;
+      cursor: pointer;
+      font-size: 0.85rem;
+    `;
+    modalCancelBtn.addEventListener('mouseenter', () => {
+      modalCancelBtn.style.background = '#f4433622';
+    });
+    modalCancelBtn.addEventListener('mouseleave', () => {
+      modalCancelBtn.style.background = 'transparent';
+    });
+
+    modalBox.appendChild(modalSpinner);
+    modalBox.appendChild(modalTitle);
+    modalBox.appendChild(modalProgress);
+    modalBox.appendChild(modalCancelBtn);
+    modalOverlay.appendChild(modalBox);
+    document.body.appendChild(modalOverlay);
+
+    // ── Results display ─────────────────────────────────────────
+    const flopsResults = document.createElement('div');
+    flopsResults.className = 'mc-flops-results';
+    flopsResults.style.marginTop = '1rem';
+    flopsResults.style.display = 'none';
+
+    // Export button (hidden until results available)
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'mc-run-btn';
+    exportBtn.textContent = '💾 Export Results';
+    exportBtn.style.marginTop = '0.75rem';
+    exportBtn.style.display = 'none';
+    exportBtn.style.backgroundColor = '#795548';
+
+    flopsSection.appendChild(flopsResults);
+    flopsSection.appendChild(exportBtn);
     container.appendChild(flopsSection);
 
-    // FLOPS test runner
+    // ── FLOPS test runner ───────────────────────────────────────
     flopsRunBtn.addEventListener('click', async () => {
       const batchSize = Math.max(1, parseInt(batchInput.value, 10) || 1);
+      const model = modelSelect.value;
+
+      // Reset UI
+      flopsResults.style.display = 'none';
+      exportBtn.style.display = 'none';
       flopsRunBtn.disabled = true;
       flopsRunBtn.textContent = '⏳ Running…';
-      flopsStatus.textContent = '';
-      flopsStatus.style.color = '#aaa';
+
+      // Show modal
+      modalOverlay.style.display = 'flex';
+      modalProgress.textContent = 'Starting…';
+      modalCancelBtn.disabled = false;
+      modalCancelBtn.style.opacity = '1';
+
+      // Cancel handler
+      const onCancel = () => {
+        modalOverlay.style.display = 'none';
+        flopsRunBtn.disabled = false;
+        flopsRunBtn.textContent = '▶ Run FLOPS Test';
+      };
+      modalCancelBtn.onclick = onCancel;
 
       try {
-        const result = await window.electron.runFlopsTest(batchSize);
+        // Run with JSON output for structured parsing
+        const result = await window.electron.runFlopsTest(batchSize, model, true);
         const output = result.stdout || '';
         const err = result.stderr || '';
 
+        // Hide modal
+        modalOverlay.style.display = 'none';
+
         if (result.code === 0 && output) {
-          flopsStatus.textContent = output;
-          flopsStatus.style.color = '#4caf50';
+          // Try to parse JSON result
+          let data;
+          try {
+            // Find JSON in output (it's the last line with --json flag)
+            const lines = output.trim().split('\n');
+            const jsonLine = lines.find(l => l.startsWith('{') && l.endsWith('}'));
+            data = jsonLine ? JSON.parse(jsonLine) : null;
+          } catch (e) {
+            data = null;
+          }
+
+          if (data) {
+            renderFlopsResults(data, flopsResults, exportBtn);
+          } else {
+            // Fallback: show raw output
+            flopsResults.style.display = 'block';
+            flopsResults.innerHTML = `<pre style="color:#4caf50;font-family:monospace;font-size:0.85rem;white-space:pre-wrap">${escapeHtml(output)}</pre>`;
+          }
         } else {
-          flopsStatus.textContent = err || output || 'FLOPS test failed.';
-          flopsStatus.style.color = '#f44336';
+          flopsResults.style.display = 'block';
+          flopsResults.innerHTML = `<pre style="color:#f44336;font-family:monospace;font-size:0.85rem;white-space:pre-wrap">${escapeHtml(err || output || 'FLOPS test failed.')}</pre>`;
         }
       } catch (e) {
-        flopsStatus.textContent = `Error: ${e.message}`;
-        flopsStatus.style.color = '#f44336';
+        modalOverlay.style.display = 'none';
+        flopsResults.style.display = 'block';
+        flopsResults.innerHTML = `<pre style="color:#f44336;font-family:monospace;font-size:0.85rem;white-space:pre-wrap">Error: ${escapeHtml(e.message)}</pre>`;
       } finally {
         flopsRunBtn.disabled = false;
         flopsRunBtn.textContent = '▶ Run FLOPS Test';
+      }
+    });
+
+    // ── Export handler ──────────────────────────────────────────
+    exportBtn.addEventListener('click', async () => {
+      const resultText = flopsResults.dataset.rawJson || flopsResults.textContent;
+      if (!resultText) return;
+
+      try {
+        const exportResult = await window.electron.exportFlopsResult(resultText);
+        if (exportResult.success) {
+          exportBtn.textContent = '✅ Exported!';
+          setTimeout(() => {
+            exportBtn.textContent = '💾 Export Results';
+          }, 2000);
+        } else if (exportResult.error) {
+          alert(`Export failed: ${exportResult.error}`);
+        }
+        // If path is null, user cancelled — do nothing
+      } catch (e) {
+        alert(`Export error: ${e.message}`);
       }
     });
   }

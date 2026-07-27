@@ -575,11 +575,73 @@ class MamaApi:
     # FLOPS test
     # ═══════════════════════════════════════════════════════════════════════
 
-    def run_flops_test(self, batch_size: int = 1) -> dict:
-        """Run flops.py benchmark."""
+    def run_flops_test(self, batch_size: int = 1, model: str = "resnet18",
+                       json_output: bool = False) -> dict:
+        """Run flops.py benchmark.
+
+        Args:
+            batch_size: Batch size for dummy input.
+            model: Model name (resnet18, resnet50, vit_b_16).
+            json_output: If True, add --json flag for machine-readable output.
+        """
         script = str(self._python_tests_dir / 'flops.py')
-        args = ['--batch-size', str(batch_size)]
+        args = ['--batch-size', str(batch_size), '--model', model]
+        if json_output:
+            args.append('--json')
         return self._run_script(script, args, timeout=300_000)
+
+    def export_flops_result(self, result_json: str) -> dict:
+        """Export FLOPS benchmark result to a user-chosen file.
+
+        Opens a native file-save dialog and writes the result as JSON or TXT.
+        Returns {success: bool, path: str | null, error: str | null}.
+        """
+        try:
+            # Parse the result to determine format
+            try:
+                data = json.loads(result_json)
+                is_json = True
+            except (json.JSONDecodeError, TypeError):
+                data = {"raw": result_json}
+                is_json = False
+
+            # Open native file-save dialog
+            if sys.platform == 'darwin':
+                # On macOS, use osascript for native dialog
+                from urllib.parse import quote
+                safe_name = quote(f"flops_benchmark_{data.get('model', 'resnet18')}_{int(time.time())}", safe='')
+                script_cmd = (
+                    f'set defaultName to "{safe_name}.json" if {"true" if is_json else "false"} '
+                    f'else "flops_benchmark_{int(time.time())}.txt"\n'
+                    'set outputFile to choose file name with prompt "Save FLOPS Benchmark Result" '
+                    f'default name defaultName\n'
+                    'return POSIX path of outputFile'
+                )
+                result = subprocess.run(
+                    ['osascript', '-e', script_cmd],
+                    capture_output=True, text=True, timeout=120
+                )
+                if result.returncode != 0:
+                    # User cancelled
+                    return {'success': False, 'path': None, 'error': None}
+                save_path = result.stdout.strip()
+            else:
+                # On other platforms, save to a default location
+                from pathlib import Path
+                save_dir = Path.home() / 'Desktop'
+                save_dir.mkdir(parents=True, exist_ok=True)
+                ext = '.json' if is_json else '.txt'
+                save_path = str(save_dir / f"flops_benchmark_{data.get('model', 'resnet18')}_{int(time.time())}{ext}")
+
+            # Write the file
+            content = result_json if is_json else result_json
+            Path(save_path).write_text(content, 'utf-8')
+            logger.info('FLOPS result exported to %s', save_path)
+            return {'success': True, 'path': save_path, 'error': None}
+
+        except Exception as e:
+            logger.error('export_flops_result failed: %s', e)
+            return {'success': False, 'path': None, 'error': str(e)}
 
     # ═══════════════════════════════════════════════════════════════════════
     # Themes

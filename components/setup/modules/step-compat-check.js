@@ -105,18 +105,17 @@
 
           const tbody = document.getElementById('compat-tbody');
           if (tbody) {
-            tbody.innerHTML = checks
-              .filter(c => kv[c.key])
-              .map(c => {
+            tbody.innerHTML = checks.map(c => {
                 const mfr = (S.detected.gpuManufacturer || '').toLowerCase();
                 const notApplicable =
                   (c.key === 'COMPAT_CUDA' && mfr !== 'nvidia') ||
                   (c.key === 'COMPAT_ROCM' && mfr !== 'amd') ||
                   (c.key === 'COMPAT_METAL' && mfr !== 'apple');
                 const status = kv[c.key];
-                const icon   = notApplicable ? '—' : status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : '❌';
-                const msg    = notApplicable ? 'Not applicable for this system.' : (kv[c.key + '_MSG'] || '');
-                const rowClass = notApplicable ? 'setup-status-muted' : '';
+                const present = status != null;
+                const icon   = notApplicable || !present ? '—' : status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : status === 'fail' ? '❌' : '—';
+                const msg    = notApplicable ? 'Not applicable for this system.' : !present ? '' : (kv[c.key + '_MSG'] || status || '');
+                const rowClass = notApplicable || !present ? 'setup-status-muted' : '';
                 return `<tr class="${rowClass}"><td>${icon}</td><td>${U.escapeHtml(c.label)}</td><td class="setup-hint">${U.escapeHtml(msg)}</td></tr>`;
               }).join('');
           }

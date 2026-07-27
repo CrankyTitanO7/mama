@@ -1,117 +1,146 @@
+/**
+ * settings-store.js — user settings persistence
+ *
+ * ELECTRON → PYWBVIEW CONVERSION:
+ * Previously used Node.js fs/path for file I/O in the Electron main process.
+ * Now delegates all filesystem operations to the Python bridge via
+ * window.pywebview.api.*   (MamaApi in bridge.py)
+ *
+ * ── Bridge methods used ────────────────────────────────────────────────────
+ *   settings_read()              →  dict | null
+ *   settings_write(dict)         →  bool
+ *   settings_write_nonbackup(dict) →  bool
+ *   settings_write_with_backup(dict) →  bool
+ *   settings_reset()             →  dict | null
+ *   settings_backup_exists()     →  bool
+ *   settings_restore_backup()    →  dict | null
+ *   settings_descriptions_read() →  dict | null
+ */
+
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
-const TEMPLATE_PATH = path.join(__dirname, '..', '..', 'user', 'template', 'settings.json');
-const DESCRIPTIONS_PATH = path.join(__dirname, '..', '..', 'user', 'template', 'descriptions.json');
-
-/** Strip // line comments for developer-facing template JSON (JSONC-lite). */
-function stripJsonComments(text) {
-  return text
-    .split('\n')
-    .map((line) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('//')) return '';
-      const idx = line.indexOf('//');
-      if (idx === -1) return line;
-      const before = line.slice(0, idx);
-      const quoteCount = (before.match(/"/g) || []).length;
-      if (quoteCount % 2 === 1) return line;
-      return before.replace(/\s+$/, '');
-    })
-    .join('\n');
+function api() {
+  return window.pywebview && window.pywebview.api;
 }
 
-function parseSettingsJson(raw) {
-  return JSON.parse(stripJsonComments(raw));
-}
+// ── Settings ────────────────────────────────────────────────────────────────
 
-function seedSettingsFromTemplate(settingsFilePath) {
-  if (!fs.existsSync(TEMPLATE_PATH)) {
-    console.warn('Settings template missing:', TEMPLATE_PATH);
-    return null;
-  }
-
+async function readSettings() {
   try {
-    const raw = fs.readFileSync(TEMPLATE_PATH, 'utf8');
-    const parsed = parseSettingsJson(raw);
-    fs.mkdirSync(path.dirname(settingsFilePath), { recursive: true });
-    fs.writeFileSync(settingsFilePath, JSON.stringify(parsed, null, 4), 'utf8');
-    return parsed;
-  } catch (e) {
-    console.error('Failed to seed settings from template:', e);
-    return null;
-  }
-}
-
-function ensureUserSettings(settingsFilePath) {
-  if (fs.existsSync(settingsFilePath)) return false;
-  return seedSettingsFromTemplate(settingsFilePath) !== null;
-}
-
-function resetSettingsToTemplate(settingsFilePath) {
-  try {
-    if (fs.existsSync(settingsFilePath)) {
-      fs.copyFileSync(settingsFilePath, settingsFilePath + '.bak');
-    }
-    return seedSettingsFromTemplate(settingsFilePath);
-  } catch (e) {
-    console.error('resetSettingsToTemplate failed:', e);
-    return null;
-  }
-}
-
-function settingsBackupExists(settingsFilePath) {
-  return fs.existsSync(settingsFilePath + '.bak');
-}
-
-function restoreSettingsFromBackup(settingsFilePath) {
-  const bakPath = settingsFilePath + '.bak';
-  if (!fs.existsSync(bakPath)) return null;
-
-  try {
-    fs.copyFileSync(bakPath, settingsFilePath);
-    const raw = fs.readFileSync(settingsFilePath, 'utf8');
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('restoreSettingsFromBackup failed:', e);
-    return null;
-  }
-}
-
-function readSettings(settingsFilePath) {
-  ensureUserSettings(settingsFilePath);
-  try {
-    if (!fs.existsSync(settingsFilePath)) return null;
-    const raw = fs.readFileSync(settingsFilePath, 'utf8');
-    return JSON.parse(raw);
+    const a = api();
+    if (!a) return null;
+    return await a.settings_read();
   } catch (e) {
     console.error('readSettings failed:', e);
     return null;
   }
 }
 
-function readDescriptions() {
+async function writeSettings(settings) {
   try {
-    if (!fs.existsSync(DESCRIPTIONS_PATH)) return null;
-    return JSON.parse(fs.readFileSync(DESCRIPTIONS_PATH, 'utf8'));
+    const a = api();
+    if (!a) return false;
+    return await a.settings_write(settings);
+  } catch (e) {
+    console.error('writeSettings failed:', e);
+    return false;
+  }
+}
+
+async function writeSettingsNoBackup(settings) {
+  try {
+    const a = api();
+    if (!a) return false;
+    return await a.settings_write_nonbackup(settings);
+  } catch (e) {
+    console.error('writeSettingsNoBackup failed:', e);
+    return false;
+  }
+}
+
+async function writeSettingsWithBackup(settings) {
+  try {
+    const a = api();
+    if (!a) return false;
+    return await a.settings_write_with_backup(settings);
+  } catch (e) {
+    console.error('writeSettingsWithBackup failed:', e);
+    return false;
+  }
+}
+
+async function resetSettings() {
+  try {
+    const a = api();
+    if (!a) return null;
+    return await a.settings_reset();
+  } catch (e) {
+    console.error('resetSettings failed:', e);
+    return null;
+  }
+}
+
+async function settingsBackupExists() {
+  try {
+    const a = api();
+    if (!a) return false;
+    return await a.settings_backup_exists();
+  } catch (e) {
+    console.error('settingsBackupExists failed:', e);
+    return false;
+  }
+}
+
+async function restoreSettingsFromBackup() {
+  try {
+    const a = api();
+    if (!a) return null;
+    return await a.settings_restore_backup();
+  } catch (e) {
+    console.error('restoreSettingsFromBackup failed:', e);
+    return null;
+  }
+}
+
+async function readDescriptions() {
+  try {
+    const a = api();
+    if (!a) return null;
+    return await a.settings_descriptions_read();
   } catch (e) {
     console.error('readDescriptions failed:', e);
     return null;
   }
 }
 
-module.exports = {
-  TEMPLATE_PATH,
-  DESCRIPTIONS_PATH,
-  stripJsonComments,
-  parseSettingsJson,
-  seedSettingsFromTemplate,
-  ensureUserSettings,
-  resetSettingsToTemplate,
-  settingsBackupExists,
-  restoreSettingsFromBackup,
-  readSettings,
-  readDescriptions,
-};
+// ── Exports ─────────────────────────────────────────────────────────────────
+
+// Keep CommonJS exports for compatibility with any remaining Node.js consumers
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    readSettings,
+    writeSettings,
+    writeSettingsNoBackup,
+    writeSettingsWithBackup,
+    resetSettings,
+    settingsBackupExists,
+    restoreSettingsFromBackup,
+    readDescriptions,
+  };
+}
+
+// Also make available globally for non-module (browser) usage
+if (typeof window !== 'undefined') {
+  window.settingsStore = {
+    readSettings,
+    writeSettings,
+    writeSettingsNoBackup,
+    writeSettingsWithBackup,
+    resetSettings,
+    settingsBackupExists,
+    restoreSettingsFromBackup,
+    readDescriptions,
+  };
+}

@@ -8,6 +8,7 @@ All methods are callable from the frontend via window.pywebview.api.*
 import os
 import sys
 import json
+import re
 import subprocess
 import shutil
 import threading
@@ -583,13 +584,42 @@ class MamaApi:
         return themes
 
     def themes_write(self, theme: dict) -> bool:
-        """Write a custom theme to user/themes/."""
+        """Write a custom theme to user/themes/.
+
+        Handles name collisions by appending a numeric suffix if the existing
+        file has a different theme name property.
+        """
         try:
             themes_dir = self._base_dir / 'user' / 'themes'
             themes_dir.mkdir(parents=True, exist_ok=True)
-            name = theme.get('name', 'custom').lower().replace(' ', '-')
-            path = themes_dir / f'{name}.json'
-            path.write_text(json.dumps(theme, indent=4), 'utf-8')
+
+            # Build a safe filename from the name
+            safe_name = theme.get('name', 'custom').lower()
+            safe_name = re.sub(r'[^a-z0-9-]', '-', safe_name)
+            safe_name = re.sub(r'-+', '-', safe_name).strip('-')
+            if not safe_name:
+                safe_name = 'custom-theme'
+
+            file_path = themes_dir / f'{safe_name}.json'
+
+            # Handle name collision: if file exists with a different theme name, append suffix
+            if file_path.exists():
+                try:
+                    existing = json.loads(file_path.read_text('utf-8'))
+                    if existing.get('name') and existing['name'] != theme.get('name'):
+                        counter = 2
+                        while True:
+                            suffixed_name = f'{safe_name}-{counter}'
+                            alt_path = themes_dir / f'{suffixed_name}.json'
+                            if not alt_path.exists():
+                                file_path = alt_path
+                                break
+                            counter += 1
+                except Exception:
+                    # If existing file is corrupt, overwrite it
+                    pass
+
+            file_path.write_text(json.dumps(theme, indent=4), 'utf-8')
             return True
         except Exception as e:
             logger.error('themes_write failed: %s', e)

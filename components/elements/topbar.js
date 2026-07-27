@@ -79,8 +79,10 @@ class Topbar {
         const target = el.getAttribute('data-topbar-nav');
         if (typeof window.handleSettingsNavigation === 'function') {
           await window.handleSettingsNavigation(target);
+        } else if (window.pywebview && window.pywebview.api) {
+          await window.pywebview.api.navigate_to(target);
         } else {
-          await window.electron.navigateTo(target);
+          console.error('No pywebview API bridge — cannot navigate to', target);
         }
       });
     });

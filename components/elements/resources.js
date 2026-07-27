@@ -3,22 +3,13 @@
  *
  * Displays live CPU, RAM, GPU, and VRAM usage with configurable refresh rate.
  *
- * ── Required IPC (add to ipc-handlers.js + preload.js) ────────────────────
+ * ELECTRON → PYWBVIEW CONVERSION:
+ * Previously used window.electron.runSystemCommand() via Electron IPC.
+ * Now delegates command execution to the Python bridge via
+ * window.pywebview.api.run_system_command(cmd, args)
  *
- *   ipc-handlers.js:
- *     ipcMain.handle('run-system-command', async (_event, cmd, args = []) => {
- *       return new Promise((resolve) => {
- *         const proc = spawn(cmd, args, { env: process.env });
- *         let stdout = '', stderr = '';
- *         proc.stdout.on('data', d => stdout += d);
- *         proc.stderr.on('data', d => stderr += d);
- *         proc.on('close', code => resolve({ code: code ?? 0, stdout, stderr }));
- *         proc.on('error', err => resolve({ code: 1, stdout: '', stderr: err.message }));
- *       });
- *     });
- *
- *   preload.js:
- *     runSystemCommand: (cmd, args = []) => ipcRenderer.invoke('run-system-command', cmd, args),
+ * ── Bridge method used ────────────────────────────────────────────────────
+ *   run_system_command(cmd, args) →  { code, stdout, stderr }
  *
  * ── Platform / GPU support ────────────────────────────────────────────────
  *
@@ -111,7 +102,11 @@ function initResourcesWidget(container, opts = {}) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   function cmd(command, args = []) {
-    return window.electron.runSystemCommand(command, args);
+    if (window.pywebview && window.pywebview.api) {
+      return window.pywebview.api.run_system_command(command, args);
+    }
+    console.error('No pywebview API bridge available — cannot run command', command);
+    return { code: 1, stdout: '', stderr: 'No pywebview API bridge' };
   }
 
   function parseFirst(text) {

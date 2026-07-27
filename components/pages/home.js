@@ -119,57 +119,6 @@ function hasProviderUrl(value) {
 
 let activeFullscreen = null;
 
-const FULLSCREEN_MARGIN     = 16;
-const FULLSCREEN_CLOSE_SIZE = 44;
-const FULLSCREEN_CLOSE_GAP  = 8;
-const FULLSCREEN_HEADER     = FULLSCREEN_CLOSE_SIZE + FULLSCREEN_CLOSE_GAP;
-
-function clampStageRect(rect) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const width = Math.max(FULLSCREEN_CLOSE_SIZE, Math.min(rect.width, vw - FULLSCREEN_MARGIN * 2));
-  const height = Math.max(FULLSCREEN_HEADER + 80, Math.min(rect.height, vh - FULLSCREEN_MARGIN * 2));
-  let top  = Math.min(Math.max(FULLSCREEN_MARGIN, rect.top),  vh - FULLSCREEN_MARGIN - height);
-  let left = Math.min(Math.max(FULLSCREEN_MARGIN, rect.left), vw - FULLSCREEN_MARGIN - width);
-  return { top, left, width, height };
-}
-
-function computeFullscreenStageRect(orientation) {
-  const maxW        = window.innerWidth  - FULLSCREEN_MARGIN * 2;
-  const maxContentH = window.innerHeight - FULLSCREEN_MARGIN * 2 - FULLSCREEN_HEADER;
-
-  let contentW, contentH;
-  if (orientation === 'portrait') {
-    contentH = Math.min(maxContentH, (maxW * 16) / 9);
-    contentW = (contentH * 9) / 16;
-    if (contentW > maxW) { contentW = maxW; contentH = (contentW * 16) / 9; }
-  } else {
-    contentW = maxW;
-    contentH = maxContentH;
-  }
-
-  return clampStageRect({
-    top:    (window.innerHeight - contentH - FULLSCREEN_HEADER) / 2,
-    left:   (window.innerWidth  - contentW) / 2,
-    width:  contentW,
-    height: contentH + FULLSCREEN_HEADER,
-  });
-}
-
-function stageRectFromSlot(slotRect) {
-  return clampStageRect({
-    top: slotRect.top, left: slotRect.left,
-    width: slotRect.width, height: slotRect.height + FULLSCREEN_HEADER,
-  });
-}
-
-function applyStageRect(stage, rect) {
-  stage.style.top    = `${rect.top}px`;
-  stage.style.left   = `${rect.left}px`;
-  stage.style.width  = `${rect.width}px`;
-  stage.style.height = `${rect.height}px`;
-}
-
 function onFullscreenKeyDown(event) {
   if (event.key === 'Escape' && event.shiftKey) {
     event.preventDefault();
@@ -180,69 +129,66 @@ function onFullscreenKeyDown(event) {
 function enterEmbedFullscreen(widgetRoot) {
   if (activeFullscreen) return;
 
-  const slot  = widgetRoot.querySelector('.embed-widget-slot');
+  const slot = widgetRoot.querySelector('.embed-widget-slot');
   const embed = slot?.firstElementChild;
   if (!embed) return;
 
-  const startRect   = embed.getBoundingClientRect();
-  const orientation = widgetRoot.dataset.orientation || 'landscape';
-  const targetStage = computeFullscreenStageRect(orientation);
+  const startRect = widgetRoot.getBoundingClientRect();
 
   const overlay = document.createElement('div');
   overlay.className = 'embed-fullscreen-overlay';
   overlay.addEventListener('click', () => exitEmbedFullscreen());
 
-  // Stage: flex column so closeBtn + panel divide the pixel height correctly
-  const stage = document.createElement('div');
-  stage.className = 'embed-fullscreen-stage';
-  Object.assign(stage.style, {
-    display:        'flex',
-    flexDirection:  'column',
-    overflow:       'hidden',
-  });
-  stage.addEventListener('click', (e) => e.stopPropagation());
-
-  // Close button: fixed-height row at the top
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'embed-fullscreen-close';
   closeBtn.setAttribute('aria-label', 'Exit fullscreen');
   closeBtn.title = 'Exit fullscreen';
   closeBtn.textContent = '×';
-  Object.assign(closeBtn.style, {
-    flexShrink: '0',
-    height:     `${FULLSCREEN_CLOSE_SIZE}px`,
-  });
-  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); exitEmbedFullscreen(); });
-
-  // Panel: takes all remaining height after the close button
-  const panel = document.createElement('div');
-  panel.className = 'embed-fullscreen-panel';
-  Object.assign(panel.style, {
-    flex:          '1',
-    minHeight:     '0',
-    display:       'flex',
-    flexDirection: 'column',
-    overflow:      'hidden',
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exitEmbedFullscreen();
   });
 
-  applyStageRect(stage, stageRectFromSlot(startRect));
+  const saved = {};
+  ['position', 'top', 'left', 'width', 'height', 'zIndex', 'transition'].forEach(k => {
+    saved[k] = widgetRoot.style[k] || '';
+  });
 
-  panel.appendChild(embed);
-  stage.appendChild(closeBtn);
-  stage.appendChild(panel);
-  overlay.appendChild(stage);
+  widgetRoot.style.position = 'fixed';
+  widgetRoot.style.top = startRect.top + 'px';
+  widgetRoot.style.left = startRect.left + 'px';
+  widgetRoot.style.width = startRect.width + 'px';
+  widgetRoot.style.height = startRect.height + 'px';
+  widgetRoot.style.zIndex = '10001';
+  widgetRoot.style.transition = 'none';
+  void widgetRoot.offsetHeight;
+
+  widgetRoot.style.transition = 'top 0.42s cubic-bezier(0.22, 1, 0.36, 1), left 0.42s cubic-bezier(0.22, 1, 0.36, 1), width 0.42s cubic-bezier(0.22, 1, 0.36, 1), height 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
+
+  const fsBtn = widgetRoot.querySelector('.embed-fullscreen-btn');
+  if (fsBtn) {
+    fsBtn.dataset.origText = fsBtn.textContent;
+    fsBtn.dataset.origTitle = fsBtn.title;
+    fsBtn.textContent = '✕';
+    fsBtn.title = 'Exit fullscreen';
+  }
+
   document.body.appendChild(overlay);
   document.body.classList.add('embed-fullscreen-active');
+  overlay.appendChild(closeBtn);
 
   const onKeyDown = onFullscreenKeyDown;
   document.addEventListener('keydown', onKeyDown, true);
-  activeFullscreen = { overlay, stage, panel, slot, embed, onKeyDown };
+  activeFullscreen = { widget: widgetRoot, overlay, saved, startRect, onKeyDown };
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       overlay.classList.add('is-visible');
-      applyStageRect(stage, targetStage);
+      widgetRoot.style.top = '0';
+      widgetRoot.style.left = '0';
+      widgetRoot.style.width = '100vw';
+      widgetRoot.style.height = '100vh';
     });
   });
 }
@@ -250,27 +196,35 @@ function enterEmbedFullscreen(widgetRoot) {
 function exitEmbedFullscreen() {
   if (!activeFullscreen) return;
 
-  const { overlay, stage, panel, slot, embed, onKeyDown } = activeFullscreen;
+  const { widget, overlay, saved, startRect, onKeyDown } = activeFullscreen;
   document.removeEventListener('keydown', onKeyDown, true);
 
-  const slotRect = slot.getBoundingClientRect();
-  applyStageRect(stage, stageRectFromSlot(slotRect));
+  const fsBtn = widget.querySelector('.embed-fullscreen-btn');
+  if (fsBtn && fsBtn.dataset.origText !== undefined) {
+    fsBtn.textContent = fsBtn.dataset.origText;
+    fsBtn.title = fsBtn.dataset.origTitle || 'Fullscreen';
+  }
+
+  widget.style.transition = 'top 0.42s cubic-bezier(0.22, 1, 0.36, 1), left 0.42s cubic-bezier(0.22, 1, 0.36, 1), width 0.42s cubic-bezier(0.22, 1, 0.36, 1), height 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
+  widget.style.top = startRect.top + 'px';
+  widget.style.left = startRect.left + 'px';
+  widget.style.width = startRect.width + 'px';
+  widget.style.height = startRect.height + 'px';
+
   overlay.classList.remove('is-visible');
 
   let finished = false;
   const finish = () => {
     if (finished) return;
     finished = true;
-    if (embed) slot.appendChild(embed);
+    Object.keys(saved).forEach(k => { widget.style[k] = saved[k]; });
     overlay.remove();
     document.body.classList.remove('embed-fullscreen-active');
     activeFullscreen = null;
   };
 
-  stage.addEventListener('transitionend', (e) => {
-    if (e.propertyName === 'width') finish();
-  }, { once: true });
-  setTimeout(finish, 480);
+  overlay.addEventListener('transitionend', finish, { once: true });
+  setTimeout(finish, 500);
 }
 
 function initEmbedFullscreen(widgetRoot) {
@@ -381,7 +335,13 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
     width:     '100%',
     minHeight: '0',
     border:    'none',
+    opacity:   '0',
   });
+
+  frame.style.transition = 'opacity 0.4s ease';
+  frame.addEventListener('load', () => {
+    frame.style.opacity = '1';
+  }, { once: true });
 
   const widget = createEmbedWidget(frame, orientation);
 

@@ -974,7 +974,7 @@ class MamaApi:
 
     def train_start(self, config_json: str) -> dict:
         """Start a training run from a JSON config string.
-        Streams stdout via IPC callback.
+        Streams stdout via IPC callback. Installs missing deps first.
         """
         try:
             cfg = json.loads(config_json)
@@ -991,10 +991,45 @@ class MamaApi:
         config_path = output_path / 'training_config.json'
         config_path.write_text(json.dumps(cfg, indent=2), 'utf-8')
 
-        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train.py')
         python = self._get_python()
         if not python:
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
+
+        # ── Step 1: Install dependencies (no torch/tf) ─────────────────
+        self._enqueue_emit('_trainingProgressCallback', {
+            'type': 'install_status', 'stage': 'install',
+            'message': 'Checking and installing dependencies...',
+        })
+
+        install_script = str(self._base_dir / 'components' / 'backend' / 'training' / 'install_deps.py')
+        try:
+            install_proc = subprocess.Popen(
+                [python, install_script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            for line in iter(install_proc.stdout.readline, ''):
+                if line:
+                    try:
+                        data = json.loads(line)
+                        data['_stream'] = 'install'
+                        self._enqueue_emit('_trainingProgressCallback', data)
+                    except json.JSONDecodeError:
+                        self._enqueue_emit('_trainingProgressCallback', {
+                            'type': 'install_log', 'text': line.strip(), '_stream': 'install',
+                        })
+            install_proc.wait()
+        except Exception as e:
+            logger.error('install_deps failed: %s', e)
+            return {'success': False, 'error': f'Dependency installation error: {e}'}
+
+        if install_proc.returncode != 0:
+            return {'success': False, 'error': 'Dependency installation failed. Check the Training Monitor for details.'}
+
+        # ── Step 2: Launch training subprocess ────────────────────────
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train.py')
 
         try:
             proc = subprocess.Popen(
@@ -1013,9 +1048,9 @@ class MamaApi:
                         try:
                             data = json.loads(line)
                             data['_stream'] = stream_type
-                            self._emit_training_progress(data)
+                            self._enqueue_emit('_trainingProgressCallback', data)
                         except json.JSONDecodeError:
-                            self._emit_training_progress({
+                            self._enqueue_emit('_trainingProgressCallback', {
                                 'type': stream_type,
                                 'text': line,
                                 '_stream': stream_type,
@@ -1031,7 +1066,7 @@ class MamaApi:
                 proc.wait()
                 stdout_thread.join(timeout=5)
                 stderr_thread.join(timeout=5)
-                self._emit_training_progress({'type': 'done', 'code': proc.returncode or 0})
+                self._enqueue_emit('_trainingProgressCallback', {'type': 'done', 'code': proc.returncode or 0})
                 self._training_process = None
 
             self._training_thread = threading.Thread(target=wait_thread, daemon=True)
@@ -1301,6 +1336,10 @@ class MamaApi:
         """
         import csv
         import json as pyjson
+        import traceback
+
+        def _log(msg):
+            print(f'[dataset_preview] {msg}', flush=True)
 
         def safe_row(r):
             """Convert a single row dict to JSON-safe values, truncating long strings."""
@@ -1316,6 +1355,7 @@ class MamaApi:
             # ── Try local file/directory first ────────────────────────────
             p = Path(path)
             if p.exists():
+                _log(f'local path exists: {p} (suffix={p.suffix})')
                 if p.suffix == '.csv':
                     with open(p, 'r', encoding='utf-8') as f:
                         reader = csv.DictReader(f)
@@ -1324,6 +1364,7 @@ class MamaApi:
                             if i >= max_rows:
                                 break
                             rows.append(safe_row(row))
+                        _log(f'loaded {len(rows)} rows from CSV')
                         return {'success': True, 'columns': list(reader.fieldnames or []), 'rows': rows}
 
                 elif p.suffix in ('.jsonl', '.json'):
@@ -1342,6 +1383,7 @@ class MamaApi:
                                         columns.update(row.keys())
                                 except pyjson.JSONDecodeError:
                                     pass
+                    _log(f'loaded {len(rows)} rows from JSON')
                     return {'success': True, 'columns': sorted(columns), 'rows': rows}
 
                 elif p.suffix == '.parquet':
@@ -1350,6 +1392,7 @@ class MamaApi:
                         df = pd.read_parquet(p)
                         cols = list(df.columns)
                         sample = df.head(max_rows).to_dict(orient='records')
+                        _log(f'loaded {len(sample)} rows from Parquet')
                         return {'success': True, 'columns': cols, 'rows': [safe_row(r) for r in sample]}
                     except ImportError:
                         return {'success': False, 'error': 'pandas required for parquet preview'}
@@ -1357,11 +1400,14 @@ class MamaApi:
                 elif p.is_dir():
                     try:
                         from datasets import load_from_disk
+                        _log('loading dataset directory with load_from_disk...')
                         ds = load_from_disk(str(p))
                         cols = ds.column_names
                         rows = ds.select(range(min(max_rows, len(ds)))).to_list()
+                        _log(f'loaded {len(rows)} rows from dataset directory')
                         return {'success': True, 'columns': cols, 'rows': [safe_row(r) for r in rows]}
-                    except Exception:
+                    except Exception as e:
+                        _log(f'load_from_disk failed: {e}')
                         return {'success': False, 'error': 'Not a valid dataset directory'}
 
                 return {'success': False, 'error': f'Unsupported file format: {p.suffix}'}
@@ -1370,16 +1416,25 @@ class MamaApi:
             import urllib.request as urlreq
             import urllib.error
 
+            _log(f'Hugging Face Hub dataset: {path}')
             try:
+                self._enqueue_emit('_datasetPreviewCallback', {
+                    'stage': 'contacting',
+                    'message': 'Contacting Hugging Face datasets server...'
+                })
+
                 # Step 1: Get dataset info (configs, splits, features)
                 info_url = f'https://datasets-server.huggingface.co/info?dataset={path}'
+                _log(f'fetching dataset info: {info_url}')
                 req = urlreq.Request(info_url, headers={'User-Agent': 'mama/1.0'})
                 with urlreq.urlopen(req, timeout=15) as resp:
                     info_data = pyjson.loads(resp.read().decode('utf-8'))
+                _log('dataset info received OK')
 
                 # Extract config and split
                 configs = info_data.get('dataset_info', {})
                 if not configs:
+                    _log('no configs found in dataset info')
                     return {'success': False, 'error': 'No configs found for dataset'}
 
                 # Pick the first config (usually 'default' or the only one)
@@ -1387,19 +1442,27 @@ class MamaApi:
                 config_info = configs.get(config_name, {}) if isinstance(configs, dict) else configs
                 splits = config_info.get('splits', {}) if isinstance(config_info, dict) else {}
                 split_name = 'train' if 'train' in splits else (next(iter(splits.keys())) if splits else 'train')
+                _log(f'config={config_name}, split={split_name}')
 
                 # Features / columns
                 features = config_info.get('features', {}) if isinstance(config_info, dict) else {}
                 cols = list(features.keys()) if features else []
+
+                self._enqueue_emit('_datasetPreviewCallback', {
+                    'stage': 'rows',
+                    'message': 'Downloading sample rows...'
+                })
 
                 # Step 2: Fetch first rows from the Datasets Server
                 rows_url = (
                     f'https://datasets-server.huggingface.co/rows'
                     f'?dataset={path}&config={config_name}&split={split_name}'
                 )
+                _log(f'fetching sample rows: {rows_url}')
                 req2 = urlreq.Request(rows_url, headers={'User-Agent': 'mama/1.0'})
                 with urlreq.urlopen(req2, timeout=30) as resp2:
                     rows_data = pyjson.loads(resp2.read().decode('utf-8'))
+                _log('sample rows received OK')
 
                 raw_rows = rows_data.get('rows', []) if isinstance(rows_data, dict) else []
                 sample = []
@@ -1409,9 +1472,16 @@ class MamaApi:
                     row_data = item.get('row', item) if isinstance(item, dict) else item
                     if isinstance(row_data, dict):
                         sample.append(safe_row(row_data))
+                _log(f'processed {len(sample)} sample rows')
 
                 if not cols and sample:
                     cols = list(sample[0].keys())
+
+                self._enqueue_emit('_datasetPreviewCallback', {
+                    'stage': 'done',
+                    'message': 'Preview ready'
+                })
+                _log('preview complete, returning result')
 
                 return {
                     'success': True,
@@ -1425,15 +1495,19 @@ class MamaApi:
                 }
 
             except urllib.error.HTTPError as e:
+                _log(f'HTTPError: {e.code} {e.reason}')
                 if e.code == 404:
                     return {'success': False, 'error': f'Dataset "{path}" not found on Hugging Face Hub'}
                 return {'success': False, 'error': f'HF API error ({e.code}): {e.reason}'}
             except urllib.error.URLError as e:
+                _log(f'URLError: {e.reason}')
                 return {'success': False, 'error': f'Network error accessing HF Hub: {e.reason}'}
             except Exception as e:
+                _log(f'unexpected HF error: {e}\n{traceback.format_exc()}')
                 return {'success': False, 'error': f'Hugging Face dataset error: {e}'}
 
         except Exception as e:
+            _log(f'unexpected error: {e}\n{traceback.format_exc()}')
             return {'success': False, 'error': str(e)}
 
     # ═══════════════════════════════════════════════════════════════════════

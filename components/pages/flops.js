@@ -15,6 +15,90 @@
     return d.innerHTML;
   }
 
+  const GLOBAL_PEAKS = [
+    { name: 'B200', peak: 67.0, tier: 'datacenter' },
+    { name: 'B100', peak: 56.0, tier: 'datacenter' },
+    { name: 'H100', peak: 51.0, tier: 'datacenter' },
+    { name: 'H200', peak: 51.0, tier: 'datacenter' },
+    { name: 'RTX 4090', peak: 82.6, tier: 'enthusiast' },
+    { name: 'RTX 4090 D', peak: 73.5, tier: 'enthusiast' },
+    { name: 'RTX 4080 Super', peak: 52.2, tier: 'enthusiast' },
+    { name: 'RTX 4080', peak: 48.7, tier: 'enthusiast' },
+    { name: 'RTX 6000 Ada', peak: 48.7, tier: 'professional' },
+    { name: 'RTX 4070 Ti', peak: 40.1, tier: 'high' },
+    { name: 'RTX 3090', peak: 35.6, tier: 'enthusiast' },
+    { name: 'RTX 3090 Ti', peak: 40.0, tier: 'enthusiast' },
+    { name: 'RTX 3080 Ti', peak: 34.1, tier: 'high' },
+    { name: 'RTX 3080', peak: 29.8, tier: 'high' },
+    { name: 'RTX 5000 Ada', peak: 27.8, tier: 'professional' },
+    { name: 'RX 7900 XTX', peak: 61.4, tier: 'enthusiast' },
+    { name: 'RX 7900 XT', peak: 45.8, tier: 'enthusiast' },
+    { name: 'RX 7900 GRE', peak: 36.5, tier: 'high' },
+    { name: 'RX 7800 XT', peak: 33.5, tier: 'high' },
+    { name: 'RX 7700 XT', peak: 28.0, tier: 'high' },
+    { name: 'RX 6950 XT', peak: 28.2, tier: 'high' },
+    { name: 'RX 6900 XT', peak: 26.9, tier: 'high' },
+    { name: 'RX 6800 XT', peak: 23.0, tier: 'high' },
+    { name: 'RX 6800', peak: 19.3, tier: 'mid' },
+    { name: 'RX 6700 XT', peak: 16.6, tier: 'mid' },
+    { name: 'RX 7600 XT', peak: 20.6, tier: 'mid' },
+    { name: 'RX 7600', peak: 14.9, tier: 'mid' },
+    { name: 'RX 6600 XT', peak: 13.2, tier: 'mid' },
+    { name: 'RX 6600', peak: 10.6, tier: 'mid' },
+    { name: 'RTX 3070 Ti', peak: 21.7, tier: 'high' },
+    { name: 'RTX 3070', peak: 20.3, tier: 'high' },
+    { name: 'RTX 3060 Ti', peak: 16.2, tier: 'mid' },
+    { name: 'RTX 3060', peak: 12.7, tier: 'mid' },
+    { name: 'RTX 4060 Ti', peak: 22.1, tier: 'mid' },
+    { name: 'RTX 4060', peak: 15.0, tier: 'mid' },
+    { name: 'RTX 4070', peak: 29.1, tier: 'high' },
+    { name: 'M2 Ultra', peak: 27.2, tier: 'high' },
+    { name: 'M1 Ultra', peak: 20.8, tier: 'high' },
+    { name: 'M4 Max', peak: 16.4, tier: 'mid' },
+    { name: 'M4 Pro', peak: 8.2, tier: 'mid' },
+    { name: 'M4', peak: 4.6, tier: 'mid' },
+    { name: 'M3 Max', peak: 14.2, tier: 'mid' },
+    { name: 'M3 Pro', peak: 7.2, tier: 'mid' },
+    { name: 'M3', peak: 4.1, tier: 'mid' },
+    { name: 'M2 Max', peak: 13.6, tier: 'mid' },
+    { name: 'M2 Pro', peak: 6.8, tier: 'mid' },
+    { name: 'M2', peak: 3.6, tier: 'mid' },
+    { name: 'M1 Max', peak: 10.4, tier: 'mid' },
+    { name: 'M1 Pro', peak: 5.3, tier: 'mid' },
+    { name: 'M1', peak: 2.6, tier: 'mid' },
+    { name: 'A100', peak: 19.5, tier: 'datacenter' },
+    { name: 'Tesla V100', peak: 14.1, tier: 'datacenter' },
+    { name: 'Tesla T4', peak: 8.1, tier: 'datacenter' },
+    { name: 'A10', peak: 31.2, tier: 'datacenter' },
+    { name: 'A30', peak: 10.3, tier: 'datacenter' },
+    { name: 'A16', peak: 22.0, tier: 'datacenter' },
+  ].sort((a, b) => b.peak - a.peak);
+
+  const GLOBAL_TIERS = [
+    { min: 0, max: 3, label: 'Very Low', color: '#f44336', desc: 'Entry-level or integrated graphics. Suitable for basic inference but not intensive training.' },
+    { min: 3, max: 8, label: 'Low', color: '#ff8a65', desc: 'Lower mid-range. Can run small models for experimentation.' },
+    { min: 8, max: 16, label: 'Moderate', color: '#ffc107', desc: 'Mid-range. Capable of training moderate-sized models.' },
+    { min: 16, max: 32, label: 'High', color: '#8bc34a', desc: 'High-end consumer/professional. Handles most models well.' },
+    { min: 32, max: Infinity, label: 'Very High', color: '#4caf50', desc: 'Enthusiast or datacenter-class. Suitable for large-scale training.' },
+  ];
+
+  function computeGlobalRank(chipPeakTflops, chipName, device) {
+    if (!chipPeakTflops && chipName) {
+      const matched = GLOBAL_PEAKS.find(p => chipName.toLowerCase().includes(p.name.toLowerCase()));
+      if (matched) chipPeakTflops = matched.peak;
+    }
+    if (!chipPeakTflops) {
+      if (device === 'cpu') return { tier: GLOBAL_TIERS[0], rank: 'CPU', pct: 0 };
+      return null;
+    }
+
+    const total = GLOBAL_PEAKS.length;
+    const above = GLOBAL_PEAKS.filter(p => p.peak > chipPeakTflops).length;
+    const pct = Math.round((above / total) * 100);
+    const tier = GLOBAL_TIERS.find(t => chipPeakTflops >= t.min && chipPeakTflops < t.max) || GLOBAL_TIERS[0];
+    return { tier, rank: `Top ${pct}%`, pct, above, total };
+  }
+
   const DESCRIPTIONS = {
     achieved: {
       good: 'Your hardware is delivering strong throughput for this workload. The GPU compute units are being utilized effectively.',
@@ -59,11 +143,19 @@
     const util = interpretUtilization(pct);
     const peak = data.peak_tflops;
 
+    const globalRank = computeGlobalRank(peak, data.chip_name, data.device);
+
     // Overall summary
     if (pct !== null && pct !== undefined) {
       parts.push(`<p>Your hardware achieved <strong>${humanFlops(data.achieved_flops)}</strong>, which is <strong>${pct.toFixed(1)}%</strong> of the chip's theoretical peak of <strong>${peak.toFixed(1)} TFLOPS</strong>. This is rated as <strong style="color:${util.color}">${util.label}</strong> utilization.</p>`);
     } else {
       parts.push(`<p>Your hardware achieved <strong>${humanFlops(data.achieved_flops)}</strong>. Peak FLOPS data is not available in the lookup table for this chip.</p>`);
+    }
+
+    // Global ranking summary
+    if (globalRank) {
+      const t = globalRank.tier;
+      parts.push(`<p>Globally, your chip is rated <strong style="color:${t.color}">${t.label}</strong> — ${t.desc} It ranks <strong>${globalRank.rank}</strong> among ${globalRank.total} reference GPUs.</p>`);
     }
 
     // What affects utilization
@@ -154,6 +246,25 @@
 
     const utilInterp = document.getElementById('flops-util-interp');
     utilInterp.textContent = DESCRIPTIONS.utilization[util.level];
+
+    // Global comparison
+    const globalRank = computeGlobalRank(peak, data.chip_name, data.device);
+    const globalEl = document.getElementById('flops-global');
+    const globalBarEl = document.getElementById('flops-global-bar');
+    const globalDescEl = document.getElementById('flops-global-desc');
+    if (globalRank) {
+      const t = globalRank.tier;
+      globalEl.textContent = t.label;
+      globalEl.style.color = t.color;
+      globalBarEl.style.width = Math.min(100 - globalRank.pct, 100) + '%';
+      globalBarEl.style.background = t.color;
+      globalDescEl.innerHTML = `${t.desc} Your chip is <strong>${globalRank.rank}</strong> of ${globalRank.total} known GPUs by peak FLOPS.`;
+    } else {
+      globalEl.textContent = 'Unknown';
+      globalEl.style.color = '#888';
+      globalBarEl.style.width = '0%';
+      globalDescEl.textContent = 'Chip not found in the global reference table.';
+    }
 
     // Set per-metric descriptions based on context
     const achievedInfo = interpretAchieved(data.achieved_flops, peak);

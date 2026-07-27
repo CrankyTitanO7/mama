@@ -5,6 +5,8 @@
 - <del> user settings are softlocked on first launch. The setup wizard is not run because settings.json doesn't exist yet. </del>
 - flops test: needs python libraries installed, and hardcode
 d lookup table
+- training: no dependencies get installed
+- training: preview doesnt work
 
 ## features
 - finish multimodel designer

@@ -208,6 +208,8 @@ SHIM_SCRIPT = """
     datasetPreview: async (path, maxRows) => {
       try { return await (await api()).dataset_preview(path, maxRows || 5); } catch(e) { return { success: false, error: String(e) }; }
     },
+    onDatasetPreviewProgress: (callback) => { electron._datasetPreviewCallback = callback; },
+    offDatasetPreviewProgress: () => { electron._datasetPreviewCallback = null; },
 
     // ═══════════ Before Quit ═══════════
     onBeforeQuit: (callback) => { /* no-op in pywebview */ },

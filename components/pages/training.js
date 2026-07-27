@@ -181,7 +181,32 @@ const TrainingMonitor = (() => {
   // ── IPC event handler ──────────────────────────────────────────
 
   function onTrainingEvent(chunk) {
-    if (chunk.type === 'metric') {
+    if (chunk.type === 'install_status') {
+      appendLog(`[install] ${chunk.message}`);
+      if (chunk.status === 'installing') {
+        updateStatus(`Installing ${chunk.package}...`, 'loading');
+      } else if (chunk.status === 'done') {
+        updateStatus(`${chunk.package} installed`, 'loading');
+      } else if (chunk.status === 'skipped') {
+        updateStatus(`${chunk.package} already installed`, 'loading');
+      } else if (chunk.status === 'error') {
+        updateStatus(`Install error: ${chunk.message}`, 'error');
+      }
+    } else if (chunk.type === 'install_progress') {
+      updateProgress(chunk.current, chunk.total);
+    } else if (chunk.type === 'install_done') {
+      if (chunk.success) {
+        appendLog('[install] All dependencies verified. Starting training...');
+        updateStatus('Dependencies ready. Launching training...', 'loading');
+      } else {
+        updateStatus(`Dependency installation failed: ${chunk.error}`, 'error');
+        appendLog(`[install] FAILED: ${chunk.error}`);
+        trainingActive = false;
+        updateControlButtons();
+      }
+    } else if (chunk.type === 'install_log') {
+      appendLog(`[install] ${chunk.text || ''}`);
+    } else if (chunk.type === 'metric') {
       metrics.push({
         step: chunk.step,
         loss: chunk.loss,

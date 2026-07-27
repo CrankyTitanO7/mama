@@ -179,31 +179,88 @@ const Finetune = (() => {
     previewDiv.innerHTML = '';
     previewDiv.style.display = 'block';
 
-    // Show a proper loading bar with status
+    // Add progress bar styles once
+    if (!document.getElementById('ft-loading-style')) {
+      const style = document.createElement('style');
+      style.id = 'ft-loading-style';
+      style.textContent = `
+        @keyframes ft-bar-indeterminate {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
+        .ft-ds-progress-track {
+          width: 100%;
+          height: 8px;
+          background: var(--panel-border, #333);
+          border-radius: 4px;
+          overflow: hidden;
+          margin-bottom: 8px;
+        }
+        .ft-ds-progress-bar {
+          width: 25%;
+          height: 100%;
+          background: var(--active-color, #00d4ff);
+          border-radius: 4px;
+          animation: ft-bar-indeterminate 1.5s ease-in-out infinite;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Show progress bar
     const loadingStatus = isHub
       ? 'Fetching dataset metadata from Hugging Face Hub...'
       : 'Scanning local dataset files...';
     const loadingHTML = `
       <div class="ft-ds-loading">
-        <div class="ft-ds-loading-status" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--body-color);">
-          <span style="display:inline-block;width:16px;height:16px;border:2px solid var(--active-color);border-top-color:transparent;border-radius:50%;animation:ft-spin 0.8s linear infinite"></span>
+        <div class="ft-ds-progress-track">
+          <div class="ft-ds-progress-bar" id="ft-ds-progress-bar"></div>
+        </div>
+        <div class="ft-ds-loading-status" style="font-size:13px;color:var(--body-color);">
           ${escapeHtml(loadingStatus)}
         </div>
       </div>
     `;
     previewDiv.innerHTML = loadingHTML;
 
-    // Add spinner animation once
-    if (!document.getElementById('ft-loading-style')) {
-      const style = document.createElement('style');
-      style.id = 'ft-loading-style';
-      style.textContent =
-        '@keyframes ft-spin { to { transform: rotate(360deg); } }';
-      document.head.appendChild(style);
+    // Update progress text on events from backend
+    const progressStatusEl = previewDiv.querySelector('.ft-ds-loading-status');
+    const progressBarEl = document.getElementById('ft-ds-progress-bar');
+    let progressTimer;
+
+    if (isHub && window.electron.onDatasetPreviewProgress) {
+      window.electron.onDatasetPreviewProgress((chunk) => {
+        if (progressStatusEl && chunk.message) {
+          progressStatusEl.textContent = chunk.message;
+        }
+        if (chunk.stage === 'done' && progressBarEl) {
+          progressBarEl.style.animation = 'none';
+          progressBarEl.style.width = '100%';
+        }
+      });
+    } else if (isHub) {
+      // Fallback: pulse the bar manually if no progress callback
+      const messages = [
+        'Contacting Hugging Face datasets server...',
+        'Fetching dataset info...',
+        'Downloading sample rows...',
+      ];
+      let idx = 0;
+      progressTimer = setInterval(() => {
+        if (idx < messages.length && progressStatusEl) {
+          progressStatusEl.textContent = messages[idx++];
+        }
+      }, 3000);
     }
 
     try {
+      if (progressTimer) clearInterval(progressTimer);
       const result = await window.electron.datasetPreview(path, 5);
+      if (result && result.success && progressBarEl) {
+        progressBarEl.style.animation = 'none';
+        progressBarEl.style.width = '100%';
+        setTimeout(() => { progressBarEl.style.width = '0%'; }, 600);
+      }
       if (!result || !result.success) {
         const errMsg = result ? result.error : 'null response from backend';
         previewDiv.innerHTML = `<div class="ft-error">${escapeHtml(errMsg || 'Unknown error')}</div>`;

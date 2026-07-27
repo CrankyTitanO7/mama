@@ -29,6 +29,11 @@ class MamaApi:
         self._window = None
         self._server_port = server_port
 
+        # Thread-safe emit queue: background threads push, main thread flushes
+        self._emit_queue: list = []
+        self._emit_lock = threading.Lock()
+        self._emit_timer: Optional[threading.Timer] = None
+
         # Template paths
         self._template_dir = self._base_dir / 'user' / 'template'
         self._descriptions_path = self._template_dir / 'descriptions.json'
@@ -49,6 +54,13 @@ class MamaApi:
     def set_window(self, window):
         """Give the API a reference to the pywebview window for evaluate_js."""
         self._window = window
+        # Start periodic emit queue flusher on the main thread
+        try:
+            self._emit_timer = threading.Timer(0.1, self.on_emit_tick)
+            self._emit_timer.daemon = True
+            self._emit_timer.start()
+        except Exception:
+            pass
 
     def on_quit(self):
         """Persist the open folder into recents and clear it."""
@@ -295,21 +307,18 @@ class MamaApi:
     # Navigation
     # ═══════════════════════════════════════════════════════════════════════
 
-    def navigate_to(self, page: str) -> bool:
+    def navigate_to(self, page: str) -> None:
         """Navigate the pywebview window to a different page.
         page is a relative path like 'public/settings.html' or a full URL.
+        Returns None to avoid pywebview callback issues when page navigates away.
         """
         if self._window:
-            # If it's a relative path, construct the full URL
             if not page.startswith('http://') and not page.startswith('https://') and not page.startswith('file://'):
-                # Remove leading ../ or ./ or just use as-is relative to base
                 clean_page = page.lstrip('./')
                 url = f'http://127.0.0.1:{self._server_port}/{clean_page}'
             else:
                 url = page
             self._window.load_url(url)
-            return True
-        return False
 
     def resolve_public_url(self, filename: str, query: dict = None) -> str:
         """Resolve a public file URL."""
@@ -539,20 +548,56 @@ class MamaApi:
             self._emit_install_progress({'type': 'done', 'code': 1})
             return {'code': 1}
 
-    def _emit_install_progress(self, chunk: dict):
-        """Emit install progress to the frontend via evaluate_js."""
+    # ── Thread-safe emit queue ──────────────────────────────────────────────
+
+    def _enqueue_emit(self, callback_name: str, chunk: dict):
+        """Push a message to the emit queue; flushed from the main thread."""
+        with self._emit_lock:
+            self._emit_queue.append((callback_name, chunk))
+        # Try to flush immediately if on the main thread, otherwise schedule
         if self._window:
-            js = f"""
-            (function() {{
-                if (window.electron && window.electron._installProgressCallback) {{
-                    window.electron._installProgressCallback({json.dumps(chunk)});
-                }}
-            }})();
-            """
+            try:
+                import threading as _th
+                if _th.current_thread() is _th.main_thread():
+                    self._flush_emit_queue()
+            except Exception:
+                pass
+
+    def _flush_emit_queue(self):
+        """Flush all pending emits via evaluate_js (must be called from main thread)."""
+        if not self._window:
+            return
+        with self._emit_lock:
+            items = list(self._emit_queue)
+            self._emit_queue.clear()
+        for callback_name, chunk in items:
+            js = (
+                f"(function(){{"
+                f"var cb=window.electron&&window.electron.{callback_name};"
+                f"if(cb)cb({json.dumps(chunk)});"
+                f"}})();"
+            )
             try:
                 self._window.evaluate_js(js)
             except Exception as e:
-                logger.debug('Failed to emit install progress: %s', e)
+                logger.debug('emit %s failed: %s', callback_name, e)
+
+    def on_emit_tick(self):
+        """Periodic tick called from pywebview to flush emits.
+        Called from the main thread by a recurring timer.
+        """
+        self._flush_emit_queue()
+        # Re-schedule
+        try:
+            self._emit_timer = threading.Timer(0.1, self.on_emit_tick)
+            self._emit_timer.daemon = True
+            self._emit_timer.start()
+        except Exception:
+            pass
+
+    def _emit_install_progress(self, chunk: dict):
+        """Emit install progress to the frontend."""
+        self._enqueue_emit('_installProgressCallback', chunk)
 
     # ═══════════════════════════════════════════════════════════════════════
     # Import test
@@ -925,18 +970,7 @@ class MamaApi:
     _training_thread: Optional[threading.Thread] = None
 
     def _emit_training_progress(self, chunk: dict):
-        if self._window:
-            js = f"""
-            (function() {{
-                if (window.electron && window.electron._trainingProgressCallback) {{
-                    window.electron._trainingProgressCallback({json.dumps(chunk)});
-                }}
-            }})();
-            """
-            try:
-                self._window.evaluate_js(js)
-            except Exception as e:
-                logger.debug('Failed to emit training progress: %s', e)
+        self._enqueue_emit('_trainingProgressCallback', chunk)
 
     def train_start(self, config_json: str) -> dict:
         """Start a training run from a JSON config string.
@@ -1094,18 +1128,7 @@ class MamaApi:
     _model_download_process: Optional[subprocess.Popen] = None
 
     def _emit_model_progress(self, chunk: dict):
-        if self._window:
-            js = f"""
-            (function() {{
-                if (window.electron && window.electron._modelProgressCallback) {{
-                    window.electron._modelProgressCallback({json.dumps(chunk)});
-                }}
-            }})();
-            """
-            try:
-                self._window.evaluate_js(js)
-            except Exception as e:
-                logger.debug('Failed to emit model progress: %s', e)
+        self._enqueue_emit('_modelProgressCallback', chunk)
 
     def model_download(self, model_id: str, output_dir: str = '', revision: str = 'main') -> dict:
         """Download a model from HF Hub with progress streaming."""
@@ -1250,12 +1273,44 @@ class MamaApi:
     # Dataset Preview
     # ═══════════════════════════════════════════════════════════════════════
 
+    @staticmethod
+    def _make_json_safe(obj):
+        """Recursively convert numpy types to native Python types for JSON safety."""
+        if isinstance(obj, dict):
+            return {k: MamaApi._make_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [MamaApi._make_json_safe(v) for v in obj]
+        # numpy types — lazy import to avoid crash when numpy isn't installed
+        try:
+            import numpy as np
+            if isinstance(obj, (np.integer,)):
+                return int(obj)
+            if isinstance(obj, (np.floating,)):
+                return float(obj)
+            if isinstance(obj, (np.bool_,)):
+                return bool(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+        except ImportError:
+            pass
+        return obj
+
     def dataset_preview(self, path: str, max_rows: int = 5) -> dict:
         """Preview a dataset (JSONL, CSV, Parquet, or HF Hub dataset ID).
         Returns column names and sample rows.
         """
         import csv
         import json as pyjson
+
+        def safe_row(r):
+            """Convert a single row dict to JSON-safe values, truncating long strings."""
+            out = {}
+            for k, v in r.items():
+                v = self._make_json_safe(v)
+                if isinstance(v, str) and len(v) > 500:
+                    v = v[:500] + '…'
+                out[str(k)] = v
+            return out
 
         try:
             # ── Try local file/directory first ────────────────────────────
@@ -1268,7 +1323,7 @@ class MamaApi:
                         for i, row in enumerate(reader):
                             if i >= max_rows:
                                 break
-                            rows.append(row)
+                            rows.append(safe_row(row))
                         return {'success': True, 'columns': list(reader.fieldnames or []), 'rows': rows}
 
                 elif p.suffix in ('.jsonl', '.json'):
@@ -1283,7 +1338,7 @@ class MamaApi:
                                 try:
                                     row = pyjson.loads(line)
                                     if isinstance(row, dict):
-                                        rows.append(row)
+                                        rows.append(safe_row(row))
                                         columns.update(row.keys())
                                 except pyjson.JSONDecodeError:
                                     pass
@@ -1295,7 +1350,7 @@ class MamaApi:
                         df = pd.read_parquet(p)
                         cols = list(df.columns)
                         sample = df.head(max_rows).to_dict(orient='records')
-                        return {'success': True, 'columns': cols, 'rows': sample}
+                        return {'success': True, 'columns': cols, 'rows': [safe_row(r) for r in sample]}
                     except ImportError:
                         return {'success': False, 'error': 'pandas required for parquet preview'}
 
@@ -1305,7 +1360,7 @@ class MamaApi:
                         ds = load_from_disk(str(p))
                         cols = ds.column_names
                         rows = ds.select(range(min(max_rows, len(ds)))).to_list()
-                        return {'success': True, 'columns': cols, 'rows': rows}
+                        return {'success': True, 'columns': cols, 'rows': [safe_row(r) for r in rows]}
                     except Exception:
                         return {'success': False, 'error': 'Not a valid dataset directory'}
 
@@ -1314,7 +1369,6 @@ class MamaApi:
             # ── Not a local path — try Hugging Face Hub ───────────────────
             try:
                 from datasets import load_dataset, get_dataset_split_names
-                # Get available splits; default to 'train'
                 try:
                     splits = get_dataset_split_names(path)
                     split = 'train' if 'train' in splits else (splits[0] if splits else 'train')
@@ -1327,8 +1381,8 @@ class MamaApi:
                 for i, row in enumerate(ds):
                     if i >= max_rows:
                         break
-                    sample.append(row)
-                ds = None  # release
+                    sample.append(safe_row(row))
+                ds = None
 
                 return {
                     'success': True,

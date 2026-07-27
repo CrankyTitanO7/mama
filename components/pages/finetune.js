@@ -157,40 +157,54 @@ const Finetune = (() => {
   }
 
   async function loadDatasetPreview() {
-    const isHub = document.querySelector('input[name="ds-source"]:checked').value === 'hub';
+    const radio = document.querySelector('input[name="ds-source"]:checked');
+    if (!radio) return;
+    const isHub = radio.value === 'hub';
     let path;
     if (isHub) {
-      path = document.getElementById('ft-ds-hub-id').value.trim();
+      const el = document.getElementById('ft-ds-hub-id');
+      if (!el) return;
+      path = el.value.trim();
       if (!path) return;
     } else {
-      path = document.getElementById('ft-ds-path').value.trim();
+      const el = document.getElementById('ft-ds-path');
+      if (!el) return;
+      path = el.value.trim();
       if (!path) return;
     }
 
     selectedDataset = path;
     const previewDiv = document.getElementById('ft-ds-preview');
+    if (!previewDiv) return;
     previewDiv.style.display = 'none';
     previewDiv.innerHTML = '<div class="ft-spinner">Loading preview...</div>';
     previewDiv.style.display = 'block';
 
     try {
       const result = await window.electron.datasetPreview(path, 5);
-      if (!result.success) {
-        previewDiv.innerHTML = `<div class="ft-error">${escapeHtml(result.error)}</div>`;
+      if (!result || !result.success) {
+        const errMsg = result ? result.error : 'null response from backend';
+        previewDiv.innerHTML = `<div class="ft-error">${escapeHtml(errMsg || 'Unknown error')}</div>`;
         return;
       }
 
-      document.getElementById('ft-ds-info').innerHTML = `
-        <span><strong>Columns:</strong> ${(result.columns || []).join(', ')}</span>
-        <span><strong>Rows previewed:</strong> ${(result.rows || []).length}</span>
-      `;
+      const cols = Array.isArray(result.columns) ? result.columns : [];
+      const rows = Array.isArray(result.rows) ? result.rows : [];
+      const infoEl = document.getElementById('ft-ds-info');
+      if (infoEl) {
+        infoEl.innerHTML = `
+          <span><strong>Columns:</strong> ${cols.join(', ') || '—'}</span>
+          <span><strong>Rows previewed:</strong> ${rows.length}</span>
+        `;
+      }
 
-      if (result.columns && result.rows) {
+      if (cols.length > 0 && rows.length > 0) {
         const table = document.createElement('table');
         table.className = 'ft-preview-table';
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
-        result.columns.slice(0, 4).forEach(col => {
+        const displayCols = cols.slice(0, 4);
+        displayCols.forEach(col => {
           const th = document.createElement('th');
           th.textContent = col;
           headerRow.appendChild(th);
@@ -199,9 +213,9 @@ const Finetune = (() => {
         table.appendChild(thead);
 
         const tbody = document.createElement('tbody');
-        result.rows.forEach(row => {
+        rows.forEach(row => {
           const tr = document.createElement('tr');
-          result.columns.slice(0, 4).forEach(col => {
+          displayCols.forEach(col => {
             const td = document.createElement('td');
             const val = row[col];
             td.textContent = val !== undefined && val !== null ? String(val).slice(0, 100) : '—';
@@ -212,18 +226,23 @@ const Finetune = (() => {
         table.appendChild(tbody);
 
         const wrap = document.getElementById('ft-ds-table-wrap');
-        wrap.innerHTML = '';
-        wrap.appendChild(table);
+        if (wrap) {
+          wrap.innerHTML = '';
+          wrap.appendChild(table);
+        }
+      } else {
+        const wrap = document.getElementById('ft-ds-table-wrap');
+        if (wrap) wrap.innerHTML = '<p class="ft-empty">No data to display</p>';
       }
 
       // Auto-suggest text column
       const colInput = document.getElementById('ft-ds-column');
-      if (result.columns) {
-        const preferred = result.columns.find(c => ['text', 'content', 'input', 'sentence'].includes(c));
+      if (colInput && cols.length > 0) {
+        const preferred = cols.find(c => ['text', 'content', 'input', 'sentence'].includes(c));
         if (preferred) colInput.value = preferred;
       }
     } catch (e) {
-      previewDiv.innerHTML = `<div class="ft-error">${escapeHtml(e.message)}</div>`;
+      if (previewDiv) previewDiv.innerHTML = `<div class="ft-error">${escapeHtml(e.message || e)}</div>`;
     }
   }
 

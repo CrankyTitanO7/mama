@@ -778,6 +778,14 @@
   async function init() {
     window.__themeApplyDeferred = true;
     wireNavigationGuards();
+    // Wait for pywebview bridge — DOMContentLoaded fires before the API is ready
+    await new Promise(function (resolve) {
+      if (window.pywebview && window.pywebview.api) { resolve(); return; }
+      window.addEventListener('pywebviewready', function onReady() {
+        window.removeEventListener('pywebviewready', onReady);
+        setTimeout(resolve, 0);
+      });
+    });
     await Promise.all([loadSettings(), loadDescriptions()]);
     await renderSettings();
   }

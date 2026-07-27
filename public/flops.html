@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>mama - FLOPS Benchmark</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('flops');
+      });
+    </script>
+
+    <div class="page-content flops-page">
+      <div class="flops-hero">
+        <h1>GPU FLOPS Benchmark</h1>
+        <p class="flops-hero-desc">
+          Measure your hardware's <strong>achieved</strong> floating-point throughput and compare it against the chip's theoretical peak. This reveals how well your model saturates the compute units.
+        </p>
+      </div>
+
+      <div class="flops-layout">
+        <div class="flops-controls-panel">
+          <h3>Configuration</h3>
+          <div class="flops-field">
+            <label for="flops-model">Model Architecture</label>
+            <select id="flops-model">
+              <option value="resnet18">ResNet-18 (11.7M params)</option>
+              <option value="resnet50">ResNet-50 (25.6M params)</option>
+              <option value="vit_b_16">ViT-B/16 (86.7M params)</option>
+            </select>
+          </div>
+          <div class="flops-field">
+            <label for="flops-batch">Batch Size</label>
+            <input type="number" id="flops-batch" value="8" min="1" max="512">
+            <span class="flops-field-hint">Larger batches saturate the GPU better.</span>
+          </div>
+          <button id="flops-run-btn" class="flops-run-btn">Run Benchmark</button>
+          <button id="flops-export-btn" class="flops-export-btn" style="display:none">Export Results</button>
+        </div>
+
+        <div class="flops-results-panel">
+          <div class="flops-welcome" id="flops-welcome">
+            <div class="flops-welcome-icon">⚡</div>
+            <h3>Ready to benchmark</h3>
+            <p>Choose a model and batch size, then click <strong>Run Benchmark</strong>. The test will run forward passes on your hardware and compute real achieved throughput.</p>
+            <ul>
+              <li>Results typically land at <strong>10–40% of peak</strong> spec — this is normal</li>
+              <li><strong>ResNet-18</strong> is quickest; <strong>ViT-B/16</strong> is more compute-heavy</li>
+              <li>Larger batches improve utilization but use more VRAM</li>
+            </ul>
+          </div>
+
+          <div id="flops-progress" class="flops-progress" style="display:none">
+            <div class="flops-progress-spinner"></div>
+            <div id="flops-progress-text" class="flops-progress-text">Starting…</div>
+          </div>
+
+          <div id="flops-results" class="flops-results" style="display:none">
+            <div class="flops-result-header">
+              <h3>Results</h3>
+              <span id="flops-chip-badge" class="flops-chip-badge"></span>
+            </div>
+
+            <div class="flops-metric-grid">
+              <div class="flops-metric-card">
+                <div class="flops-metric-value" id="flops-achieved">—</div>
+                <div class="flops-metric-label">Achieved FLOPS</div>
+                <div class="flops-metric-desc" id="flops-achieved-desc">
+                  The real throughput measured across many forward passes. This is what your hardware actually delivers for this workload.
+                </div>
+              </div>
+
+              <div class="flops-metric-card">
+                <div class="flops-metric-value" id="flops-peak">—</div>
+                <div class="flops-metric-label">Peak FLOPS (spec)</div>
+                <div class="flops-metric-desc" id="flops-peak-desc">
+                  The manufacturer's theoretical maximum. Real workloads almost never reach this due to memory bandwidth, kernel launch overhead, and operation mix.
+                </div>
+              </div>
+
+              <div class="flops-metric-card flops-metric-card-wide">
+                <div class="flops-metric-value" id="flops-utilization">—</div>
+                <div class="flops-metric-label">Utilization</div>
+                <div class="flops-util-bar-track">
+                  <div id="flops-util-bar" class="flops-util-bar" style="width:0%"></div>
+                </div>
+                <div id="flops-util-interp" class="flops-metric-interp"></div>
+              </div>
+
+              <div class="flops-metric-card">
+                <div class="flops-metric-value" id="flops-per-pass">—</div>
+                <div class="flops-metric-label">FLOPs / Forward Pass</div>
+                <div class="flops-metric-desc">
+                  Analytical count of floating-point operations required for a single forward pass of the model. Fixed for a given model/input size — hardware independent.
+                </div>
+              </div>
+
+              <div class="flops-metric-card">
+                <div class="flops-metric-value" id="flops-throughput">—</div>
+                <div class="flops-metric-label">Throughput</div>
+                <div class="flops-metric-desc">
+                  Inferences per second — how many forward passes the hardware completes in one second of wall-clock time.
+                </div>
+              </div>
+
+              <div class="flops-metric-card">
+                <div class="flops-metric-value" id="flops-params">—</div>
+                <div class="flops-metric-label">Model Parameters</div>
+                <div class="flops-metric-desc">
+                  Total number of trainable weights. Larger models have more parameters and require more FLOPs per pass.
+                </div>
+              </div>
+
+              <div class="flops-metric-card">
+                <div class="flops-metric-value" id="flops-elapsed">—</div>
+                <div class="flops-metric-label">Benchmark Duration</div>
+                <div class="flops-metric-desc">
+                  Total wall-clock time for all measured forward passes (excluding warmup). Longer runs yield more stable measurements.
+                </div>
+              </div>
+
+              <div class="flops-metric-card">
+                <div class="flops-metric-value" id="flops-batch-info">—</div>
+                <div class="flops-metric-label">Batch Size / Input</div>
+                <div class="flops-metric-desc">
+                  Batch size used for the benchmark and the input spatial resolution. Larger inputs increase FLOPs per pass.
+                </div>
+              </div>
+            </div>
+
+            <div class="flops-interpretation" id="flops-interpretation">
+              <h4>Interpretation</h4>
+              <div id="flops-interp-body"></div>
+            </div>
+          </div>
+
+          <div id="flops-error" class="flops-error" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../components/pages/flops.js"></script>
+    <script src="../components/styling/theme.js"></script>
+  </body>
+</html>

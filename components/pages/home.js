@@ -489,7 +489,10 @@ function normalizeProviderUrl(url) {
   if (!trimmed) return 'about:blank';
   let resolved = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
   if (window.pywebview && window.pywebview.api) {
-    resolved = '/proxy/?url=' + encodeURIComponent(resolved);
+    const parsed = new URL(resolved);
+    const domain = parsed.host;
+    const path = parsed.pathname + parsed.search;
+    resolved = '/proxy/' + domain + path;
   }
   return resolved;
 }

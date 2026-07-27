@@ -176,9 +176,31 @@ const Finetune = (() => {
     selectedDataset = path;
     const previewDiv = document.getElementById('ft-ds-preview');
     if (!previewDiv) return;
-    previewDiv.style.display = 'none';
-    previewDiv.innerHTML = '<div class="ft-spinner">Loading preview...</div>';
+    previewDiv.innerHTML = '';
     previewDiv.style.display = 'block';
+
+    // Show a proper loading bar with status
+    const loadingStatus = isHub
+      ? 'Fetching dataset metadata from Hugging Face Hub...'
+      : 'Scanning local dataset files...';
+    const loadingHTML = `
+      <div class="ft-ds-loading">
+        <div class="ft-ds-loading-status" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--body-color);">
+          <span style="display:inline-block;width:16px;height:16px;border:2px solid var(--active-color);border-top-color:transparent;border-radius:50%;animation:ft-spin 0.8s linear infinite"></span>
+          ${escapeHtml(loadingStatus)}
+        </div>
+      </div>
+    `;
+    previewDiv.innerHTML = loadingHTML;
+
+    // Add spinner animation once
+    if (!document.getElementById('ft-loading-style')) {
+      const style = document.createElement('style');
+      style.id = 'ft-loading-style';
+      style.textContent =
+        '@keyframes ft-spin { to { transform: rotate(360deg); } }';
+      document.head.appendChild(style);
+    }
 
     try {
       const result = await window.electron.datasetPreview(path, 5);
@@ -248,6 +270,18 @@ const Finetune = (() => {
 
   // ── Config tab ─────────────────────────────────────────────────
 
+  async function setDefaultOutputDir() {
+    try {
+      const recents = await window.electron.projectRecentsRead();
+      const openFolder = recents?.open;
+      if (openFolder) {
+        document.getElementById('ft-output-dir').value = openFolder.replace(/\/+$/, '') + '/outputs';
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   async function loadHardwareInfo() {
     try {
       const settings = await window.electron.settingsRead();
@@ -302,7 +336,7 @@ const Finetune = (() => {
     const method = document.getElementById('ft-method').value;
     const modelPath = document.getElementById('ft-model-id').value.trim();
     const datasetPath = selectedDataset || document.getElementById('ft-ds-hub-id').value.trim() || document.getElementById('ft-ds-path').value.trim();
-    const outputDir = document.getElementById('ft-output-dir').value.trim() || './training-output';
+    const outputDir = document.getElementById('ft-output-dir').value.trim();
 
     const cfg = {
       model_name_or_path: modelPath,
@@ -355,8 +389,8 @@ const Finetune = (() => {
     try {
       const result = await window.electron.trainStart(JSON.stringify(cfg));
       if (result.success) {
-        alert('Training started! Open the Training Monitor to track progress.');
-        switchTab('train');
+        // Auto-navigate to training monitor
+        window.electron.navigateTo('public/training.html');
       } else {
         alert('Failed to start training: ' + (result.error || 'Unknown error'));
       }
@@ -432,6 +466,7 @@ const Finetune = (() => {
     await Promise.all([
       refreshLocalModels(),
       loadHardwareInfo(),
+      setDefaultOutputDir(),
     ]);
 
     updateConfigPreview();

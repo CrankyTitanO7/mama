@@ -1366,34 +1366,70 @@ class MamaApi:
 
                 return {'success': False, 'error': f'Unsupported file format: {p.suffix}'}
 
-            # ── Not a local path — try Hugging Face Hub ───────────────────
-            try:
-                from datasets import load_dataset, get_dataset_split_names
-                try:
-                    splits = get_dataset_split_names(path)
-                    split = 'train' if 'train' in splits else (splits[0] if splits else 'train')
-                except Exception:
-                    split = 'train'
+            # ── Not a local path — try Hugging Face Hub via API ──────────
+            import urllib.request as urlreq
+            import urllib.error
 
-                ds = load_dataset(path, split=split, streaming=True)
-                cols = ds.column_names
+            try:
+                # Step 1: Get dataset info (configs, splits, features)
+                info_url = f'https://datasets-server.huggingface.co/info?dataset={path}'
+                req = urlreq.Request(info_url, headers={'User-Agent': 'mama/1.0'})
+                with urlreq.urlopen(req, timeout=15) as resp:
+                    info_data = pyjson.loads(resp.read().decode('utf-8'))
+
+                # Extract config and split
+                configs = info_data.get('dataset_info', {})
+                if not configs:
+                    return {'success': False, 'error': 'No configs found for dataset'}
+
+                # Pick the first config (usually 'default' or the only one)
+                config_name = next(iter(configs.keys())) if isinstance(configs, dict) else 'default'
+                config_info = configs.get(config_name, {}) if isinstance(configs, dict) else configs
+                splits = config_info.get('splits', {}) if isinstance(config_info, dict) else {}
+                split_name = 'train' if 'train' in splits else (next(iter(splits.keys())) if splits else 'train')
+
+                # Features / columns
+                features = config_info.get('features', {}) if isinstance(config_info, dict) else {}
+                cols = list(features.keys()) if features else []
+
+                # Step 2: Fetch first rows from the Datasets Server
+                rows_url = (
+                    f'https://datasets-server.huggingface.co/rows'
+                    f'?dataset={path}&config={config_name}&split={split_name}'
+                )
+                req2 = urlreq.Request(rows_url, headers={'User-Agent': 'mama/1.0'})
+                with urlreq.urlopen(req2, timeout=30) as resp2:
+                    rows_data = pyjson.loads(resp2.read().decode('utf-8'))
+
+                raw_rows = rows_data.get('rows', []) if isinstance(rows_data, dict) else []
                 sample = []
-                for i, row in enumerate(ds):
+                for i, item in enumerate(raw_rows):
                     if i >= max_rows:
                         break
-                    sample.append(safe_row(row))
-                ds = None
+                    row_data = item.get('row', item) if isinstance(item, dict) else item
+                    if isinstance(row_data, dict):
+                        sample.append(safe_row(row_data))
+
+                if not cols and sample:
+                    cols = list(sample[0].keys())
 
                 return {
                     'success': True,
                     'columns': cols,
                     'rows': sample,
                     'dataset_id': path,
-                    'split': split,
+                    'split': split_name,
+                    'config': config_name,
                     'source': 'huggingface',
+                    'total_rows': splits.get(split_name, {}).get('num_examples', 0) if isinstance(splits, dict) else 0,
                 }
-            except ImportError:
-                return {'success': False, 'error': 'datasets library required for Hugging Face datasets. Run: pip install datasets'}
+
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    return {'success': False, 'error': f'Dataset "{path}" not found on Hugging Face Hub'}
+                return {'success': False, 'error': f'HF API error ({e.code}): {e.reason}'}
+            except urllib.error.URLError as e:
+                return {'success': False, 'error': f'Network error accessing HF Hub: {e.reason}'}
             except Exception as e:
                 return {'success': False, 'error': f'Hugging Face dataset error: {e}'}
 

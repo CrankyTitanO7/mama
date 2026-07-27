@@ -2804,6 +2804,407 @@ body.embed-fullscreen-active {
     font-style: italic;
 }
 
+/* ============================================
+   FLOPS Benchmark Page
+   ============================================ */
+.flops-page {
+    max-width: 1100px;
+    margin: 60px auto 0;
+    padding: 24px;
+}
+
+.flops-hero {
+    margin-bottom: 28px;
+}
+
+.flops-hero h1 {
+    margin-bottom: 8px;
+    font-size: 1.8rem;
+}
+
+.flops-hero-desc {
+    font-size: 0.95rem;
+    color: var(--body-color);
+    line-height: 1.6;
+    max-width: 700px;
+}
+
+.flops-hero-desc strong {
+    color: var(--page-text);
+}
+
+.flops-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 800px) {
+    .flops-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.flops-controls-panel {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.flops-controls-panel h3 {
+    margin: 0 0 16px;
+    font-size: 1rem;
+    color: var(--heading-color);
+}
+
+.flops-field {
+    margin-bottom: 16px;
+}
+
+.flops-field label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--page-text);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.flops-field select,
+.flops-field input {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--input-bg);
+    color: var(--input-text);
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.flops-field select:focus,
+.flops-field input:focus {
+    border-color: var(--highlight-color);
+}
+
+.flops-field-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: var(--body-color);
+    font-style: italic;
+}
+
+.flops-run-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    background: var(--highlight-color);
+    color: var(--main-color);
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-top: 8px;
+}
+
+.flops-run-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.flops-run-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.flops-export-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background: #795548;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-top: 8px;
+}
+
+.flops-export-btn:hover {
+    opacity: 0.9;
+}
+
+.flops-results-panel {
+    min-height: 300px;
+}
+
+.flops-welcome {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 32px;
+    text-align: center;
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.flops-welcome-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+}
+
+.flops-welcome h3 {
+    margin: 0 0 12px;
+    font-size: 1.2rem;
+    color: var(--heading-color);
+}
+
+.flops-welcome p {
+    font-size: 0.9rem;
+    color: var(--body-color);
+    max-width: 500px;
+    margin: 0 auto 16px;
+    line-height: 1.6;
+}
+
+.flops-welcome ul {
+    text-align: left;
+    max-width: 480px;
+    margin: 0 auto;
+    padding-left: 20px;
+}
+
+.flops-welcome li {
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: var(--page-text);
+    line-height: 1.5;
+}
+
+.flops-progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.flops-progress-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--panel-border);
+    border-top-color: var(--highlight-color);
+    border-radius: 50%;
+    animation: flops-spin 0.8s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes flops-spin {
+    to { transform: rotate(360deg); }
+}
+
+.flops-progress-text {
+    font-size: 0.95rem;
+    color: var(--body-color);
+    font-family: monospace;
+}
+
+.flops-results {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.flops-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.flops-result-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--heading-color);
+}
+
+.flops-chip-badge {
+    display: none;
+    padding: 4px 12px;
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: var(--highlight-color);
+    font-weight: 600;
+}
+
+.flops-metric-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 600px) {
+    .flops-metric-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.flops-metric-card {
+    background: var(--main-color);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.flops-metric-card-wide {
+    grid-column: 1 / -1;
+}
+
+.flops-metric-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--page-text);
+    margin-bottom: 4px;
+    font-family: 'SF Mono', 'Consolas', 'Courier New', monospace;
+}
+
+.flops-metric-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--body-color);
+    margin-bottom: 6px;
+}
+
+.flops-metric-desc {
+    font-size: 0.8rem;
+    color: var(--body-color);
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
+.flops-metric-interp {
+    font-size: 0.85rem;
+    color: var(--page-text);
+    line-height: 1.5;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+}
+
+.flops-util-bar-track {
+    width: 100%;
+    height: 16px;
+    background: var(--panel-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.flops-util-bar {
+    height: 100%;
+    border-radius: 8px;
+    transition: width 0.8s ease;
+    background: var(--highlight-color);
+}
+
+.flops-interpretation {
+    border-top: 1px solid var(--panel-border);
+    padding-top: 16px;
+    margin-top: 8px;
+}
+
+.flops-interpretation h4 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    color: var(--heading-color);
+}
+
+.flops-interpretation p {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--page-text);
+    margin-bottom: 12px;
+}
+
+.flops-interp-details,
+.flops-interp-tips {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--main-color);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+}
+
+.flops-interp-details h5,
+.flops-interp-tips h5 {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    color: var(--heading-color);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.flops-interp-details ul,
+.flops-interp-tips ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.flops-interp-details li,
+.flops-interp-tips li {
+    font-size: 0.85rem;
+    color: var(--body-color);
+    line-height: 1.6;
+    margin-bottom: 6px;
+}
+
+.flops-error {
+    background: var(--widget-bg);
+    border: 1px solid #f44336;
+    border-radius: 10px;
+    padding: 24px;
+    color: #f44336;
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.flops-error strong {
+    display: block;
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+}
+
+.flops-error p {
+    font-size: 0.9rem;
+    color: var(--body-color);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
 .train-checkpoints {
     display: flex;
     flex-direction: column;

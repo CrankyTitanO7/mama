@@ -6,6 +6,7 @@ existing window.electron.* calls work via pywebview's JS bridge.
 """
 
 import os
+import re
 import json
 import threading
 import logging
@@ -124,8 +125,11 @@ SHIM_SCRIPT = """
     runImportTest: async (framework, projectFolder) => {
       try { return wrapResult(await (await api()).run_import_test(framework, projectFolder || null)); } catch(e) { return wrapError(e); }
     },
-    runFlopsTest: async (batchSize) => {
-      try { return wrapResult(await (await api()).run_flops_test(batchSize || 1)); } catch(e) { return wrapError(e); }
+    runFlopsTest: async (batchSize, model, jsonOutput) => {
+      try { return wrapResult(await (await api()).run_flops_test(batchSize || 1, model || 'resnet18', jsonOutput || false)); } catch(e) { return wrapError(e); }
+    },
+    exportFlopsResult: async (resultJson) => {
+      try { return await (await api()).export_flops_result(resultJson); } catch(e) { return { success: false, error: String(e) }; }
     },
 
     // ═══════════ System ═══════════
@@ -222,55 +226,190 @@ SHIM_SCRIPT = """
 """
 
 
+_URL_REWRITE_ATTRS = re.compile(
+    r'(<(?:img|script|link|a|source|video|audio|iframe|form|input|meta|object|embed|area)\s[^>]*?)'
+    r'(href|src|action|poster|data-src|data-href|srcset|cite|formaction|icon|manifest)'
+    r'=(?P<q>["\'])/(?P<val>[^"\'>]+)(?P=q)',
+    re.IGNORECASE
+)
+
+_CSS_URL = re.compile(r'url\(/([^)]+)\)', re.IGNORECASE)
+_CSS_IMPORT = re.compile(r'@import\s+url\(/([^)]+)\)', re.IGNORECASE)
+
+
+def _proxy_rewrite_html(html, base_url):
+    """Rewrite proxied HTML so that all relative/absolute-path URLs go
+    through the proxy.
+
+    1. Inject <base> pointing to *base_url* (the proxy URL).
+    2. Strip the leading ``/`` from absolute-path URLs in HTML attributes
+       (``href="/…"`` → ``href="…"``) so they become relative and the
+       injected <base> applies.
+    3. Same for ``url()`` references inside inline CSS.
+    4. Same for ``srcset`` attribute values.
+    """
+    # ── 1. inject <base> ──────────────────────────────────────────────
+    base_tag = f'<base href="{base_url}">'
+    if '<head>' in html:
+        html = html.replace('<head>', f'<head>{base_tag}', 1)
+    elif '<head ' in html:
+        html = html.replace('<head ', f'<head>{base_tag}<head ', 1)
+    else:
+        html = base_tag + html
+
+    # ── 2. rewrite href="/… src="/… etc in HTML tags ─────────────────
+    def _rewrite_attr(m):
+        before = m.group(1)
+        attr = m.group(2)
+        quote = m.group('q')
+        path = m.group('val')
+        if path.startswith('/') or re.match(r'https?://', path, re.I):
+            return m.group(0)
+        if attr.lower() == 'srcset':
+            parts = []
+            for part in path.split(','):
+                p = part.strip()
+                if p.startswith('/'):
+                    p = p[1:]
+                parts.append(p)
+            return f'{before}{attr}={quote}{", ".join(parts)}{quote}'
+        return f'{before}{attr}={quote}{path}{quote}'
+
+    html = _URL_REWRITE_ATTRS.sub(_rewrite_attr, html)
+
+    # ── 3. url() in inline CSS ────────────────────────────────────────
+    html = _CSS_IMPORT.sub(r'@import url(\1)', html)
+    html = _CSS_URL.sub(r'url(\1)', html)
+
+    return html
+
+
 class MamaHTTPRequestHandler(SimpleHTTPRequestHandler):
     """Custom handler that injects the pywebview shim into HTML responses."""
 
     def __init__(self, *args, directory=None, **kwargs):
         super().__init__(*args, directory=directory, **kwargs)
 
+    def _proxy_query(self, target_url, server_port):
+        """Handle legacy query-based proxy: /proxy/?url=URL"""
+        try:
+            req = urllib.request.Request(
+                target_url,
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = resp.read()
+                content_type = resp.headers.get('Content-Type', 'text/html') or 'text/html'
+
+                if 'text/html' in content_type:
+                    base_tag = f'<base href="{target_url.rstrip("/")}/">'.encode('utf-8')
+                    body = body.replace(b'<head>', b'<head>' + base_tag, 1)
+
+                self.send_response(200)
+                self.send_header('Content-Type', content_type)
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(body)
+        except Exception as e:
+            logger.error('Proxy error for %s: %s', target_url, e)
+            self.send_response(502)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(f'<html><body><h2>Proxy error</h2><p>{e}</p></body></html>'.encode('utf-8'))
+
+    def _proxy_path(self, domain, path_query, server_port):
+        """Handle path-based proxy: /proxy/DOMAIN/PATH
+
+        For HTML responses, injects <base> pointing to the proxy URL and
+        rewrites absolute-path URLs (href=\"/..., src=\"/...) to relative
+        paths so they resolve through the proxy.
+        """
+        if not path_query.startswith('/'):
+            path_query = '/' + path_query
+        target_url = f'https://{domain}{path_query}'
+        base_proxy_url = f'http://127.0.0.1:{server_port}/proxy/{domain}/'
+
+        try:
+            req = urllib.request.Request(
+                target_url,
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = resp.read()
+                content_type = resp.headers.get('Content-Type', 'text/html') or 'text/html'
+
+                if 'text/html' in content_type:
+                    html = body.decode('utf-8', errors='replace')
+                    html = _proxy_rewrite_html(html, base_proxy_url)
+                    body = html.encode('utf-8', errors='replace')
+
+                self.send_response(200)
+                self.send_header('Content-Type', content_type)
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(body)
+        except Exception as e:
+            logger.error('Proxy error for %s: %s', target_url, e)
+            self.send_response(502)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(f'<html><body><h2>Proxy error</h2><p>{e}</p></body></html>'.encode('utf-8'))
+
     def do_GET(self):
         """Serve a GET request with optional shim injection for HTML files."""
 
         # ── Reverse proxy for iframe embedding ───────────────────────────
         if self.path.startswith('/proxy/'):
-            query = urllib.parse.urlparse(self.path).query
+            server_port = self.server.server_address[1]
+            parsed = urllib.parse.urlparse(self.path)
+            query = parsed.query
             params = urllib.parse.parse_qs(query)
-            target_url = params.get('url', [None])[0]
-            if not target_url:
+
+            path_part = parsed.path  # e.g. /proxy/?url=... or /proxy/DOMAIN/PATH
+
+            # Legacy query-based proxy: /proxy/?url=URL
+            if 'url' in params:
+                target_url = params.get('url', [None])[0]
+                if not target_url:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(b'Missing url parameter')
+                    return
+                self._proxy_query(target_url, server_port)
+                return
+
+            # Path-based proxy: /proxy/DOMAIN/PATH_AND_QUERY
+            prefix = '/proxy/'
+            if not path_part.startswith(prefix):
                 self.send_response(400)
                 self.send_header('Content-Type', 'text/plain; charset=utf-8')
                 self.end_headers()
-                self.wfile.write(b'Missing url parameter')
+                self.wfile.write(b'Invalid proxy path')
                 return
 
-            try:
-                req = urllib.request.Request(
-                    target_url,
-                    headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
-                )
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    body = resp.read()
-                    content_type = resp.headers.get('Content-Type', 'text/html') or 'text/html'
-
-                    # Insert <base> tag so relative URLs resolve against the target
-                    if 'text/html' in content_type:
-                        base_tag = f'<base href="{target_url.rstrip("/")}/">'.encode('utf-8')
-                        body = body.replace(b'<head>', b'<head>' + base_tag, 1)
-
-                    self.send_response(200)
-                    self.send_header('Content-Type', content_type)
-                    self.send_header('Content-Length', str(len(body)))
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    self.wfile.write(body)
-                    return
-            except Exception as e:
-                logger.error('Proxy error for %s: %s', target_url, e)
-                self.send_response(502)
-                self.send_header('Content-Type', 'text/html; charset=utf-8')
+            remaining = path_part[len(prefix):]  # DOMAIN/PATH (without leading /proxy/)
+            if not remaining:
+                self.send_response(400)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
                 self.end_headers()
-                self.wfile.write(f'<html><body><h2>Proxy error</h2><p>{e}</p></body></html>'.encode('utf-8'))
+                self.wfile.write(b'Missing domain in proxy path')
                 return
+
+            if '/' in remaining:
+                domain, _, rest_path = remaining.partition('/')
+                rest_path = '/' + rest_path
+            else:
+                domain = remaining
+                rest_path = '/'
+
+            if query:
+                rest_path += '?' + query
+
+            self._proxy_path(domain, rest_path, server_port)
+            return
 
         path = self.translate_path(self.path)
 

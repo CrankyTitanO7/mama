@@ -24,7 +24,10 @@ SHIM_SCRIPT = """
 // ── pywebview → electron API compatibility shim ──────────────────────────────
 (function() {
   'use strict';
-  const api = window.pywebview ? window.pywebview.api : {};
+
+  // Lazily resolve window.pywebview.api so the shim works even though
+  // pywebview injects its bridge *after* this <script> runs in <head>.
+  function api() { return window.pywebview && window.pywebview.api; }
 
   function wrapResult(result) {
     if (result && typeof result === 'object' && 'code' in result) return result;
@@ -35,87 +38,88 @@ SHIM_SCRIPT = """
     return { code: 1, stdout: '', stderr: String(err) };
   }
 
-  let _installProgressCallback = null;
-
   const electron = {
+    _installProgressCallback: null,
+
     // ═══════════ Navigation ═══════════
     navigateTo: async (page) => {
-      if (api.navigate_to) return await api.navigate_to(page);
-      // Fallback: navigate relative to server root
+      const a = api();
+      if (a && a.navigate_to) return await a.navigate_to(page);
       window.location.href = page.startsWith('http') ? page : '/' + page.replace(/^\\.\\//, '');
     },
     resolvePublicUrl: async (filename, query) => {
-      if (api.resolve_public_url) return await api.resolve_public_url(filename, query || {});
+      const a = api();
+      if (a && a.resolve_public_url) return await a.resolve_public_url(filename, query || {});
       const qs = query ? '?' + new URLSearchParams(query).toString() : '';
       return filename + qs;
     },
 
     // ═══════════ Settings ═══════════
-    settingsRead:            async () => { try { return await api.settings_read(); } catch(e) { return null; } },
-    settingsDescriptionsRead: async () => { try { return await api.settings_descriptions_read(); } catch(e) { return null; } },
-    settingsWrite:           async (s) => { try { return await api.settings_write(s); } catch(e) { return false; } },
-    settingsWriteNonbackup:  async (s) => { try { return await api.settings_write_nonbackup(s); } catch(e) { return false; } },
-    settingsWriteWithBackup: async (s) => { try { return await api.settings_write_with_backup(s); } catch(e) { return false; } },
-    settingsReset:           async () => { try { return await api.settings_reset(); } catch(e) { return null; } },
-    settingsBackupExists:    async () => { try { return await api.settings_backup_exists(); } catch(e) { return false; } },
-    settingsRestoreBackup:   async () => { try { return await api.settings_restore_backup(); } catch(e) { return null; } },
-    settingsSetupComplete:   async () => { try { return await api.settings_setup_complete(); } catch(e) { return false; } },
-    setupComplete:           async () => { try { return await api.setup_complete(); } catch(e) { return false; } },
+    settingsRead:            async () => { try { return await api().settings_read(); } catch(e) { return null; } },
+    settingsDescriptionsRead: async () => { try { return await api().settings_descriptions_read(); } catch(e) { return null; } },
+    settingsWrite:           async (s) => { try { return await api().settings_write(s); } catch(e) { return false; } },
+    settingsWriteNonbackup:  async (s) => { try { return await api().settings_write_nonbackup(s); } catch(e) { return false; } },
+    settingsWriteWithBackup: async (s) => { try { return await api().settings_write_with_backup(s); } catch(e) { return false; } },
+    settingsReset:           async () => { try { return await api().settings_reset(); } catch(e) { return null; } },
+    settingsBackupExists:    async () => { try { return await api().settings_backup_exists(); } catch(e) { return false; } },
+    settingsRestoreBackup:   async () => { try { return await api().settings_restore_backup(); } catch(e) { return null; } },
+    settingsSetupComplete:   async () => { try { return await api().settings_setup_complete(); } catch(e) { return false; } },
+    setupComplete:           async () => { try { return await api().setup_complete(); } catch(e) { return false; } },
 
     // ═══════════ Setup Data ═══════════
-    torchCommandsRead: async () => { try { return await api.torch_commands_read(); } catch(e) { return {}; } },
+    torchCommandsRead: async () => { try { return await api().torch_commands_read(); } catch(e) { return {}; } },
 
     // ═══════════ System Detection ═══════════
-    runOSDetect:     async () => { try { return wrapResult(await api.run_os_detect()); } catch(e) { return wrapError(e); } },
-    runPythonDetect: async () => { try { return wrapResult(await api.run_python_detect()); } catch(e) { return wrapError(e); } },
-    runGPUDetect:    async () => { try { return wrapResult(await api.run_gpu_detect()); } catch(e) { return wrapError(e); } },
-    runCompatibilityCheck: async (params) => { try { return wrapResult(await api.run_compatibility_check(params)); } catch(e) { return wrapError(e); } },
+    runOSDetect:     async () => { try { return wrapResult(await api().run_os_detect()); } catch(e) { return wrapError(e); } },
+    runPythonDetect: async () => { try { return wrapResult(await api().run_python_detect()); } catch(e) { return wrapError(e); } },
+    runGPUDetect:    async () => { try { return wrapResult(await api().run_gpu_detect()); } catch(e) { return wrapError(e); } },
+    runCompatibilityCheck: async (params) => { try { return wrapResult(await api().run_compatibility_check(params)); } catch(e) { return wrapError(e); } },
 
     // ═══════════ Install ═══════════
     runInstall: async (fw, gpuVariant, accelVersion) => {
-      try { return wrapResult(await api.run_install(fw, gpuVariant, accelVersion || '')); } catch(e) { return wrapError(e); }
+      try { return wrapResult(await api().run_install(fw, gpuVariant, accelVersion || '')); } catch(e) { return wrapError(e); }
     },
     runInstallStream: async (fw, gpuVariant, accelVersion, scope, projectFolder) => {
-      try { return wrapResult(await api.run_install_stream(fw, gpuVariant, accelVersion || '', scope || 'global', projectFolder || '')); } catch(e) { return wrapError(e); }
+      try { return wrapResult(await api().run_install_stream(fw, gpuVariant, accelVersion || '', scope || 'global', projectFolder || '')); } catch(e) { return wrapError(e); }
     },
-    onInstallProgress: (callback) => { _installProgressCallback = callback; },
-    offInstallProgress: () => { _installProgressCallback = null; },
+    onInstallProgress: (callback) => { electron._installProgressCallback = callback; },
+    offInstallProgress: () => { electron._installProgressCallback = null; },
 
     // ═══════════ Tests ═══════════
     runImportTest: async (framework, projectFolder) => {
-      try { return wrapResult(await api.run_import_test(framework, projectFolder || null)); } catch(e) { return wrapError(e); }
+      try { return wrapResult(await api().run_import_test(framework, projectFolder || null)); } catch(e) { return wrapError(e); }
     },
     runFlopsTest: async (batchSize) => {
-      try { return wrapResult(await api.run_flops_test(batchSize || 1)); } catch(e) { return wrapError(e); }
+      try { return wrapResult(await api().run_flops_test(batchSize || 1)); } catch(e) { return wrapError(e); }
     },
 
     // ═══════════ System ═══════════
-    runSystemDetect: async (framework) => { try { return wrapResult(await api.run_system_detect(framework)); } catch(e) { return wrapError(e); } },
-    runSystemCommand: async (command, args) => { try { return wrapResult(await api.run_system_command(command, args || [])); } catch(e) { return wrapError(e); } },
+    runSystemDetect: async (framework) => { try { return wrapResult(await api().run_system_detect(framework)); } catch(e) { return wrapError(e); } },
+    runSystemCommand: async (command, args) => { try { return wrapResult(await api().run_system_command(command, args || [])); } catch(e) { return wrapError(e); } },
 
     // ═══════════ Themes ═══════════
-    themesRead:  async () => { try { return await api.themes_read(); } catch(e) { return []; } },
-    themesWrite: async (theme) => { try { return await api.themes_write(theme); } catch(e) { return false; } },
+    themesRead:  async () => { try { return await api().themes_read(); } catch(e) { return []; } },
+    themesWrite: async (theme) => { try { return await api().themes_write(theme); } catch(e) { return false; } },
 
     // ═══════════ Python ═══════════
-    runPythonCommand: async (action) => { try { return wrapResult(await api.run_python_command(action)); } catch(e) { return wrapError(e); } },
+    runPythonCommand: async (action) => { try { return wrapResult(await api().run_python_command(action)); } catch(e) { return wrapError(e); } },
 
     // ═══════════ Project Explorer ═══════════
-    projectRecentsRead:  async () => { try { return await api.project_recents_read(); } catch(e) { return null; } },
-    projectPickFolder:   async () => { try { return await api.project_pick_folder(); } catch(e) { return null; } },
-    projectOpenFolder:   async (folderPath) => { try { return await api.project_open_folder(folderPath); } catch(e) { return null; } },
-    projectListFolder:   async (folderPath) => { try { return await api.project_list_folder(folderPath); } catch(e) { return null; } },
-    projectRevealFolder: async (folderPath) => { try { return await api.project_reveal_folder(folderPath); } catch(e) { return false; } },
-    projectTemplatesRead: async () => { try { return await api.project_templates_read(); } catch(e) { return {}; } },
-    projectImportTemplate: async (templateKey) => { try { return await api.project_import_template(templateKey); } catch(e) { return { success: false, error: String(e) }; } },
+    projectRecentsRead:  async () => { try { return await api().project_recents_read(); } catch(e) { return null; } },
+    projectPickFolder:   async () => { try { return await api().project_pick_folder(); } catch(e) { return null; } },
+    projectOpenFolder:   async (folderPath) => { try { return await api().project_open_folder(folderPath); } catch(e) { return null; } },
+    projectListFolder:   async (folderPath) => { try { return await api().project_list_folder(folderPath); } catch(e) { return null; } },
+    projectRevealFolder: async (folderPath) => { try { return await api().project_reveal_folder(folderPath); } catch(e) { return false; } },
+    projectTemplatesRead: async () => { try { return await api().project_templates_read(); } catch(e) { return {}; } },
+    projectImportTemplate: async (templateKey) => { try { return await api().project_import_template(templateKey); } catch(e) { return { success: false, error: String(e) }; } },
 
     // ═══════════ Project Init ═══════════
-    projectInit:       async (folderPath) => { try { return await api.project_init(folderPath); } catch(e) { return { hasProjectJson: false, hasVenv: false }; } },
-    projectCreateJson: async (folderPath) => { try { return await api.project_create_json(folderPath); } catch(e) { return { success: false, error: String(e) }; } },
-    projectCreateVenv: async (folderPath) => { try { return await api.project_create_venv(folderPath); } catch(e) { return { success: false, error: String(e) }; } },
+    projectInit:       async (folderPath) => { try { return await api().project_init(folderPath); } catch(e) { return { hasProjectJson: false, hasVenv: false }; } },
+    projectCreateJson: async (folderPath) => { try { return await api().project_create_json(folderPath); } catch(e) { return { success: false, error: String(e) }; } },
+    projectCreateVenv: async (folderPath) => { try { return await api().project_create_venv(folderPath); } catch(e) { return { success: false, error: String(e) }; } },
 
     // ═══════════ Docs ═══════════
-    readDocsFile: async (filename) => { try { return await api.read_docs_file(filename); } catch(e) { return null; } },
+    readDocsFile: async (filename) => { try { return await api().read_docs_file(filename); } catch(e) { return null; } },
 
     // ═══════════ Before Quit ═══════════
     onBeforeQuit: (callback) => { /* no-op in pywebview */ },

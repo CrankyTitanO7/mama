@@ -49,7 +49,14 @@ def get_startup_page():
     return 'public/index.html'
 
 
-def main():
+def main(): 
+
+    # argument parser for debug mode
+    import argparse
+    parser = argparse.ArgumentParser(description="the mama application: a GUI app for training ai based in pywebview")
+    parser.add_argument("-d", "--debug", action="store_true", help="debug mode")
+    args = parser.parse_args()
+
     # Start the static HTTP server on a random port
     port = start_http_server(str(BASE_DIR))
     logger.info('Static server started on port %d', port)
@@ -76,7 +83,7 @@ def main():
     # Give the API a reference to the window for evaluate_js (streaming, etc.)
     api.set_window(window)
 
-    webview.start(debug=True)
+    webview.start(debug=args.debug)
 
 
 if __name__ == '__main__':

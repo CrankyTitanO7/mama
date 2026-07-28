@@ -145,6 +145,7 @@ SHIM_SCRIPT = """
 
     // ═══════════ Project Explorer ═══════════
     projectRecentsRead:  async () => { try { return await (await api()).project_recents_read(); } catch(e) { return null; } },
+    projectRecentsWrite: async (data) => { try { return await (await api()).project_recents_write(data); } catch(e) { return null; } },
     projectPickFolder:   async () => { try { return await (await api()).project_pick_folder(); } catch(e) { return null; } },
     projectOpenFolder:   async (folderPath) => { try { return await (await api()).project_open_folder(folderPath); } catch(e) { return null; } },
     projectListFolder:   async (folderPath) => { try { return await (await api()).project_list_folder(folderPath); } catch(e) { return null; } },

@@ -314,11 +314,62 @@ const Finetune = (() => {
         const preferred = cols.find(c => ['text', 'content', 'input', 'sentence'].includes(c));
         if (preferred) colInput.value = preferred;
       }
+
+      saveDatasetRecents();
     } catch (e) {
       tableWrap.innerHTML = `<div class="ft-error">${escapeHtml(e.message || e)}</div>`;
     } finally {
       if (progressTimer) clearInterval(progressTimer);
       window.electron.offDatasetPreviewProgress?.();
+    }
+  }
+
+  // ── Save / restore dataset inputs ──────────────────────────────
+
+  async function saveDatasetRecents() {
+    const radio = document.querySelector('input[name="ds-source"]:checked');
+    if (!radio) return;
+    const isHub = radio.value === 'hub';
+    const data = {
+      lastDataset: {
+        source: isHub ? 'hub' : 'local',
+        hubId: document.getElementById('ft-ds-hub-id')?.value?.trim() || '',
+        localPath: document.getElementById('ft-ds-path')?.value?.trim() || '',
+        textColumn: document.getElementById('ft-ds-column')?.value?.trim() || 'text',
+        maxSamples: document.getElementById('ft-ds-max-samples')?.value?.trim() || '',
+      },
+    };
+    try {
+      await window.electron.projectRecentsWrite(data);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  async function restoreDatasetRecents() {
+    try {
+      const recents = await window.electron.projectRecentsRead();
+      const ds = recents?.lastDataset;
+      if (!ds) return;
+
+      if (ds.source === 'local') {
+        const localRadio = document.querySelector('input[name="ds-source"][value="local"]');
+        if (localRadio) localRadio.checked = true;
+        document.getElementById('ft-ds-hub').style.display = 'none';
+        document.getElementById('ft-ds-local').style.display = '';
+        if (ds.localPath) document.getElementById('ft-ds-path').value = ds.localPath;
+      } else {
+        const hubRadio = document.querySelector('input[name="ds-source"][value="hub"]');
+        if (hubRadio) hubRadio.checked = true;
+        document.getElementById('ft-ds-hub').style.display = '';
+        document.getElementById('ft-ds-local').style.display = 'none';
+        if (ds.hubId) document.getElementById('ft-ds-hub-id').value = ds.hubId;
+      }
+
+      if (ds.textColumn) document.getElementById('ft-ds-column').value = ds.textColumn;
+      if (ds.maxSamples) document.getElementById('ft-ds-max-samples').value = ds.maxSamples;
+    } catch (e) {
+      // ignore
     }
   }
 
@@ -497,7 +548,10 @@ const Finetune = (() => {
     document.getElementById('ft-ds-load')?.addEventListener('click', loadDatasetPreview);
     document.getElementById('ft-ds-browse')?.addEventListener('click', async () => {
       const folder = await window.electron.projectPickFolder();
-      if (folder) document.getElementById('ft-ds-path').value = folder;
+      if (folder) {
+        document.getElementById('ft-ds-path').value = folder;
+        saveDatasetRecents();
+      }
     });
 
     // Config tab - auto-update preview
@@ -530,6 +584,7 @@ const Finetune = (() => {
       refreshLocalModels(),
       loadHardwareInfo(),
       setDefaultOutputDir(),
+      restoreDatasetRecents(),
     ]);
 
     updateConfigPreview();

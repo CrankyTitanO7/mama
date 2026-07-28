@@ -244,8 +244,8 @@ def get_lora_config(cfg: dict):
 
 # ── Training arguments ────────────────────────────────────────────────────────
 
-def get_training_args(cfg: dict, device: str):
-    transformers, _, torch, _, _ = import_trl()
+def get_training_args(cfg: dict, device: str, dataset_text_field: Optional[str] = None):
+    transformers, trl, torch, _, _ = import_trl()
     output_dir = cfg["output_dir"]
 
     # Hardware-aware defaults
@@ -258,7 +258,10 @@ def get_training_args(cfg: dict, device: str):
         per_device_batch = min(per_device_batch, 4)
         gradient_acc = max(gradient_acc, 4)
 
-    return transformers.TrainingArguments(
+    # NOTE: current TRL no longer accepts `dataset_text_field` / `max_seq_length`
+    # (now `max_length`) as direct SFTTrainer kwargs — they live on SFTConfig,
+    # which is a drop-in superset of TrainingArguments, so we build that instead.
+    return trl.SFTConfig(
         output_dir=output_dir,
         per_device_train_batch_size=per_device_batch,
         gradient_accumulation_steps=gradient_acc,
@@ -284,7 +287,15 @@ def get_training_args(cfg: dict, device: str):
         ddp_find_unused_parameters=False if cfg.get("use_lora", True) else None,
         dataloader_num_workers=cfg.get("dataloader_num_workers", 2),
         save_total_limit=cfg.get("save_total_limit", 3),
-        remove_unused_columns=cfg.get("remove_unused_columns", True),
+        # For structured datasets (prompt-completion / conversational),
+        # SFTTrainer needs the raw columns (e.g. "completion") to still be
+        # there when it does its own dataset preparation. The generic
+        # Trainer-level column pruning doesn't know that and will strip them
+        # first if left on, causing a bare KeyError deep inside SFTTrainer.
+        # Only default it on for genuine flat-text datasets.
+        remove_unused_columns=cfg.get("remove_unused_columns", dataset_text_field is not None),
+        dataset_text_field=dataset_text_field,
+        max_length=cfg.get("max_seq_length", cfg.get("max_length", 2048)),
     )
 
 
@@ -365,6 +376,29 @@ def train(cfg: dict):
     else:
         text_column_content = text_column
 
+    # Decide what (if anything) to tell TRL is the "text field". TRL natively
+    # understands conversational ("messages"/"conversations") and
+    # prompt-completion ("prompt" + "completion") datasets with no text field
+    # at all — forcing dataset_text_field on those datasets confuses TRL's
+    # format auto-detection and surfaces as a bare KeyError deep inside
+    # SFTTrainer. Only pass a text field for genuine flat-text datasets, and
+    # only once we've confirmed that column actually exists.
+    column_names = set(dataset.column_names)
+    if {"prompt", "completion"} <= column_names or "messages" in column_names or "conversations" in column_names:
+        dataset_text_field = None
+    elif text_column_content in column_names:
+        dataset_text_field = text_column_content
+    else:
+        emit_error(
+            "CONFIG",
+            f"Dataset has no '{text_column_content}' column to train on. Available columns: {sorted(column_names)}",
+            [
+                'Set "text_column" in your config to an existing column name',
+                'Or set "prompt_template" to build a text field from another column',
+                "If your dataset is already prompt/completion or chat-formatted, no text_column is needed",
+            ],
+        )
+
     # Load model
     model, tokenizer = load_model_and_tokenizer(cfg)
 
@@ -375,7 +409,7 @@ def train(cfg: dict):
     # Training arguments (get_training_args may adjust batch size / grad
     # accumulation for certain hardware, e.g. MPS — compute total_steps
     # from those actual values so progress reporting stays accurate)
-    training_args = get_training_args(cfg, device)
+    training_args = get_training_args(cfg, device, dataset_text_field)
 
     # Determine total training steps
     if cfg.get("max_steps", -1) > 0:
@@ -397,8 +431,6 @@ def train(cfg: dict):
             args=training_args,
             train_dataset=dataset,
             peft_config=peft_config,
-            dataset_text_field=text_column_content,
-            max_seq_length=cfg.get("max_seq_length", 2048),
             callbacks=[IPCCallback(output_dir, total_steps)],
         )
 

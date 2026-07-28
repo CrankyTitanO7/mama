@@ -787,6 +787,13 @@ class MamaApi:
     def project_recents_read(self) -> Optional[dict]:
         return self._read_recents()
 
+    def project_recents_write(self, data: dict) -> dict:
+        """Merge data into recents.json and return the updated recents dict."""
+        recents = self._read_recents() or {}
+        recents.update(data)
+        self._write_recents(recents)
+        return recents
+
     def project_pick_folder(self) -> Optional[str]:
         """Open a native folder picker dialog."""
         try:

@@ -26,6 +26,17 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
+# Try to import TrainerCallback so IPCCallback below can subclass it (this
+# gives us free no-op default implementations for every callback hook that
+# transformers' Trainer invokes). If transformers isn't installed yet, fall
+# back to a plain stub — import_trl() will emit a proper "missing
+# dependency" error before IPCCallback is ever instantiated.
+try:
+    from transformers import TrainerCallback
+except ImportError:
+    class TrainerCallback:
+        pass
+
 # ── Structured output ────────────────────────────────────────────────────────
 
 def emit(obj: dict):
@@ -279,7 +290,7 @@ def get_training_args(cfg: dict, device: str):
 
 # ── Custom callback for IPC streaming ─────────────────────────────────────────
 
-class IPCCallback:
+class IPCCallback(TrainerCallback):
     def __init__(self, output_dir: str, total_steps: int):
         self.output_dir = output_dir
         self.total_steps = total_steps
@@ -313,6 +324,7 @@ class IPCCallback:
         emit_status("Training completed", "done")
 
     def on_train_begin(self, args, state, control, **kwargs):
+        self.last_time = time.time()
         emit_status("Training started", "training")
         emit_progress(0, self.total_steps, "training")
 
@@ -356,22 +368,24 @@ def train(cfg: dict):
     # Load model
     model, tokenizer = load_model_and_tokenizer(cfg)
 
+    # Configure PEFT
+    peft_config = get_lora_config(cfg)
+    use_lora = peft_config is not None
+
+    # Training arguments (get_training_args may adjust batch size / grad
+    # accumulation for certain hardware, e.g. MPS — compute total_steps
+    # from those actual values so progress reporting stays accurate)
+    training_args = get_training_args(cfg, device)
+
     # Determine total training steps
     if cfg.get("max_steps", -1) > 0:
         total_steps = cfg["max_steps"]
     else:
         epochs = cfg.get("num_train_epochs", 3)
-        batch_size = cfg.get("per_device_train_batch_size", 2)
-        grad_acc = cfg.get("gradient_accumulation_steps", 4)
-        steps_per_epoch = max(1, len(dataset) // (batch_size * grad_acc))
+        steps_per_epoch = max(1, len(dataset) // (
+            training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps
+        ))
         total_steps = int(steps_per_epoch * epochs)
-
-    # Configure PEFT
-    peft_config = get_lora_config(cfg)
-    use_lora = peft_config is not None
-
-    # Training arguments
-    training_args = get_training_args(cfg, device)
 
     # Callback
     emit_status(f"Starting training on {device} ({total_steps} steps)", "training")
@@ -456,7 +470,9 @@ def main():
         cfg = load_config(args.config)
         train(cfg)
     except SystemExit:
-        pass
+        # Preserve the original exit code (e.g. sys.exit(1) from emit_error)
+        # instead of silently turning every error path into a 0/success exit.
+        raise
     except Exception as e:
         emit_error("FATAL", str(e), [])
         sys.exit(1)

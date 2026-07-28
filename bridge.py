@@ -105,6 +105,19 @@ class MamaApi:
             self._python_exe = self._find_python()
         return self._python_exe
 
+    def _get_training_python(self, project_folder: str = None) -> Optional[str]:
+        """Python for training subprocesses — prefers project .venv, then app interpreter."""
+        if not project_folder:
+            recents = self._read_recents() or {}
+            project_folder = recents.get('open')
+        if project_folder:
+            venv_python = self._get_venv_python(project_folder)
+            if venv_python:
+                return venv_python
+        if sys.executable:
+            return sys.executable
+        return self._get_python()
+
     # ═══════════════════════════════════════════════════════════════════════
     # Script runner
     # ═══════════════════════════════════════════════════════════════════════
@@ -991,7 +1004,16 @@ class MamaApi:
         config_path = output_path / 'training_config.json'
         config_path.write_text(json.dumps(cfg, indent=2), 'utf-8')
 
-        python = self._get_python()
+        project_folder = None
+        recents = self._read_recents() or {}
+        if recents.get('open'):
+            project_folder = recents['open']
+        elif output_dir:
+            parent = Path(output_dir).parent
+            if (parent / 'project.json').exists():
+                project_folder = str(parent)
+
+        python = self._get_training_python(project_folder)
         if not python:
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
 
@@ -1002,6 +1024,8 @@ class MamaApi:
         })
 
         install_script = str(self._base_dir / 'components' / 'backend' / 'training' / 'install_deps.py')
+        install_success = False
+        install_error = ''
         try:
             install_proc = subprocess.Popen(
                 [python, install_script],
@@ -1015,6 +1039,9 @@ class MamaApi:
                     try:
                         data = json.loads(line)
                         data['_stream'] = 'install'
+                        if data.get('type') == 'install_done':
+                            install_success = bool(data.get('success'))
+                            install_error = data.get('error', '')
                         self._enqueue_emit('_trainingProgressCallback', data)
                     except json.JSONDecodeError:
                         self._enqueue_emit('_trainingProgressCallback', {
@@ -1025,8 +1052,11 @@ class MamaApi:
             logger.error('install_deps failed: %s', e)
             return {'success': False, 'error': f'Dependency installation error: {e}'}
 
-        if install_proc.returncode != 0:
-            return {'success': False, 'error': 'Dependency installation failed. Check the Training Monitor for details.'}
+        if install_proc.returncode != 0 or not install_success:
+            return {
+                'success': False,
+                'error': install_error or 'Dependency installation failed. Check the Training Monitor for details.',
+            }
 
         # ── Step 2: Launch training subprocess ────────────────────────
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train.py')
@@ -1169,7 +1199,7 @@ class MamaApi:
         """Download a model from HF Hub with progress streaming."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
         models_dir = output_dir or str(self._base_dir / 'models')
-        python = self._get_python()
+        python = self._get_training_python()
         if not python:
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
 
@@ -1224,10 +1254,10 @@ class MamaApi:
         """List locally downloaded models."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
         models_dir = models_dir or str(self._base_dir / 'models')
-        python = self._get_python()
+        python = self._get_training_python()
         if not python:
             return []
-        result = self._run_script(script, ['--list', '--output', models_dir], timeout=30_000)
+        result = self._run_script(script, ['--list', '--output', models_dir], timeout=30_000, python_exe=python)
         if result['code'] == 0 and result['stdout']:
             try:
                 # Parse last JSON line
@@ -1243,10 +1273,10 @@ class MamaApi:
     def model_check_compatibility(self, model_id: str) -> dict:
         """Check model compatibility for fine-tuning."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
-        python = self._get_python()
+        python = self._get_training_python()
         if not python:
             return {'compatible': False, 'error': 'Python 3 not found'}
-        result = self._run_script(script, ['--check', '--model-id', model_id], timeout=60_000)
+        result = self._run_script(script, ['--check', '--model-id', model_id], timeout=60_000, python_exe=python)
         if result['code'] == 0 and result['stdout']:
             for line in reversed(result['stdout'].strip().split('\n')):
                 if line.startswith('{'):
@@ -1261,7 +1291,7 @@ class MamaApi:
     def model_merge_adapter(self, base_model: str, adapter: str, output: str) -> dict:
         """Merge LoRA adapter into base model with streaming."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'merge_adapter.py')
-        python = self._get_python()
+        python = self._get_training_python()
         if not python:
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
 
@@ -1517,10 +1547,10 @@ class MamaApi:
     def train_platform_check(self) -> dict:
         """Check platform compatibility for training."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train.py')
-        python = self._get_python()
+        python = self._get_training_python()
         if not python:
             return {'success': False, 'error': 'Python 3 not found'}
-        result = self._run_script(script, ['--platform-check'], timeout=60_000)
+        result = self._run_script(script, ['--platform-check'], timeout=60_000, python_exe=python)
         if result['code'] == 0 and result['stdout']:
             for line in reversed(result['stdout'].strip().split('\n')):
                 if line.startswith('{'):

@@ -97,11 +97,15 @@ def main():
         if check_only and not check_installed(pkg):
             emit({"type": "install_status", "message": f"{pkg} is missing", "package": pkg, "status": "missing"})
             emit({"type": "install_done", "success": False, "error": f"Missing package: {pkg}"})
-            return
+            sys.exit(1)
+
+        if check_installed(pkg):
+            emit({"type": "install_status", "message": f"{pkg} already installed", "package": pkg, "status": "skipped"})
+            continue
 
         if not pip_install(pkg):
             emit({"type": "install_done", "success": False, "error": f"Failed to install {pkg}"})
-            return
+            sys.exit(1)
 
     emit({"type": "install_progress", "current": total, "total": total, "package": ""})
     emit({"type": "install_done", "success": True, "error": ""})

@@ -419,7 +419,7 @@ def train(cfg: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="TRL-based SFT fine-tuning runner")
-    parser.add_argument("--config", required=True, help="Path to training config JSON")
+    parser.add_argument("--config", help="Path to training config JSON")
     parser.add_argument("--platform-check", action="store_true", help="Only check platform compatibility and exit")
     args = parser.parse_args()
 
@@ -427,21 +427,33 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
     try:
-        cfg = load_config(args.config)
-
         if args.platform_check:
-            device = get_device()
-            import torch
-            info = {
-                "device": device,
-                "cuda_available": torch.cuda.is_available(),
-                "cuda_version": torch.version.cuda if torch.cuda.is_available() else None,
-                "mps_available": getattr(torch.backends, "mps", None) and torch.backends.mps.is_available(),
-                "torch_version": torch.__version__,
-            }
+            try:
+                import torch
+                device = get_device()
+                info = {
+                    "device": device,
+                    "cuda_available": torch.cuda.is_available(),
+                    "cuda_version": torch.version.cuda if torch.cuda.is_available() else None,
+                    "mps_available": getattr(torch.backends, "mps", None) and torch.backends.mps.is_available(),
+                    "torch_version": torch.__version__,
+                }
+            except ImportError as e:
+                info = {
+                    "device": "unknown",
+                    "cuda_available": False,
+                    "cuda_version": None,
+                    "mps_available": False,
+                    "torch_version": None,
+                    "error": f"PyTorch not installed: {e}",
+                }
             emit({"type": "platform_check", **info})
             return
 
+        if not args.config:
+            emit_error("CONFIG", "--config is required", [])
+
+        cfg = load_config(args.config)
         train(cfg)
     except SystemExit:
         pass

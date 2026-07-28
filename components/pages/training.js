@@ -37,14 +37,40 @@ const TrainingMonitor = (() => {
     // Start listening for training IPC events
     window.electron.onTrainingProgress(onTrainingEvent);
 
-    // Try to auto-load from recents
-    try {
-      const recents = await window.electron.projectRecentsRead();
-      if (recents?.open) {
-        await loadOutputFolder(recents.open);
+    // Resume a run started from the fine-tune page
+    const pendingConfig = sessionStorage.getItem('pendingTrainingConfig');
+    if (pendingConfig) {
+      sessionStorage.removeItem('pendingTrainingConfig');
+      try {
+        const cfg = JSON.parse(pendingConfig);
+        if (cfg.output_dir) {
+          await loadOutputFolder(cfg.output_dir);
+        }
+        trainingActive = true;
+        updateControlButtons();
+        updateStatus('Checking and installing dependencies...', 'loading');
+        const result = await window.electron.trainStart(JSON.stringify(cfg));
+        if (!result.success) {
+          updateStatus('Failed to start training: ' + (result.error || 'Unknown error'), 'error');
+          trainingActive = false;
+          updateControlButtons();
+        }
+      } catch (e) {
+        updateStatus('Error starting training: ' + e.message, 'error');
+        trainingActive = false;
+        updateControlButtons();
       }
-    } catch (e) {
-      // ignore
+    } else {
+      // Try to auto-load from recents
+      try {
+        const recents = await window.electron.projectRecentsRead();
+        if (recents?.open) {
+          const outputsDir = recents.open.replace(/\/+$/, '') + '/outputs';
+          await loadOutputFolder(outputsDir);
+        }
+      } catch (e) {
+        // ignore
+      }
     }
 
     // Bind controls

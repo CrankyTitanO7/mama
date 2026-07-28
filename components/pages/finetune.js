@@ -176,8 +176,12 @@ const Finetune = (() => {
     selectedDataset = path;
     const previewDiv = document.getElementById('ft-ds-preview');
     if (!previewDiv) return;
-    previewDiv.innerHTML = '';
     previewDiv.style.display = 'block';
+
+    const infoEl = document.getElementById('ft-ds-info');
+    const tableWrap = document.getElementById('ft-ds-table-wrap');
+    if (infoEl) infoEl.innerHTML = '';
+    if (!tableWrap) return;
 
     // Add progress bar styles once
     if (!document.getElementById('ft-loading-style')) {
@@ -207,11 +211,11 @@ const Finetune = (() => {
       document.head.appendChild(style);
     }
 
-    // Show progress bar
+    // Show progress bar inside table wrap (preserve info/table DOM ids)
     const loadingStatus = isHub
       ? 'Fetching dataset metadata from Hugging Face Hub...'
       : 'Scanning local dataset files...';
-    const loadingHTML = `
+    tableWrap.innerHTML = `
       <div class="ft-ds-loading">
         <div class="ft-ds-progress-track">
           <div class="ft-ds-progress-bar" id="ft-ds-progress-bar"></div>
@@ -221,11 +225,9 @@ const Finetune = (() => {
         </div>
       </div>
     `;
-    previewDiv.innerHTML = loadingHTML;
 
-    // Update progress text on events from backend
-    const progressStatusEl = previewDiv.querySelector('.ft-ds-loading-status');
-    const progressBarEl = document.getElementById('ft-ds-progress-bar');
+    const progressStatusEl = tableWrap.querySelector('.ft-ds-loading-status');
+    const progressBarEl = tableWrap.querySelector('#ft-ds-progress-bar');
     let progressTimer;
 
     if (isHub && window.electron.onDatasetPreviewProgress) {
@@ -239,7 +241,6 @@ const Finetune = (() => {
         }
       });
     } else if (isHub) {
-      // Fallback: pulse the bar manually if no progress callback
       const messages = [
         'Contacting Hugging Face datasets server...',
         'Fetching dataset info...',
@@ -254,22 +255,19 @@ const Finetune = (() => {
     }
 
     try {
-      if (progressTimer) clearInterval(progressTimer);
       const result = await window.electron.datasetPreview(path, 5);
       if (result && result.success && progressBarEl) {
         progressBarEl.style.animation = 'none';
         progressBarEl.style.width = '100%';
-        setTimeout(() => { progressBarEl.style.width = '0%'; }, 600);
       }
       if (!result || !result.success) {
         const errMsg = result ? result.error : 'null response from backend';
-        previewDiv.innerHTML = `<div class="ft-error">${escapeHtml(errMsg || 'Unknown error')}</div>`;
+        tableWrap.innerHTML = `<div class="ft-error">${escapeHtml(errMsg || 'Unknown error')}</div>`;
         return;
       }
 
       const cols = Array.isArray(result.columns) ? result.columns : [];
       const rows = Array.isArray(result.rows) ? result.rows : [];
-      const infoEl = document.getElementById('ft-ds-info');
       if (infoEl) {
         infoEl.innerHTML = `
           <span><strong>Columns:</strong> ${cols.join(', ') || '—'}</span>
@@ -304,14 +302,10 @@ const Finetune = (() => {
         });
         table.appendChild(tbody);
 
-        const wrap = document.getElementById('ft-ds-table-wrap');
-        if (wrap) {
-          wrap.innerHTML = '';
-          wrap.appendChild(table);
-        }
+        tableWrap.innerHTML = '';
+        tableWrap.appendChild(table);
       } else {
-        const wrap = document.getElementById('ft-ds-table-wrap');
-        if (wrap) wrap.innerHTML = '<p class="ft-empty">No data to display</p>';
+        tableWrap.innerHTML = '<p class="ft-empty">No data to display</p>';
       }
 
       // Auto-suggest text column
@@ -321,7 +315,10 @@ const Finetune = (() => {
         if (preferred) colInput.value = preferred;
       }
     } catch (e) {
-      if (previewDiv) previewDiv.innerHTML = `<div class="ft-error">${escapeHtml(e.message || e)}</div>`;
+      tableWrap.innerHTML = `<div class="ft-error">${escapeHtml(e.message || e)}</div>`;
+    } finally {
+      if (progressTimer) clearInterval(progressTimer);
+      window.electron.offDatasetPreviewProgress?.();
     }
   }
 
@@ -421,6 +418,12 @@ const Finetune = (() => {
       resume: document.getElementById('ft-resume').checked,
     };
 
+    const maxSamplesEl = document.getElementById('ft-ds-max-samples');
+    const maxSamples = maxSamplesEl?.value ? parseInt(maxSamplesEl.value, 10) : null;
+    if (maxSamples && maxSamples > 0) {
+      cfg.max_samples = maxSamples;
+    }
+
     return cfg;
   }
 
@@ -444,13 +447,8 @@ const Finetune = (() => {
     }
 
     try {
-      const result = await window.electron.trainStart(JSON.stringify(cfg));
-      if (result.success) {
-        // Auto-navigate to training monitor
-        window.electron.navigateTo('public/training.html');
-      } else {
-        alert('Failed to start training: ' + (result.error || 'Unknown error'));
-      }
+      sessionStorage.setItem('pendingTrainingConfig', JSON.stringify(cfg));
+      window.electron.navigateTo('public/training.html');
     } catch (e) {
       alert('Error: ' + e.message);
     }

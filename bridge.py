@@ -63,7 +63,7 @@ class MamaApi:
             pass
 
     def on_quit(self):
-        """Persist the open folder into recents and clear it."""
+        """Persist the open folder into recents for next launch."""
         try:
             recents = self._read_recents() or {}
             open_path = recents.get('open')
@@ -72,7 +72,6 @@ class MamaApi:
                 if open_path not in recent_list:
                     recent_list.insert(0, open_path)
                 recents['recent'] = recent_list[:10]
-            recents['open'] = None
             self._write_recents(recents)
         except Exception as e:
             logger.error('on_quit recents save failed: %s', e)

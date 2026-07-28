@@ -69,7 +69,7 @@ function renderLanding(recents) {
   });
 }
 
-async function getExplorerLabel() {
+function getExplorerLabel() {
   const platform = window.navigator.platform || '';
   if (platform.includes('Mac')) return '🗂 Open in Finder';
   if (platform.includes('Linux')) return '🗂 Open in File Manager';

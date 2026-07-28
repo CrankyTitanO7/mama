@@ -328,8 +328,11 @@ const Finetune = (() => {
     try {
       const recents = await window.electron.projectRecentsRead();
       const openFolder = recents?.open;
+      const el = document.getElementById('ft-output-dir');
       if (openFolder) {
-        document.getElementById('ft-output-dir').value = openFolder.replace(/\/+$/, '') + '/outputs';
+        el.value = openFolder.replace(/\/+$/, '') + '/outputs';
+      } else {
+        el.placeholder = '<project-folder>/outputs — open a project folder first';
       }
     } catch (e) {
       // ignore
@@ -443,6 +446,11 @@ const Finetune = (() => {
     if (!cfg.dataset_path) {
       alert('Please select a dataset first.');
       switchTab('dataset');
+      return;
+    }
+    if (!cfg.output_dir) {
+      alert('Please set an output directory. Open a project folder first, or choose an output path manually.');
+      switchTab('config');
       return;
     }
 

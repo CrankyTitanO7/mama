@@ -189,7 +189,7 @@ def load_model_and_tokenizer(cfg: dict):
             torch_dtype=torch_dtype if not quantization_config else None,
             device_map="auto" if device == "cuda" else None,
             trust_remote_code=cfg.get("trust_remote_code", False),
-            use_flash_attention_2=use_flash_attention,
+            attn_implementation="flash_attention_2" if use_flash_attention else "eager",
         )
         tokenizer = transformers.AutoTokenizer.from_pretrained(
             model_name,
@@ -379,7 +379,7 @@ def train(cfg: dict):
     try:
         trainer = trl.SFTTrainer(
             model=model,
-            tokenizer=tokenizer,
+            processing_class=tokenizer,
             args=training_args,
             train_dataset=dataset,
             peft_config=peft_config,

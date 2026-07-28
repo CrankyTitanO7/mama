@@ -78,6 +78,7 @@ const TrainingMonitor = (() => {
     document.getElementById('train-pause-btn')?.addEventListener('click', pauseTraining);
     document.getElementById('train-resume-btn')?.addEventListener('click', resumeTraining);
     document.getElementById('train-cancel-btn')?.addEventListener('click', cancelTraining);
+    document.getElementById('train-copy-log')?.addEventListener('click', copyLog);
 
     // Periodic checkpoint refresh
     refreshInterval = setInterval(refreshCheckpoints, 5000);
@@ -316,6 +317,32 @@ const TrainingMonitor = (() => {
     div.textContent = line;
     logEl.appendChild(div);
     logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  async function copyLog() {
+    const logEl = document.getElementById('train-log');
+    if (!logEl) return;
+    const lines = [...logEl.querySelectorAll('.train-log-line')].map(l => l.textContent).join('\n');
+    if (!lines) return;
+    try {
+      await navigator.clipboard.writeText(lines);
+      const btn = document.getElementById('train-copy-log');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      }
+    } catch (e) {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = lines;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
   }
 
   function setText(id, text) {

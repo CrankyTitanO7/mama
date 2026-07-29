@@ -54,7 +54,14 @@ const Finetune = (() => {
 
       if (models.length === 0) {
         container.innerHTML = '<div class="ft-empty">No models downloaded yet. Use the form above to download one.</div>';
+        selectedModel = '';
         return;
+      }
+
+      // Auto-select most recent model if none selected
+      if (!selectedModel || !models.some(m => m.path === selectedModel)) {
+        selectedModel = models[0].path;
+        document.getElementById('ft-model-id').value = models[0].model_id;
       }
 
       container.innerHTML = models.map(m => `

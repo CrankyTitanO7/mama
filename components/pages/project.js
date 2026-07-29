@@ -305,6 +305,18 @@ async function renderExplorer(folderData) {
             </div>
             <div class="settings-field">
               <div class="settings-field-meta">
+                <label class="settings-label" for="ps-difficulty">Difficulty</label>
+                <p class="settings-field-desc">Easy will add explanations to all settings.</p>
+              </div>
+              <div class="settings-field-control">
+                <select id="ps-difficulty" class="settings-input">
+                  <option value="easy" ${(data.difficulty || 'easy') === 'easy' ? 'selected' : ''}>Easy</option>
+                  <option value="hard" ${data.difficulty === 'hard' ? 'selected' : ''}>Hard</option>
+                </select>
+              </div>
+            </div>
+            <div class="settings-field">
+              <div class="settings-field-meta">
                 <label class="settings-label" for="ps-multimodel">Multimodel mode</label>
                 <p class="settings-field-desc">A handy GUI tool for designing multi-AI systems. This feature is not yet available.</p>
               </div>
@@ -374,6 +386,7 @@ async function renderExplorer(folderData) {
   document.getElementById('ps-save-btn')?.addEventListener('click', async () => {
     const statusEl = document.getElementById('ps-status');
     const multimodelCheck = document.getElementById('ps-multimodel');
+    const difficultySelect = document.getElementById('ps-difficulty');
     const updated = {
       name: document.getElementById('ps-name')?.value || '',
       version: document.getElementById('ps-version')?.value || '',
@@ -381,6 +394,7 @@ async function renderExplorer(folderData) {
       framework: document.getElementById('ps-framework')?.value || null,
       created: data.created || new Date().toISOString(),
       multimodel_mode: multimodelCheck ? multimodelCheck.checked : true,
+      difficulty: difficultySelect ? difficultySelect.value : 'easy',
     };
     const result = await window.electron.projectJsonWrite(folderData.path, updated);
     if (result.success) {

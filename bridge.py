@@ -981,6 +981,7 @@ class MamaApi:
                 'framework': None,
                 'created': time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime()),
                 'multimodel_mode': False,
+                'difficulty': 'easy',
             }
             project_json_path.write_text(json.dumps(project_json, indent=2), 'utf-8')
             return {'success': True, 'message': 'project.json created.'}

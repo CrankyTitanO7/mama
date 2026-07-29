@@ -84,8 +84,10 @@ def list_local_models(models_dir: str) -> list:
                 "path": str(item),
                 "has_config": config_file.exists(),
                 "size_bytes": sum(f.stat().st_size for f in item.rglob("*") if f.is_file()),
+                "mtime": item.stat().st_mtime,
             }
             results.append(info)
+    results.sort(key=lambda m: m["mtime"], reverse=True)
     return results
 
 

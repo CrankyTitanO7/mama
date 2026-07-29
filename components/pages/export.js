@@ -43,7 +43,7 @@ const ExportPage = (() => {
               <div class="export-card-icon">▶</div>
               <div class="export-card-body">
                 <h4>Google Colab</h4>
-                <p>Export training code to a Google Colab-compatible Python script.</p>
+                <p>Export your training code as a Jupyter notebook for Google Colab. Reads settings from <code>training_config.json</code> or <code>project.json</code>. No model required.</p>
               </div>
               <button type="button" id="export-btn-colab" class="settings-btn settings-btn-primary" disabled>Export</button>
             </div>
@@ -52,7 +52,7 @@ const ExportPage = (() => {
               <div class="export-card-icon">🌐</div>
               <div class="export-card-body">
                 <h4>JavaScript (Web)</h4>
-                <p>Convert model to ONNX format with a JavaScript runner for use in websites.</p>
+                <p>Convert a trained model to ONNX with a JS runner for use in websites. Requires a trained model in the outputs folder.</p>
               </div>
               <button type="button" id="export-btn-js" class="settings-btn settings-btn-primary" disabled>Export</button>
             </div>
@@ -61,7 +61,7 @@ const ExportPage = (() => {
               <div class="export-card-icon">🦙</div>
               <div class="export-card-body">
                 <h4>Ollama</h4>
-                <p>Export model to Ollama with a Modelfile. Run <code>ollama create</code> to use it.</p>
+                <p>Export a trained model to Ollama with a Modelfile. Requires a trained model, then run <code>ollama create</code> to use it.</p>
               </div>
               <button type="button" id="export-btn-ollama" class="settings-btn settings-btn-primary" disabled>Export</button>
             </div>
@@ -174,7 +174,15 @@ const ExportPage = (() => {
       }
 
       if (result.success) {
-        showStatus('Export completed successfully!', 'done');
+        const notes = [];
+        if (result.has_model === false) {
+          notes.push('No trained model found in this folder. The template has been copied but you will need to provide a model manually.');
+        }
+        if (result.converted === false) {
+          notes.push('ONNX conversion failed. The JS template was still copied but no model.onnx was generated.');
+        }
+        const noteHtml = notes.length ? '<p class="export-note">' + notes.join('<br>') + '</p>' : '';
+        showStatus('Export completed.' + (noteHtml ? ' ' + notes.join(' ') : ''), notes.length ? 'warning' : 'done');
         showResult(type, result);
       } else {
         showStatus('Export failed: ' + (result.error || 'Unknown error'), 'error');
@@ -212,10 +220,21 @@ const ExportPage = (() => {
     const path = result.path || '';
     const command = result.ollama_command || '';
 
+    const notes = [];
+    if (result.has_model === false) {
+      notes.push('No trained model was found in this folder. Edit the exported files to point to your model before using.');
+    }
+    if (result.converted === false) {
+      notes.push('ONNX conversion was skipped. Install torch and transformers, or convert manually.');
+    }
+
     let extraHtml = '';
+    if (notes.length) {
+      extraHtml += '<div class="export-notes">' + notes.map(n => '<p>' + escapeHtml(n) + '</p>').join('') + '</div>';
+    }
     if (command) {
-      extraHtml = `<p class="export-ollama-cmd">Run this command to create the Ollama model:</p>
-                   <pre class="export-ollama-command">${escapeHtml(command)}</pre>`;
+      extraHtml += `<p class="export-ollama-cmd">Run this command to create the Ollama model:</p>
+                    <pre class="export-ollama-command">${escapeHtml(command)}</pre>`;
     }
 
     el.innerHTML = `

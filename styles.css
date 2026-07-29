@@ -3922,3 +3922,29 @@ body.embed-fullscreen-active {
 .export-result .settings-btn {
     margin-top: 8px;
 }
+
+.export-note {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: color-mix(in srgb, #f9e2af 15%, var(--widget-bg));
+    border: 1px solid color-mix(in srgb, #f9e2af 30%, transparent);
+    border-radius: 6px;
+    font-size: 13px;
+    color: #f9e2af;
+    line-height: 1.4;
+}
+
+.export-notes {
+    margin: 8px 0;
+}
+
+.export-notes p {
+    margin: 4px 0;
+    padding: 8px 12px;
+    background: color-mix(in srgb, #f9e2af 15%, var(--widget-bg));
+    border: 1px solid color-mix(in srgb, #f9e2af 30%, transparent);
+    border-radius: 6px;
+    font-size: 13px;
+    color: #f9e2af;
+    line-height: 1.4;
+}

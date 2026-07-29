@@ -1705,17 +1705,21 @@ class MamaApi:
             if not out.exists():
                 return {'success': False, 'error': 'Output directory does not exist'}
 
-            template_src = self._base_dir / 'components' / 'export' / 'template' / 'colab' / 'colab_export.py'
+            template_src = self._base_dir / 'components' / 'export' / 'template' / 'colab' / 'colab_export.ipynb'
             if not template_src.exists():
                 return {'success': False, 'error': 'Colab template not found'}
 
-            dest = out / 'colab_export.py'
+            dest = out / 'colab_export.ipynb'
             shutil.copy2(str(template_src), str(dest))
 
-            # Copy training config if available
-            config_src = out / 'training_config.json'
-            if config_src.exists():
-                shutil.copy2(str(config_src), str(out / 'colab_training_config.json'))
+            # Copy training config alongside the notebook (skip if already in out dir)
+            config_srcs = [out.parent / 'project.json']
+            training_cfg = out / 'training_config.json'
+            if training_cfg.exists():
+                config_srcs.insert(0, training_cfg)
+            for src in config_srcs:
+                if src.exists() and src.parent != out:
+                    shutil.copy2(str(src), str(out / src.name))
 
             logger.info('Colab export created at %s', dest)
             return {'success': True, 'path': str(dest)}
@@ -1740,21 +1744,35 @@ class MamaApi:
             # Copy the JS template
             shutil.copy2(str(template_src), str(js_dir / 'model_runner.js'))
 
-            # Try to convert model to ONNX using optimum or transformers
-            python = self._get_training_python()
-            conversion_script = str(self._base_dir / 'components' / 'backend' / 'training' / 'convert_to_onnx.py')
-            if python and Path(conversion_script).exists():
-                result = self._run_script(
-                    conversion_script,
-                    ['--input-dir', output_dir, '--output-dir', str(js_dir)],
-                    timeout=300_000,
-                    python_exe=python
-                )
-                if result['code'] != 0:
-                    logger.warning('ONNX conversion failed, template still copied')
+            # Detect if a trained model exists
+            model_path = out / 'final_model'
+            if not model_path.exists():
+                checkpoints = sorted(out.glob('checkpoint-*'))
+                if checkpoints:
+                    model_path = checkpoints[-1]
+
+            conversion = None
+            if model_path.exists():
+                python = self._get_training_python()
+                conversion_script = str(self._base_dir / 'components' / 'backend' / 'training' / 'convert_to_onnx.py')
+                if python and Path(conversion_script).exists():
+                    result = self._run_script(
+                        conversion_script,
+                        ['--input-dir', output_dir, '--output-dir', str(js_dir)],
+                        timeout=300_000,
+                        python_exe=python
+                    )
+                    conversion = result['code'] == 0
+                    if not conversion:
+                        logger.warning('ONNX conversion failed, template still copied')
 
             logger.info('JS export created at %s', js_dir)
-            return {'success': True, 'path': str(js_dir)}
+            return {
+                'success': True,
+                'path': str(js_dir),
+                'has_model': model_path.exists(),
+                'converted': conversion,
+            }
         except Exception as e:
             logger.error('export_run_js failed: %s', e)
             return {'success': False, 'error': str(e)}
@@ -1769,15 +1787,18 @@ class MamaApi:
             ollama_dir = out / 'ollama_export'
             ollama_dir.mkdir(parents=True, exist_ok=True)
 
+            # Find model directory
             model_path = out / 'final_model'
             if not model_path.exists():
-                # Look for checkpoint directories
                 checkpoints = sorted(out.glob('checkpoint-*'))
                 if checkpoints:
                     model_path = checkpoints[-1]
 
+            model_found = model_path.exists()
+
             # Write Modelfile
-            modelfile = f"""FROM {model_path}
+            from_line = f'FROM {model_path}' if model_found else '# No trained model found. Replace with your model path.'
+            modelfile = f"""{from_line}
 
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9
@@ -1791,8 +1812,7 @@ SYSTEM \"\"\"You are a model trained with mama. Respond to the user's queries.
 """
             (ollama_dir / 'Modelfile').write_text(modelfile, 'utf-8')
 
-            # Copy model files (symlink on supported systems)
-            if model_path.exists():
+            if model_found:
                 model_dest = ollama_dir / 'model'
                 if not model_dest.exists():
                     try:
@@ -1804,7 +1824,8 @@ SYSTEM \"\"\"You are a model trained with mama. Respond to the user's queries.
             return {
                 'success': True,
                 'path': str(ollama_dir),
-                'ollama_command': f'ollama create my-model -f {ollama_dir / "Modelfile"}'
+                'has_model': model_found,
+                'ollama_command': f'ollama create my-model -f {ollama_dir / "Modelfile"}',
             }
         except Exception as e:
             logger.error('export_run_ollama failed: %s', e)

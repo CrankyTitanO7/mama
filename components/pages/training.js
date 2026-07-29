@@ -12,6 +12,7 @@ const TrainingMonitor = (() => {
   let chartCtx = null;
   let refreshInterval = null;
   let trainingActive = false;
+  let hasConfig = false;
 
   // ── Init ──────────────────────────────────────────────────────────
 
@@ -52,12 +53,31 @@ const TrainingMonitor = (() => {
         updateControlButtons();
       }
     } else {
-      // Try to auto-load from recents
+      // Try to re-attach to a running/completed training session
       try {
-        const recents = await window.electron.projectRecentsRead();
-        if (recents?.open) {
-          const outputsDir = recents.open.replace(/\/+$/, '') + '/outputs';
-          await loadOutputFolder(outputsDir);
+        const active = await window.electron.trainGetActive();
+        if (active?.active && active.output_dir) {
+          await loadOutputFolder(active.output_dir);
+          if (active.running) {
+            trainingActive = true;
+            updateStatus('Re-attached to running training', 'training');
+            updateControlButtons();
+          } else if (active.paused) {
+            trainingActive = false;
+            updateStatus('Training is paused', 'loading');
+            updateControlButtons();
+          } else if (!active.is_cancelled) {
+            trainingActive = false;
+            updateStatus('Training completed', 'done');
+            updateControlButtons();
+          }
+        } else {
+          // Fall back to recents
+          const recents = await window.electron.projectRecentsRead();
+          if (recents?.open) {
+            const outputsDir = recents.open.replace(/\/+$/, '') + '/outputs';
+            await loadOutputFolder(outputsDir);
+          }
         }
       } catch (e) {
         // ignore
@@ -66,6 +86,7 @@ const TrainingMonitor = (() => {
 
     // Bind controls
     document.getElementById('train-select-folder')?.addEventListener('click', selectOutputFolder);
+    document.getElementById('train-start-btn')?.addEventListener('click', startTrainingFromConfig);
     document.getElementById('train-pause-btn')?.addEventListener('click', pauseTraining);
     document.getElementById('train-resume-btn')?.addEventListener('click', resumeTraining);
     document.getElementById('train-cancel-btn')?.addEventListener('click', cancelTraining);
@@ -449,9 +470,11 @@ const TrainingMonitor = (() => {
     currentOutputDir = folderPath;
     document.getElementById('train-current-folder').textContent = folderPath;
     metrics = [];
+    try { await window.electron.projectRecentsWrite({ lastTrainingDir: folderPath }); } catch (e) {}
 
     // Load config if available
     const status = await window.electron.trainStatus(folderPath);
+    hasConfig = !!status.has_config;
     if (status.has_config) {
       document.getElementById('train-total-steps').textContent = '?';
     }
@@ -478,28 +501,32 @@ const TrainingMonitor = (() => {
   // ── Training controls ─────────────────────────────────────────
 
   function updateControlButtons() {
+    const startBtn = document.getElementById('train-start-btn');
     const pauseBtn = document.getElementById('train-pause-btn');
     const resumeBtn = document.getElementById('train-resume-btn');
     const cancelBtn = document.getElementById('train-cancel-btn');
 
     if (!currentOutputDir) {
-      [pauseBtn, resumeBtn, cancelBtn].forEach(b => { if (b) b.style.display = 'none'; });
+      [pauseBtn, resumeBtn, cancelBtn, startBtn].forEach(b => { if (b) b.style.display = 'none'; });
       return;
     }
 
     if (trainingActive) {
+      if (startBtn) startBtn.style.display = 'none';
       if (pauseBtn) pauseBtn.style.display = '';
       if (resumeBtn) resumeBtn.style.display = 'none';
       if (cancelBtn) cancelBtn.style.display = '';
     } else {
-      // Check if paused
+      // Check if paused and show start button when config exists
       (async () => {
         const status = await window.electron.trainStatus(currentOutputDir);
         if (status.is_paused) {
+          if (startBtn) startBtn.style.display = 'none';
           if (pauseBtn) pauseBtn.style.display = 'none';
           if (resumeBtn) resumeBtn.style.display = '';
           if (cancelBtn) cancelBtn.style.display = '';
         } else {
+          if (startBtn) startBtn.style.display = hasConfig ? '' : 'none';
           [pauseBtn, resumeBtn, cancelBtn].forEach(b => { if (b) b.style.display = 'none'; });
         }
       })();
@@ -531,6 +558,34 @@ const TrainingMonitor = (() => {
     const result = await window.electron.trainCancel(currentOutputDir);
     if (result.success) {
       appendLog('Training cancelled.');
+      trainingActive = false;
+      updateControlButtons();
+    }
+  }
+
+  async function startTrainingFromConfig() {
+    if (!currentOutputDir) return;
+    const status = await window.electron.trainStatus(currentOutputDir);
+    if (!status.has_config) {
+      appendLog('No training configuration found in this folder.');
+      return;
+    }
+
+    const configResult = await window.electron.trainReadConfig(currentOutputDir);
+    if (!configResult.success || !configResult.config) {
+      appendLog('Failed to read training config: ' + (configResult.error || 'Unknown error'));
+      return;
+    }
+
+    const cfg = configResult.config;
+    trainingActive = true;
+    updateControlButtons();
+    updateStatus('Starting training from existing config...', 'loading');
+    appendLog('Starting training with config from ' + currentOutputDir);
+
+    const result = await window.electron.trainStart(JSON.stringify(cfg));
+    if (!result.success) {
+      updateStatus('Failed to start training: ' + (result.error || 'Unknown error'), 'error');
       trainingActive = false;
       updateControlButtons();
     }

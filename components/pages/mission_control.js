@@ -151,8 +151,14 @@ const MC = (() => {
               <span style="color:#eee;font-size:0.9rem">${peakTflops.toFixed(1)} TFLOPS</span>
             </div>
           </div>
-          <div style="background:#444;border-radius:4px;height:20px;overflow:hidden;margin-bottom:0.3rem">
-            <div style="background:${utilColor};width:${barPct}%;height:100%;border-radius:4px;transition:width 0.5s ease"></div>
+          <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#666;margin-bottom:0.15rem">
+            <span>0%</span>
+            <span style="color:#ffc107">10% — Expected range — 40%</span>
+            <span>100%</span>
+          </div>
+          <div style="background:#444;border-radius:4px;height:20px;overflow:hidden;margin-bottom:0.3rem;position:relative">
+            <div style="position:absolute;left:10%;width:30%;height:100%;background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,193,7,0.12) 4px,rgba(255,193,7,0.12) 8px);border-left:1px dashed rgba(255,193,7,0.4);border-right:1px dashed rgba(255,193,7,0.4)"></div>
+            <div style="background:${utilColor};width:${barPct}%;height:100%;border-radius:4px;transition:width 0.5s ease;position:relative;z-index:1"></div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span style="color:${utilColor};font-size:0.85rem;font-weight:bold">${pct.toFixed(1)}% of peak</span>
@@ -173,6 +179,50 @@ const MC = (() => {
 
     // Show export button
     exportBtn.style.display = 'inline-block';
+  }
+
+  // ── Parse PROGRESS lines from flops.py stdout ──────────────
+  function parseProgressSteps(output) {
+    const lines = output.split('\n').filter(l => l.startsWith('PROGRESS:'));
+    if (!lines.length) {
+      return [{ msg: 'Running benchmark...', pct: 50 }, { msg: 'Complete!', pct: 100 }];
+    }
+
+    const steps = [];
+    let prevPct = 0;
+    for (const line of lines) {
+      const msg = line.slice(9);
+      let pct;
+      if (/^Loading model/i.test(msg)) pct = 5;
+      else if (/^Counting FLOPs/i.test(msg)) pct = 10;
+      else if (/^Moving model/i.test(msg)) pct = 15;
+      else if (/^Warming up/i.test(msg)) pct = 20;
+      else if (/^Warmup (\d+)\/(\d+)/.test(msg)) {
+        const m = msg.match(/^Warmup (\d+)\/(\d+)/);
+        pct = 20 + (parseInt(m[1]) / parseInt(m[2])) * 30;
+      } else if (/^Measuring \(\d+ iterations\)/.test(msg)) pct = 50;
+      else if (/^Measuring (\d+)\/(\d+)/.test(msg)) {
+        const m = msg.match(/^Measuring (\d+)\/(\d+)/);
+        pct = 50 + (parseInt(m[1]) / parseInt(m[2])) * 45;
+      } else pct = Math.min(prevPct + 5, 99);
+      steps.push({ msg, pct: Math.round(Math.max(pct, prevPct)) });
+      prevPct = pct;
+    }
+    steps.push({ msg: 'Complete!', pct: 100 });
+    return steps;
+  }
+
+  function animateProgressSteps(steps, textEl, barEl, onDone) {
+    let i = 0;
+    function tick() {
+      if (i >= steps.length) { onDone(); return; }
+      const s = steps[i];
+      textEl.textContent = s.msg;
+      barEl.style.width = s.pct + '%';
+      i++;
+      setTimeout(tick, 180);
+    }
+    tick();
   }
 
   // ── Render ────────────────────────────────────────────────
@@ -382,9 +432,30 @@ const MC = (() => {
       font-family: monospace;
       font-size: 0.85rem;
       color: #aaa;
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
       min-height: 1.5em;
     `;
+
+    const modalProgressBarTrack = document.createElement('div');
+    modalProgressBarTrack.style.cssText = `
+      width: 100%;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    `;
+
+    const modalProgressBar = document.createElement('div');
+    modalProgressBar.style.cssText = `
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50, #8bc34a);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    `;
+
+    modalProgressBarTrack.appendChild(modalProgressBar);
 
     const modalCancelBtn = document.createElement('button');
     modalCancelBtn.textContent = '✕ Cancel';
@@ -407,6 +478,7 @@ const MC = (() => {
     modalBox.appendChild(modalSpinner);
     modalBox.appendChild(modalTitle);
     modalBox.appendChild(modalProgress);
+    modalBox.appendChild(modalProgressBarTrack);
     modalBox.appendChild(modalCancelBtn);
     modalOverlay.appendChild(modalBox);
     document.body.appendChild(modalOverlay);
@@ -456,9 +528,26 @@ const MC = (() => {
 
       try {
         // Run with JSON output for structured parsing
-        const result = await window.electron.runFlopsTest(batchSize, model, true);
+        const bridge = window.pywebview?.api || window.electron;
+        const result = bridge
+          ? window.pywebview?.api
+            ? await bridge.run_flops_test(batchSize, model, true)
+            : await bridge.runFlopsTest(batchSize, model, true)
+          : { code: 1, stdout: '', stderr: 'No API bridge available' };
         const output = result.stdout || '';
         const err = result.stderr || '';
+
+        // Parse progress lines and animate the progress bar
+        modalCancelBtn.disabled = true;
+        modalCancelBtn.style.opacity = '0.4';
+        const steps = parseProgressSteps(output);
+
+        await new Promise((resolve) => {
+          animateProgressSteps(steps, modalProgress, modalProgressBar, resolve);
+        });
+
+        // Small pause to show "Complete!" before hiding modal
+        await new Promise(r => setTimeout(r, 300));
 
         // Hide modal
         modalOverlay.style.display = 'none';
@@ -502,7 +591,12 @@ const MC = (() => {
       if (!resultText) return;
 
       try {
-        const exportResult = await window.electron.exportFlopsResult(resultText);
+        const bridge = window.pywebview?.api || window.electron;
+        const exportResult = bridge
+          ? window.pywebview?.api
+            ? await bridge.export_flops_result(resultText)
+            : await bridge.exportFlopsResult(resultText)
+          : { success: false, error: 'No API bridge available' };
         if (exportResult.success) {
           exportBtn.textContent = '✅ Exported!';
           setTimeout(() => {

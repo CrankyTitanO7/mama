@@ -63,8 +63,21 @@ class MamaApi:
             pass
 
     def on_quit(self):
-        """Persist the open folder into recents for next launch."""
+        """Persist recents and terminate training if running."""
         try:
+            # Kill training process if still running
+            if self._training_process and self._training_process.poll() is None:
+                try:
+                    self._training_process.terminate()
+                    self._training_process.wait(timeout=10)
+                except Exception:
+                    try:
+                        self._training_process.kill()
+                    except Exception:
+                        pass
+                self._training_process = None
+            self._training_output_dir = None
+
             recents = self._read_recents() or {}
             open_path = recents.get('open')
             if open_path:
@@ -585,8 +598,8 @@ class MamaApi:
         for callback_name, chunk in items:
             js = (
                 f"(function(){{"
-                f"var cb=window.electron&&window.electron.{callback_name};"
-                f"if(cb)cb({json.dumps(chunk)});"
+                f"var el=window.electron;"
+                f"if(el&&el._dispatchIpc)el._dispatchIpc({json.dumps(callback_name)},{json.dumps(chunk)});"
                 f"}})();"
             )
             try:
@@ -987,6 +1000,7 @@ class MamaApi:
 
     _training_process: Optional[subprocess.Popen] = None
     _training_thread: Optional[threading.Thread] = None
+    _training_output_dir: Optional[str] = None
 
     def _emit_training_progress(self, chunk: dict):
         self._enqueue_emit('_trainingProgressCallback', chunk)
@@ -1001,12 +1015,18 @@ class MamaApi:
             return {'success': False, 'error': f'Invalid config JSON: {e}'}
 
         output_dir = cfg.get('output_dir', '')
+        self._training_output_dir = output_dir
         if not output_dir:
             return {'success': False, 'error': 'output_dir is required in config'}
 
         # Write config to output dir
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
+
+        # Clean stale control markers from previous runs
+        for marker in ['.cancel', '.pause']:
+            (output_path / marker).unlink(missing_ok=True)
+
         config_path = output_path / 'training_config.json'
         config_path.write_text(json.dumps(cfg, indent=2), 'utf-8')
 
@@ -1141,6 +1161,8 @@ class MamaApi:
             if self._training_process:
                 self._training_process.terminate()
                 self._training_process = None
+            if self._training_output_dir == output_dir:
+                self._training_output_dir = None
             return {'success': True}
         except Exception as e:
             return {'success': False, 'error': str(e)}
@@ -1158,6 +1180,17 @@ class MamaApi:
             }
         except Exception as e:
             return {'running': False, 'error': str(e)}
+
+    def train_read_config(self, output_dir: str) -> dict:
+        """Read training config from output directory."""
+        try:
+            out = Path(output_dir)
+            config_path = out / 'training_config.json'
+            if config_path.exists():
+                return {'success': True, 'config': json.loads(config_path.read_text('utf-8'))}
+            return {'success': False, 'error': 'No training config found'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
     def train_list_checkpoints(self, output_dir: str) -> list:
         """List checkpoints in output directory."""
@@ -1191,6 +1224,33 @@ class MamaApi:
         except Exception as e:
             logger.error('train_list_checkpoints failed: %s', e)
             return []
+
+    def train_get_active(self) -> dict:
+        """Get info about any currently active (or recently completed) training."""
+        if not self._training_output_dir:
+            return {'active': False}
+
+        out = Path(self._training_output_dir)
+        running = self._training_process is not None and self._training_process.poll() is None
+        has_config = (out / 'training_config.json').exists()
+        is_paused = (out / '.pause').exists()
+
+        result = {
+            'active': running or has_config,
+            'running': running,
+            'paused': is_paused,
+            'output_dir': self._training_output_dir,
+            'has_config': has_config,
+            'is_cancelled': (out / '.cancel').exists(),
+            'has_checkpoint': len(list(out.glob('checkpoint-*'))) > 0,
+        }
+
+        checkpoints = self.train_list_checkpoints(self._training_output_dir)
+        if checkpoints:
+            result['latest_checkpoint'] = checkpoints[-1]
+        result['checkpoints'] = checkpoints
+
+        return result
 
     # ═══════════════════════════════════════════════════════════════════════
     # Model Management (Download / List / Check)

@@ -17,8 +17,7 @@ class Topbar {
       { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
       { label: 'export model', page: 'export.html', key: 'export' },
       { label: '✏️ designer', page: 'multicon.html', key: 'multicon' },
-      { label: 'database', page: 'db_explorer.html', key: 'db_explorer' },
-      { label: '⚡ FLOPS', page: 'flops.html', key: 'flops' }
+      { label: 'database', page: 'db_explorer.html', key: 'db_explorer' }
     ];
   }
 
@@ -40,7 +39,6 @@ class Topbar {
       'error': 'settings',
       'finetune': 'finetune',
       'training': 'training',
-      'flops': 'flops',
     };
     return keyMap[this.currentPage] || this.currentPage;
   }

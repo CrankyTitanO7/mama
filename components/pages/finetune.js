@@ -40,6 +40,7 @@ const Finetune = (() => {
     currentTab = tabId;
     document.querySelectorAll('.ft-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
     document.querySelectorAll('.ft-tab-content').forEach(c => c.classList.toggle('active', c.id === 'ft-tab-' + tabId));
+    if (tabId === 'train') updateTrainTab();
   }
 
   // ── Model tab ──────────────────────────────────────────────────
@@ -486,6 +487,22 @@ const Finetune = (() => {
     document.getElementById('ft-config-preview').textContent = JSON.stringify(cfg, null, 2);
   }
 
+  function updateTrainTab() {
+    const cfg = buildConfig();
+    const summary = document.getElementById('ft-train-tab-config-summary');
+    if (cfg.model_name_or_path && cfg.dataset_path && cfg.output_dir) {
+      summary.innerHTML = `
+        <div class="train-config-summary">
+          <p><strong>Model:</strong> ${escapeHtml(cfg.model_name_or_path)}</p>
+          <p><strong>Dataset:</strong> ${escapeHtml(cfg.dataset_path)}</p>
+          <p><strong>Output:</strong> ${escapeHtml(cfg.output_dir)}</p>
+          <p><strong>Method:</strong> ${cfg.use_qlora ? 'QLoRA' : cfg.use_lora ? 'LoRA' : 'Full'}</p>
+        </div>`;
+    } else {
+      summary.innerHTML = `<p>Complete steps 1-3 to generate a training configuration, then start training below.</p>`;
+    }
+  }
+
   async function startTraining() {
     const cfg = buildConfig();
 
@@ -566,6 +583,7 @@ const Finetune = (() => {
     document.getElementById('ft-start-train')?.addEventListener('click', startTraining);
 
     // Training tab
+    document.getElementById('ft-start-train-from-step4')?.addEventListener('click', startTraining);
     document.getElementById('ft-go-training')?.addEventListener('click', () => {
       window.electron.navigateTo('public/training.html');
     });

@@ -10,6 +10,7 @@
 
 // ── State ────────────────────────────────────────────────────────────────────
 let settings = null;
+let embedFrame = null;
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,33 @@ function disabledMsg(text) {
 /** True when settings contain a non-empty provider URL string. */
 function hasProviderUrl(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+// ── URL persistence (sessionStorage) ──────────────────────────────────────────
+
+const SESSION_KEY = 'db_explorer_url';
+
+function saveIframeUrl(frame) {
+  try {
+    const url = frame?.contentWindow?.location?.href;
+    if (url && url !== 'about:blank') {
+      sessionStorage.setItem(SESSION_KEY, url);
+    }
+  } catch (_) {
+    // Cross-origin — cannot read iframe URL
+  }
+}
+
+function getSavedUrl(fallbackUrl) {
+  const saved = sessionStorage.getItem(SESSION_KEY);
+  if (!saved || saved === 'about:blank') return fallbackUrl;
+  // For proxy URLs, verify the provider domain matches
+  const proxyMatch = fallbackUrl.match(/^\/proxy\/([^/]+)/);
+  if (proxyMatch) {
+    const savedProxyMatch = saved.match(/^\/proxy\/([^/]+)/);
+    if (!savedProxyMatch || savedProxyMatch[1] !== proxyMatch[1]) return fallbackUrl;
+  }
+  return saved;
 }
 
 // ── Embed fullscreen ──────────────────────────────────────────────────────────
@@ -344,6 +372,9 @@ function mountMiniBrowser(container, src, title, iframeFallbackSrc, orientation,
   });
 
   container.appendChild(widget);
+
+  embedFrame = frame;
+  window.addEventListener('beforeunload', () => saveIframeUrl(frame), { once: true });
 }
 
 /**
@@ -367,9 +398,11 @@ async function renderDbExplorer() {
   const provider = getSetting('qol settings', 'database provider');
 
   if (hasProviderUrl(provider)) {
+    const resolvedUrl = normalizeProviderUrl(provider);
+    const restoreUrl = getSavedUrl(resolvedUrl);
     mountMiniBrowser(
       container,
-      normalizeProviderUrl(provider),
+      restoreUrl,
       'Database Explorer',
       null,
       'landscape',

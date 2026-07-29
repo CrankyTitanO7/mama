@@ -5,6 +5,8 @@
 'use strict';
 
 let settings = null;
+let trainingPollTimer = null;
+let trainingState = null;
 
 function getSetting(...keys) {
   let obj = settings;
@@ -26,13 +28,67 @@ function disabledMsg(text) {
   return `<p class="disabled-msg">${text} <a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/settings.html')">enable?</a></p>`;
 }
 
+async function pollTrainingStatus() {
+  try {
+    trainingState = await window.electron.trainGetActive();
+  } catch (e) {
+    trainingState = null;
+  }
+  renderStatus();
+  updateQuickActionButtons();
+}
+
+function startTrainingPolling() {
+  stopTrainingPolling();
+  pollTrainingStatus();
+  trainingPollTimer = setInterval(pollTrainingStatus, 3000);
+}
+
+function stopTrainingPolling() {
+  if (trainingPollTimer) {
+    clearInterval(trainingPollTimer);
+    trainingPollTimer = null;
+  }
+}
+
 function renderStatus() {
   const container = document.getElementById('status-content');
   if (!container) return;
+
+  if (!trainingState || !trainingState.active) {
+    container.innerHTML = `
+      <div class="status-placeholder">
+        <p>No active training session.</p>
+        <p class="status-hint">Start a training job on the <a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/finetune.html')">fine-tune page</a>.</p>
+        <p><a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/training.html')">Open Training Monitor &rarr;</a></p>
+      </div>
+    `;
+    return;
+  }
+
+  const cp = trainingState.latest_checkpoint;
+  const cpStep = cp ? cp.step : '?';
+  const cpLoss = cp && cp.loss != null ? cp.loss.toFixed(4) : null;
+
+  let icon, label, cls;
+  if (trainingState.is_cancelled) {
+    icon = '✖️'; label = 'Cancelled'; cls = 'status-cancelled';
+  } else if (trainingState.paused) {
+    icon = '⏸️'; label = 'Paused'; cls = 'status-paused';
+  } else if (trainingState.running) {
+    icon = '▶️'; label = 'Running'; cls = 'status-running';
+  } else {
+    icon = '✅'; label = 'Completed'; cls = 'status-completed';
+  }
+
+  const dir = escapeHtmlAttr(trainingState.output_dir || '');
+
   container.innerHTML = `
-    <div class="status-placeholder">
-      <p>No active training session.</p>
-      <p class="status-hint">Start a training job to see live output here.</p>
+    <div class="status-training ${cls}">
+      <p class="status-line"><strong>${icon} Training ${label}</strong></p>
+      <p class="status-dir" title="${dir}">${dir}</p>
+      <p class="status-metrics">Step ${cpStep}${cpLoss !== null ? ' &middot; Loss ' + cpLoss : ''}</p>
+      <p><a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/training.html')">Open Training Monitor &rarr;</a></p>
     </div>
   `;
 }
@@ -80,7 +136,6 @@ async function renderResources() {
   }
 
   if (typeof initResourcesWidget === 'function') {
-    // Pass hardware settings so the widget can show configured GPU without auto-detecting
     const hw = getSetting('hardware settings') || {};
     initResourcesWidget(container, {
       gpuConfig: {
@@ -98,6 +153,26 @@ async function renderResources() {
   }
 }
 
+function updateQuickActionButtons() {
+  const container = document.getElementById('quick-actions-content');
+  if (!container) return;
+
+  const pausePlayBtn = container.querySelector('.qa-pause-play');
+  const cancelBtn = container.querySelector('.qa-cancel');
+
+  const hasActive = trainingState && trainingState.active;
+
+  if (pausePlayBtn) {
+    pausePlayBtn.disabled = !hasActive;
+    pausePlayBtn.textContent = trainingState && trainingState.paused
+      ? '▶️ resume' : '⏸️ pause';
+  }
+
+  if (cancelBtn) {
+    cancelBtn.disabled = !hasActive;
+  }
+}
+
 function renderQuickActions() {
   const container = document.getElementById('quick-actions-content');
   if (!container) return;
@@ -106,9 +181,42 @@ function renderQuickActions() {
   const cancelBtn     = container.querySelector('.qa-cancel');
   const openFolderBtn = container.querySelector('.qa-open-folder');
 
-  pausePlayBtn?.addEventListener('click',  () => console.log('pause/play toggled'));
-  cancelBtn?.addEventListener('click',     () => console.log('cancel requested'));
-  openFolderBtn?.addEventListener('click', () => console.log('open folder requested'));
+  pausePlayBtn?.addEventListener('click', async () => {
+    if (!trainingState || !trainingState.active) return;
+    try {
+      if (trainingState.paused) {
+        await window.electron.trainResume(trainingState.output_dir);
+      } else {
+        await window.electron.trainPause(trainingState.output_dir);
+      }
+      await pollTrainingStatus();
+    } catch (e) {
+      console.error('home.js: pause/resume failed', e);
+    }
+  });
+
+  cancelBtn?.addEventListener('click', async () => {
+    if (!trainingState || !trainingState.active) return;
+    if (!confirm('Cancel the current training job?')) return;
+    try {
+      await window.electron.trainCancel(trainingState.output_dir);
+      await pollTrainingStatus();
+    } catch (e) {
+      console.error('home.js: cancel failed', e);
+    }
+  });
+
+  openFolderBtn?.addEventListener('click', async () => {
+    try {
+      if (trainingState && trainingState.output_dir) {
+        await window.electron.projectRevealFolder(trainingState.output_dir);
+      }
+    } catch (e) {
+      console.error('home.js: open folder failed', e);
+    }
+  });
+
+  updateQuickActionButtons();
 }
 
 function hasProviderUrl(value) {
@@ -243,7 +351,6 @@ function createEmbedWidget(embedEl, orientation) {
   const root = document.createElement('div');
   root.className = 'embed-widget';
   root.dataset.orientation = orientation;
-  // flex:1 stretches in a flex parent; height:100% fills when parent is block
   Object.assign(root.style, {
     display:       'flex',
     flexDirection: 'column',
@@ -255,7 +362,7 @@ function createEmbedWidget(embedEl, orientation) {
 
   const toolbar = document.createElement('div');
   toolbar.className = 'embed-widget-toolbar';
-  toolbar.style.flexShrink = '0';   // never let the toolbar get squeezed away
+  toolbar.style.flexShrink = '0';
 
   const muteBtn = document.createElement('button');
   muteBtn.type = 'button';
@@ -273,7 +380,6 @@ function createEmbedWidget(embedEl, orientation) {
 
   const slot = document.createElement('div');
   slot.className = 'embed-widget-slot';
-  // slot must be a flex column so the webview/iframe inside can use flex:1
   Object.assign(slot.style, {
     display:       'flex',
     flexDirection: 'column',
@@ -472,9 +578,10 @@ function escapeHtmlAttr(str) {
     console.error('home.js: failed to read settings', err);
   }
 
-  renderStatus();
   renderQuickActions();
   void renderResources();
   void renderReels();
   void renderSite();
+
+  startTrainingPolling();
 })();

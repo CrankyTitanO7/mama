@@ -69,8 +69,6 @@ SHIM_SCRIPT = """
   }
 
   const electron = {
-    _installProgressCallback: null,
-
     // ═══════════ Navigation ═══════════
     navigateTo: async (page) => {
       try {
@@ -118,8 +116,8 @@ SHIM_SCRIPT = """
     runInstallStream: async (fw, gpuVariant, accelVersion, scope, projectFolder) => {
       try { return wrapResult(await (await api()).run_install_stream(fw, gpuVariant, accelVersion || '', scope || 'global', projectFolder || '')); } catch(e) { return wrapError(e); }
     },
-    onInstallProgress: (callback) => { electron._installProgressCallback = callback; },
-    offInstallProgress: () => { electron._installProgressCallback = null; },
+    onInstallProgress: (callback) => { electron._handlers['_installProgressCallback'] = callback; },
+    offInstallProgress: () => { delete electron._handlers['_installProgressCallback']; },
 
     // ═══════════ Tests ═══════════
     runImportTest: async (framework, projectFolder) => {
@@ -161,6 +159,19 @@ SHIM_SCRIPT = """
     // ═══════════ Docs ═══════════
     readDocsFile: async (filename) => { try { return await (await api()).read_docs_file(filename); } catch(e) { return null; } },
 
+    // ═══════════ IPC dispatch ═══════════
+    // Generic IPC dispatcher called by bridge.py for ALL callback types.
+    // Dispatches to DOM custom events and any registered handler.
+    _handlers: {},
+
+    _dispatchIpc: function(name, chunk) {
+      // Dispatch a DOM custom event
+      document.dispatchEvent(new CustomEvent('app:ipc-' + name, { detail: chunk }));
+      // Call registered handler if any
+      var h = electron._handlers[name];
+      if (h) h(chunk);
+    },
+
     // ═══════════ Training ═══════════
     trainStart: async (configJson) => {
       try { return await (await api()).train_start(configJson); } catch(e) { return { success: false, error: String(e) }; }
@@ -177,14 +188,20 @@ SHIM_SCRIPT = """
     trainStatus: async (outputDir) => {
       try { return await (await api()).train_status(outputDir); } catch(e) { return { running: false, error: String(e) }; }
     },
+    trainReadConfig: async (outputDir) => {
+      try { return await (await api()).train_read_config(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
     trainListCheckpoints: async (outputDir) => {
       try { return await (await api()).train_list_checkpoints(outputDir); } catch(e) { return []; }
+    },
+    trainGetActive: async () => {
+      try { return await (await api()).train_get_active(); } catch(e) { return { active: false }; }
     },
     trainPlatformCheck: async () => {
       try { return await (await api()).train_platform_check(); } catch(e) { return { success: false, error: String(e) }; }
     },
-    onTrainingProgress: (callback) => { electron._trainingProgressCallback = callback; },
-    offTrainingProgress: () => { electron._trainingProgressCallback = null; },
+    onTrainingProgress: (callback) => { electron._handlers['_trainingProgressCallback'] = callback; },
+    offTrainingProgress: () => { delete electron._handlers['_trainingProgressCallback']; },
 
     // ═══════════ Model Management ═══════════
     modelDownload: async (modelId, outputDir, revision) => {
@@ -202,15 +219,15 @@ SHIM_SCRIPT = """
     modelMergeAdapter: async (baseModel, adapter, output) => {
       try { return await (await api()).model_merge_adapter(baseModel, adapter, output); } catch(e) { return { success: false, error: String(e) }; }
     },
-    onModelProgress: (callback) => { electron._modelProgressCallback = callback; },
-    offModelProgress: () => { electron._modelProgressCallback = null; },
+    onModelProgress: (callback) => { electron._handlers['_modelProgressCallback'] = callback; },
+    offModelProgress: () => { delete electron._handlers['_modelProgressCallback']; },
 
     // ═══════════ Dataset ═══════════
     datasetPreview: async (path, maxRows) => {
       try { return await (await api()).dataset_preview(path, maxRows || 5); } catch(e) { return { success: false, error: String(e) }; }
     },
-    onDatasetPreviewProgress: (callback) => { electron._datasetPreviewCallback = callback; },
-    offDatasetPreviewProgress: () => { electron._datasetPreviewCallback = null; },
+    onDatasetPreviewProgress: (callback) => { electron._handlers['_datasetPreviewCallback'] = callback; },
+    offDatasetPreviewProgress: () => { delete electron._handlers['_datasetPreviewCallback']; },
 
     // ═══════════ Before Quit ═══════════
     onBeforeQuit: (callback) => { /* no-op in pywebview */ },

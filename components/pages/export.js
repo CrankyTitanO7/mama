@@ -175,7 +175,10 @@ const ExportPage = (() => {
 
       if (result.success) {
         const notes = [];
-        if (result.has_model === false) {
+        if (type === 'colab' && result.has_config === false) {
+          notes.push('No training_config.json found. The notebook includes default placeholder settings — edit the CONFIG cell before running.');
+        }
+        if (type !== 'colab' && result.has_model === false) {
           notes.push('No trained model found in this folder. The template has been copied but you will need to provide a model manually.');
         }
         if (result.converted === false) {
@@ -221,7 +224,10 @@ const ExportPage = (() => {
     const command = result.ollama_command || '';
 
     const notes = [];
-    if (result.has_model === false) {
+    if (type === 'colab' && result.has_config === false) {
+      notes.push('No training_config.json was found. The notebook contains default placeholder settings — edit the CONFIG cell before running in Colab.');
+    }
+    if (type !== 'colab' && result.has_model === false) {
       notes.push('No trained model was found in this folder. Edit the exported files to point to your model before using.');
     }
     if (result.converted === false) {

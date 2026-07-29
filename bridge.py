@@ -1709,20 +1709,39 @@ class MamaApi:
             if not template_src.exists():
                 return {'success': False, 'error': 'Colab template not found'}
 
-            dest = out / 'colab_export.ipynb'
-            shutil.copy2(str(template_src), str(dest))
+            # Read template notebook
+            with open(template_src, 'r', encoding='utf-8') as f:
+                notebook = json.load(f)
 
-            # Copy training config alongside the notebook (skip if already in out dir)
-            config_srcs = [out.parent / 'project.json']
+            # Find the CONFIG cell (cell index 1, the code cell with CONFIG_JSON)
+            config_found = False
             training_cfg = out / 'training_config.json'
             if training_cfg.exists():
-                config_srcs.insert(0, training_cfg)
-            for src in config_srcs:
-                if src.exists() and src.parent != out:
-                    shutil.copy2(str(src), str(out / src.name))
+                config_data = json.loads(training_cfg.read_text('utf-8'))
+                config_json = json.dumps(config_data, indent=2)
+                # Use concatenation, NOT an f-string — config_json contains { }
+                notebook['cells'][1]['source'] = [
+                    '# --- TRAINING CONFIG (injected by mama from training_config.json) ---\n',
+                    '\n',
+                    "CONFIG_JSON = '''" + config_json + "'''\n",
+                ]
+                config_found = True
+                logger.info('Injected config from %s', training_cfg)
+
+            if not config_found:
+                # Cell already has a helpful fallback message; just log it
+                logger.info('No training_config.json found; keeping fallback guidance in notebook')
+
+            dest = out / 'colab_export.ipynb'
+            with open(dest, 'w', encoding='utf-8') as f:
+                json.dump(notebook, f, indent=1, ensure_ascii=False)
 
             logger.info('Colab export created at %s', dest)
-            return {'success': True, 'path': str(dest)}
+            return {
+                'success': True,
+                'path': str(dest),
+                'has_config': config_found,
+            }
         except Exception as e:
             logger.error('export_run_colab failed: %s', e)
             return {'success': False, 'error': str(e)}

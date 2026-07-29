@@ -158,7 +158,7 @@
         'software information': { 'OS full': null, 'OS pretty': null, 'OS kernel': null, cmake: false, gcc: false, tf: false, pyt: false },
         'resource settings':  { 'cloud resources': false, 'cloud provider name': null, 'local hostname': null, 'trainer browser': 'default' },
         'security settings':  { 'local key file path': 'default', 'project mod': false, 'cloud mod': false, 'all files': false, sudo: false, 'browser access': false },
-        'qol settings':       { 'reels enable': false, 'reels provider': null, 'site enable': false, 'site provider': null, 'resources': 'ask', 'database provider': null },
+        'qol settings':       { 'site enable': false, 'site provider': null, 'resources': 'ask', 'database provider': null },
       };
     },
 

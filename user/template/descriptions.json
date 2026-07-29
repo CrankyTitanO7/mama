@@ -37,8 +37,6 @@
       "browser access": "allow model / web access"
     },
     "qol settings": {
-      "reels enable": "enable reels widget",
-      "reels provider": "provider of the reels widget in URL format (if applicable)",
       "site enable": "enable site widget",
       "site provider": "provider of the site widget in URL format (if applicable)",
       "resources": "resources widget: true (on), false (off), or \"ask\" (prompt each visit)",

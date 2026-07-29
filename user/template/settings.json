@@ -53,11 +53,8 @@
         "browser access": false                     // auto-approve browser / web access
     },
 
-    // ── Home page widgets (reels, site, resources) ───────────────────────────
+    // ── Home page widgets (site, resources) ─────────────────────────────────
     "qol settings": {
-        // "reels enable": false,                      // reels widget (portrait mini-browser)
-        // "reels provider": null,                     // URL for reels content
-
         // "site enable": false,                       // site widget (landscape mini-browser)
         // "site provider": null,                      // URL for site content
 

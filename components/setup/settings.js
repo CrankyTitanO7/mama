@@ -17,8 +17,6 @@
     const group = descriptionsCache?.[groupKey];
     if (!group || typeof group !== 'object') return '';
     if (key === 'task manager' && group.resources) return group.resources;
-    if (key === 'video enable' && group['site enable']) return group['site enable'];
-    if (key === 'video provider' && group['site provider']) return group['site provider'];
     return group[key] || '';
   }
 
@@ -66,10 +64,6 @@
   function migrateQolSettingKeys() {
     const qol = settingsCache?.['qol settings'];
     if (!qol) return;
-    if ('site enable' in qol) {
-      delete qol['video enable'];
-      delete qol['video provider'];
-    }
     if ('resources' in qol) delete qol['task manager'];
   }
 
@@ -650,8 +644,6 @@
         for (const [key, value] of Object.entries(groupValue)) {
           if (groupKey === 'qol settings') {
             if (key === 'task manager' && 'resources' in groupValue) continue;
-            if (key === 'video enable' && 'site enable' in groupValue) continue;
-            if (key === 'video provider' && 'site provider' in groupValue) continue;
           }
 
           const fieldId = `setting-${groupKey}-${key}`.replace(/\s+/g, '-').toLowerCase();

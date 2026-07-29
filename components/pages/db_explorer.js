@@ -3,7 +3,7 @@
  *
  * Handles embedded browser content for the Database Explorer page.
  * Loads the URL from qol settings → database provider (if enabled).
- * Follows the same pattern as reels and site embeds in home.js.
+ * Follows the same pattern as the site embed in home.js.
  */
 
 'use strict';

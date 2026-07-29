@@ -516,26 +516,12 @@ async function renderQolEmbed(container, {
   }
 }
 
-async function renderReels() {
-  const container = document.getElementById('reels-content');
-  if (!container) return;
-  await renderQolEmbed(container, {
-    enabled:      getSetting('qol settings', 'reels enable'),
-    provider:     getSetting('qol settings', 'reels provider'),
-    label:        'Reels',
-    errorMessage: 'no reels provider specified (change in settings)',
-    contentTitle: 'reels content',
-    orientation:  'portrait',
-    partition:    'reels',
-  });
-}
-
 async function renderSite() {
   const container = document.getElementById('site-content');
   if (!container) return;
   await renderQolEmbed(container, {
-    enabled:      getQolSetting('site enable', 'video enable'),
-    provider:     getQolSetting('site provider', 'video provider'),
+    enabled:      getSetting('qol settings', 'site enable'),
+    provider:     getSetting('qol settings', 'site provider'),
     label:        'Site',
     errorMessage: 'no site provider specified (change in settings)',
     contentTitle: 'site content',
@@ -580,7 +566,6 @@ function escapeHtmlAttr(str) {
 
   renderQuickActions();
   void renderResources();
-  void renderReels();
   void renderSite();
 
   startTrainingPolling();

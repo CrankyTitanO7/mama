@@ -12,25 +12,14 @@
         <h2>Quality of Life</h2>
         <div class="setup-field">
           <label class="setup-checkbox-label">
-            <input type="checkbox" id="setup-reels" ${qol['reels enable'] ? 'checked' : ''}>
-            Enable Reels (relax while code compiles)
-          </label>
-        </div>
-        <div class="setup-field">
-          <label>Reels Provider:</label>
-          <input type="text" id="setup-reels-provider" class="setup-input"
-            placeholder="e.g. youtube" value="${U.escapeHtml(qol['reels provider'] || '')}">
-        </div>
-        <div class="setup-field">
-          <label class="setup-checkbox-label">
-            <input type="checkbox" id="setup-site" ${(qol['site enable'] ?? qol['video enable']) ? 'checked' : ''}>
+            <input type="checkbox" id="setup-site" ${qol['site enable'] ? 'checked' : ''}>
             Enable Site
           </label>
         </div>
         <div class="setup-field">
           <label>Site Provider:</label>
           <input type="text" id="setup-site-provider" class="setup-input"
-            placeholder="e.g. youtube" value="${U.escapeHtml(qol['site provider'] || qol['video provider'] || '')}">
+            placeholder="e.g. youtube" value="${U.escapeHtml(qol['site provider'] || '')}">
         </div>
         <div class="setup-field">
           <label class="setup-checkbox-label">
@@ -56,8 +45,6 @@
     collect: () => {
       const resRaw = document.getElementById('setup-resources')?.value;
       return {
-        'reels enable':             document.getElementById('setup-reels')?.checked        || false,
-        'reels provider':           document.getElementById('setup-reels-provider')?.value || null,
         'site enable':              document.getElementById('setup-site')?.checked         || false,
         'site provider':            document.getElementById('setup-site-provider')?.value  || null,
         'database explorer enable': document.getElementById('setup-db-explorer')?.checked  || false,

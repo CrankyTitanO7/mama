@@ -113,8 +113,8 @@ SHIM_SCRIPT = """
     runInstall: async (fw, gpuVariant, accelVersion) => {
       try { return wrapResult(await (await api()).run_install(fw, gpuVariant, accelVersion || '')); } catch(e) { return wrapError(e); }
     },
-    runInstallStream: async (fw, gpuVariant, accelVersion, scope, projectFolder) => {
-      try { return wrapResult(await (await api()).run_install_stream(fw, gpuVariant, accelVersion || '', scope || 'global', projectFolder || '')); } catch(e) { return wrapError(e); }
+    runInstallStream: async (fw, gpuVariant, accelVersion, scope, projectFolder, rawCommand) => {
+      try { return wrapResult(await (await api()).run_install_stream(fw, gpuVariant, accelVersion || '', scope || 'global', projectFolder || '', rawCommand || '')); } catch(e) { return wrapError(e); }
     },
     onInstallProgress: (callback) => { electron._handlers['_installProgressCallback'] = callback; },
     offInstallProgress: () => { delete electron._handlers['_installProgressCallback']; },

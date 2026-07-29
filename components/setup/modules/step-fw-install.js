@@ -277,7 +277,8 @@
             }
           });
 
-          const result = await window.electron.runInstallStream(fw, gv, accelVersion, scope, S.selectedProjectFolder);
+          const rawCmd = cmdInput ? cmdInput.value : '';
+          const result = await window.electron.runInstallStream(fw, gv, accelVersion, scope, S.selectedProjectFolder, rawCmd);
 
           window.electron.offInstallProgress();
 

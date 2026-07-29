@@ -539,17 +539,9 @@ class MamaApi:
 
     def run_install_stream(self, fw: str, gpu_variant: str,
                            accel_version: str = '', scope: str = 'global',
-                           project_folder: str = '') -> dict:
+                           project_folder: str = '',
+                           raw_command: str = '') -> dict:
         """Run install with real-time streaming output."""
-        script = str(self._installs_dir / 'install_fw.py')
-        args = [fw, gpu_variant]
-        if accel_version:
-            args.append(accel_version)
-
-        os_info = self._get_os_info()
-        args.extend(['--os-family', os_info['os_family']])
-        args.extend(['--distro', os_info['distro']])
-
         python = self._get_python()
 
         # Handle venv for project scope
@@ -571,9 +563,26 @@ class MamaApi:
             self._emit_install_progress({'type': 'done', 'code': 1})
             return {'code': 1}
 
+        if raw_command:
+            import shlex
+            parts = shlex.split(raw_command)
+            if parts and parts[0] in ('pip', 'pip3'):
+                cmd = [python, '-m', 'pip'] + parts[1:]
+            else:
+                cmd = [python, '-m', 'pip', 'install'] + parts
+        else:
+            script = str(self._installs_dir / 'install_fw.py')
+            args = [fw, gpu_variant]
+            if accel_version:
+                args.append(accel_version)
+            os_info = self._get_os_info()
+            args.extend(['--os-family', os_info['os_family']])
+            args.extend(['--distro', os_info['distro']])
+            cmd = [python, script] + args
+
         try:
             proc = subprocess.Popen(
-                [python, script] + args,
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

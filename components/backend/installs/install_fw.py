@@ -19,7 +19,7 @@ Notes:
     - For TF + ROCm, tensorflow-rocm is a community build maintained by AMD;
       version availability may lag behind upstream tensorflow.
     - PyTorch CUDA wheels: https://pytorch.org/get-started/locally/
-    - If CUDA version is unknown, defaults to the latest stable CUDA 12.x wheel.
+    - If CUDA version is unknown, defaults to the latest stable CUDA 13.x wheel.
 """
 
 import sys
@@ -27,14 +27,14 @@ import subprocess
 
 
 # Latest stable CUDA/ROCm tags to fall back to when version detection failed.
-DEFAULT_CUDA_TAG = "cu128"   # PyTorch 2.x stable as of 2025
-DEFAULT_ROCM_TAG = "rocm6.2"
+DEFAULT_CUDA_TAG = "cu130"   # PyTorch 2.13+ stable (CUDA 13.0)
+DEFAULT_ROCM_TAG = "rocm7.2"
 
 
 def cuda_tag(version_str):
     """
     Convert a CUDA version string to a PyTorch wheel tag.
-    "12.1" → "cu121", "11.8" → "cu118", "12" → "cu120"
+    "12.6" → "cu126", "13.0" → "cu130", "13.2" → "cu132"
     Falls back to DEFAULT_CUDA_TAG if version_str is empty / unparseable.
     """
     if not version_str:
@@ -44,7 +44,7 @@ def cuda_tag(version_str):
     try:
         major = int(parts[0])
         minor = int(parts[1]) if len(parts) > 1 else 0
-        return f"cu{major}{minor:02d}"
+        return f"cu{major}{minor}"
     except (ValueError, IndexError):
         return DEFAULT_CUDA_TAG
 

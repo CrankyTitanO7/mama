@@ -22,17 +22,8 @@ const TrainingMonitor = (() => {
       initChart();
     }
 
-    // Load the resources widget
-    const resourcesContainer = document.getElementById('train-resources-widget');
-    if (resourcesContainer && window.initResourcesWidget) {
-      try {
-        const settings = await window.electron.settingsRead();
-        const gpuConfig = settings?.['system information'] || null;
-        initResourcesWidget(resourcesContainer, { gpuConfig });
-      } catch (e) {
-        resourcesContainer.innerHTML = '<p class="train-muted">Resource monitoring unavailable</p>';
-      }
-    }
+    // Load the resources widget (respecting qol settings → resources)
+    await renderResourcesWidget();
 
     // Start listening for training IPC events
     window.electron.onTrainingProgress(onTrainingEvent);
@@ -82,6 +73,77 @@ const TrainingMonitor = (() => {
 
     // Periodic checkpoint refresh
     refreshInterval = setInterval(refreshCheckpoints, 5000);
+  }
+
+  // ── Resources widget (enable / disable / ask) ────────────────────
+
+  function resolveResourceMode(raw) {
+    if (raw === true || raw === 'true' || raw === 'enabled' || raw === 'always') return 'enabled';
+    if (raw === false || raw === 'false' || raw === 'disabled' || raw === 'never') return 'disabled';
+    return 'ask';
+  }
+
+  function showResourcePrompt(container) {
+    return new Promise((resolve) => {
+      container.innerHTML = `
+        <div class="task-manager-prompt">
+          <p class="task-manager-prompt-text">Enable resource monitoring during training?</p>
+          <div class="task-manager-prompt-actions">
+            <button type="button" class="nav-btn task-manager-enable">Enable</button>
+            <button type="button" class="nav-btn task-manager-skip">Not now</button>
+          </div>
+          <p class="task-manager-prompt-text"><i>This can be changed in <a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/settings.html')">settings</a>.</i></p>
+        </div>
+      `;
+      container.querySelector('.task-manager-enable')?.addEventListener('click', () => resolve(true));
+      container.querySelector('.task-manager-skip')?.addEventListener('click', () => resolve(false));
+    });
+  }
+
+  async function renderResourcesWidget() {
+    const container = document.getElementById('train-resources-widget');
+    if (!container) return;
+
+    try {
+      const settings = await window.electron.settingsRead();
+      if (!settings) return;
+
+      const resSetting = settings?.['qol settings']?.resources;
+      const mode = resolveResourceMode(resSetting);
+
+      if (mode === 'disabled') {
+        container.innerHTML = '<p class="disabled-msg">Resource monitoring is disabled in settings. <a href="#" onclick="event.preventDefault(); window.electron.navigateTo(\'public/settings.html\')">enable?</a></p>';
+        return;
+      }
+
+      if (mode === 'ask') {
+        const enabled = await showResourcePrompt(container);
+        if (!enabled) {
+          container.innerHTML = '<p class="disabled-msg">Resource monitoring skipped for this visit.</p>';
+          return;
+        }
+      }
+
+      // mode is 'enabled' or user chose Enable in prompt
+      if (typeof initResourcesWidget === 'function') {
+        const hw = settings?.['hardware settings'] || {};
+        initResourcesWidget(container, {
+          gpuConfig: {
+            manufacturer:  hw['graphics manufacturer'],
+            name:          hw['target card name'],
+            cudaVersion:   hw['cuda version'],
+            rocmVersion:   hw['rocm version'],
+            metalVersion:  hw['metal version'],
+            mpsAvailable:  hw['mps available'],
+            gpuType:       hw['gpu type'],
+          }
+        });
+      } else {
+        container.innerHTML = '<p class="train-muted">Resources widget not loaded.</p>';
+      }
+    } catch (e) {
+      container.innerHTML = '<p class="train-muted">Resource monitoring unavailable</p>';
+    }
   }
 
   // ── Chart ─────────────────────────────────────────────────────────

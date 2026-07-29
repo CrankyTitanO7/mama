@@ -949,6 +949,51 @@ a:hover {
     background: color-mix(in srgb, var(--topbar-active) 20%, transparent);
 }
 
+.topbar-arrow {
+    background: transparent;
+    color: var(--topbar-muted);
+    border: 1px solid transparent;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.topbar-arrow:hover:not(.disabled) {
+    color: var(--topbar-text);
+    border-color: var(--topbar-border);
+    background: var(--main-color);
+}
+
+.topbar-arrow.disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.topbar-arrow .keybind-hint {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--topbar-muted);
+    white-space: nowrap;
+    z-index: 1001;
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.topbar-arrow:hover:not(.disabled) .keybind-hint {
+    display: block;
+}
+
 /* Push page content below fixed topbar */
 .page-content {
     margin-top: 60px;

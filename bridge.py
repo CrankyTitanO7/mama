@@ -1380,6 +1380,45 @@ class MamaApi:
                         pass
         return {'compatible': False, 'error': result.get('stderr', 'Unknown error')}
 
+    def model_delete(self, model_path: str) -> dict:
+        """Delete a locally downloaded model directory."""
+        try:
+            path = Path(model_path)
+            if not path.exists():
+                return {'success': False, 'error': 'Model path does not exist'}
+            if not path.is_dir():
+                return {'success': False, 'error': 'Model path is not a directory'}
+
+            shutil.rmtree(path)
+            logger.info('Deleted model at %s', model_path)
+            return {'success': True}
+        except Exception as e:
+            logger.error('model_delete failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def model_move(self, model_path: str, dest_dir: str) -> dict:
+        """Move a locally downloaded model to another directory."""
+        try:
+            src = Path(model_path)
+            if not src.exists():
+                return {'success': False, 'error': 'Model path does not exist'}
+            if not src.is_dir():
+                return {'success': False, 'error': 'Model path is not a directory'}
+
+            dest = Path(dest_dir)
+            dest.mkdir(parents=True, exist_ok=True)
+
+            target = dest / src.name
+            if target.exists():
+                return {'success': False, 'error': f'Destination {target} already exists'}
+
+            shutil.move(str(src), str(target))
+            logger.info('Moved model from %s to %s', model_path, target)
+            return {'success': True, 'dest_path': str(target)}
+        except Exception as e:
+            logger.error('model_move failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
     def model_merge_adapter(self, base_model: str, adapter: str, output: str) -> dict:
         """Merge LoRA adapter into base model with streaming."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'merge_adapter.py')

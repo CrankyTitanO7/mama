@@ -219,6 +219,12 @@ SHIM_SCRIPT = """
     modelCheckCompatibility: async (modelId) => {
       try { return await (await api()).model_check_compatibility(modelId); } catch(e) { return { compatible: false, error: String(e) }; }
     },
+    modelDelete: async (modelPath) => {
+      try { return await (await api()).model_delete(modelPath); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    modelMove: async (modelPath, destDir) => {
+      try { return await (await api()).model_move(modelPath, destDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
     modelMergeAdapter: async (baseModel, adapter, output) => {
       try { return await (await api()).model_merge_adapter(baseModel, adapter, output); } catch(e) { return { success: false, error: String(e) }; }
     },

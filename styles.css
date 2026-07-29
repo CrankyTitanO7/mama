@@ -522,6 +522,16 @@ a:hover {
     color: var(--button-secondary-text);
 }
 
+.settings-btn-danger {
+    background: #d32f2f;
+    color: #fff;
+    font-weight: 600;
+}
+
+.settings-btn-danger:hover {
+    background: #b71c1c;
+}
+
 /* Settings status message */
 .settings-status {
     padding: 10px 16px;
@@ -2714,6 +2724,22 @@ body.embed-fullscreen-active {
     color: var(--body-color);
     opacity: 0.7;
     font-family: monospace;
+}
+
+.ft-local-model-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.ft-local-model-actions .settings-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+}
+
+.ft-model-del-btn,
+.ft-model-move-btn {
+    cursor: pointer;
 }
 
 .ft-empty {

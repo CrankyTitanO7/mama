@@ -62,15 +62,52 @@ const Finetune = (() => {
           <div class="ft-local-model-name">${escapeHtml(m.model_id)}</div>
           <div class="ft-local-model-size">${formatSize(m.size_bytes)}</div>
           <div class="ft-local-model-path">${escapeHtml(m.path)}</div>
+          <div class="ft-local-model-actions">
+            <button class="ft-model-move-btn settings-btn settings-btn-primary" data-path="${escapeHtml(m.path)}" data-id="${escapeHtml(m.model_id)}">Move</button>
+            <button class="ft-model-del-btn settings-btn settings-btn-danger" data-path="${escapeHtml(m.path)}" data-id="${escapeHtml(m.model_id)}">Delete</button>
+          </div>
         </div>
       `).join('');
 
       container.querySelectorAll('.ft-local-model').forEach(el => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.ft-local-model-actions')) return;
           document.querySelectorAll('.ft-local-model').forEach(m => m.classList.remove('selected'));
           el.classList.add('selected');
           selectedModel = el.dataset.path;
           document.getElementById('ft-model-id').value = el.dataset.id;
+        });
+      });
+
+      container.querySelectorAll('.ft-model-del-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const path = btn.dataset.path;
+          const id = btn.dataset.id;
+          if (confirm(`Delete model "${id}"? This will permanently remove all model files.`)) {
+            const result = await window.electron.modelDelete(path);
+            if (result.success) {
+              refreshLocalModels();
+            } else {
+              alert('Failed to delete model: ' + (result.error || 'Unknown error'));
+            }
+          }
+        });
+      });
+
+      container.querySelectorAll('.ft-model-move-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const path = btn.dataset.path;
+          const id = btn.dataset.id;
+          const dest = await window.electron.projectPickFolder();
+          if (!dest) return;
+          const result = await window.electron.modelMove(path, dest);
+          if (result.success) {
+            refreshLocalModels();
+          } else {
+            alert('Failed to move model: ' + (result.error || 'Unknown error'));
+          }
         });
       });
     } catch (e) {

@@ -149,7 +149,8 @@ class MamaApi:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ}
+                env={**os.environ},
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
             )
 
             stdout, stderr = proc.communicate(timeout=timeout / 1000.0)

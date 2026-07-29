@@ -714,7 +714,18 @@ const MC = (() => {
         const hasCuda = result.stdout.toLowerCase().includes('cuda available');
         setStatus('torch', 'pass', `${ver}${hasCuda ? ' 🎮 CUDA' : ' 💻 CPU'}`);
       } else {
-        setStatus('torch', 'fail', 'Not installed');
+        setStatus('torch', 'fail', '');
+        const c = cards['torch'];
+        if (c && c.detailEl) {
+          c.detailEl.textContent = 'Not installed. ';
+          const setupBtn = document.createElement('button');
+          setupBtn.className = 'mc-install-btn';
+          setupBtn.textContent = '🔧 Run Setup Wizard';
+          setupBtn.addEventListener('click', () => {
+            window.electron.navigateTo('public/setup.html');
+          });
+          c.detailEl.appendChild(setupBtn);
+        }
       }
     } catch (e) {
       setStatus('torch', 'fail', e.message);

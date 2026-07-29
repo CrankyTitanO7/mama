@@ -55,11 +55,11 @@
 
     // ── Home page widgets (reels, site, resources) ───────────────────────────
     "qol settings": {
-        "reels enable": false,                      // reels widget (portrait mini-browser)
-        "reels provider": null,                     // URL for reels content
+        // "reels enable": false,                      // reels widget (portrait mini-browser)
+        // "reels provider": null,                     // URL for reels content
 
-        "site enable": false,                       // site widget (landscape mini-browser)
-        "site provider": null,                      // URL for site content
+        // "site enable": false,                       // site widget (landscape mini-browser)
+        // "site provider": null,                      // URL for site content
 
         "database explorer enable": true,           // database explorer widget (landscape mini-browser)
         "database provider": null,                  // URL for database content

@@ -1695,6 +1695,122 @@ class MamaApi:
         return {'success': False, 'error': result.get('stderr', 'Unknown error')}
 
     # ═══════════════════════════════════════════════════════════════════════
+    # Export
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def export_run_colab(self, output_dir: str) -> dict:
+        """Export training code to a Google Colab-compatible notebook."""
+        try:
+            out = Path(output_dir)
+            if not out.exists():
+                return {'success': False, 'error': 'Output directory does not exist'}
+
+            template_src = self._base_dir / 'components' / 'export' / 'template' / 'colab' / 'colab_export.py'
+            if not template_src.exists():
+                return {'success': False, 'error': 'Colab template not found'}
+
+            dest = out / 'colab_export.py'
+            shutil.copy2(str(template_src), str(dest))
+
+            # Copy training config if available
+            config_src = out / 'training_config.json'
+            if config_src.exists():
+                shutil.copy2(str(config_src), str(out / 'colab_training_config.json'))
+
+            logger.info('Colab export created at %s', dest)
+            return {'success': True, 'path': str(dest)}
+        except Exception as e:
+            logger.error('export_run_colab failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def export_run_js(self, output_dir: str) -> dict:
+        """Export trained model to JavaScript (ONNX.js) format."""
+        try:
+            out = Path(output_dir)
+            if not out.exists():
+                return {'success': False, 'error': 'Output directory does not exist'}
+
+            template_src = self._base_dir / 'components' / 'export' / 'template' / 'js' / 'js_export.js'
+            if not template_src.exists():
+                return {'success': False, 'error': 'JS export template not found'}
+
+            js_dir = out / 'js_export'
+            js_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy the JS template
+            shutil.copy2(str(template_src), str(js_dir / 'model_runner.js'))
+
+            # Try to convert model to ONNX using optimum or transformers
+            python = self._get_training_python()
+            conversion_script = str(self._base_dir / 'components' / 'backend' / 'training' / 'convert_to_onnx.py')
+            if python and Path(conversion_script).exists():
+                result = self._run_script(
+                    conversion_script,
+                    ['--input-dir', output_dir, '--output-dir', str(js_dir)],
+                    timeout=300_000,
+                    python_exe=python
+                )
+                if result['code'] != 0:
+                    logger.warning('ONNX conversion failed, template still copied')
+
+            logger.info('JS export created at %s', js_dir)
+            return {'success': True, 'path': str(js_dir)}
+        except Exception as e:
+            logger.error('export_run_js failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def export_run_ollama(self, output_dir: str) -> dict:
+        """Export trained model to Ollama via Modelfile."""
+        try:
+            out = Path(output_dir)
+            if not out.exists():
+                return {'success': False, 'error': 'Output directory does not exist'}
+
+            ollama_dir = out / 'ollama_export'
+            ollama_dir.mkdir(parents=True, exist_ok=True)
+
+            model_path = out / 'final_model'
+            if not model_path.exists():
+                # Look for checkpoint directories
+                checkpoints = sorted(out.glob('checkpoint-*'))
+                if checkpoints:
+                    model_path = checkpoints[-1]
+
+            # Write Modelfile
+            modelfile = f"""FROM {model_path}
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+
+TEMPLATE \"\"\"{{ .System }}
+{{ .Prompt }}
+\"\"\"
+
+SYSTEM \"\"\"You are a model trained with mama. Respond to the user's queries.
+\"\"\"
+"""
+            (ollama_dir / 'Modelfile').write_text(modelfile, 'utf-8')
+
+            # Copy model files (symlink on supported systems)
+            if model_path.exists():
+                model_dest = ollama_dir / 'model'
+                if not model_dest.exists():
+                    try:
+                        os.symlink(str(model_path), str(model_dest))
+                    except OSError:
+                        shutil.copytree(str(model_path), str(model_dest), dirs_exist_ok=True)
+
+            logger.info('Ollama export created at %s', ollama_dir)
+            return {
+                'success': True,
+                'path': str(ollama_dir),
+                'ollama_command': f'ollama create my-model -f {ollama_dir / "Modelfile"}'
+            }
+        except Exception as e:
+            logger.error('export_run_ollama failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    # ═══════════════════════════════════════════════════════════════════════
     # Docs
     # ═══════════════════════════════════════════════════════════════════════
 

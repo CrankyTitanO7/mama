@@ -239,6 +239,17 @@ SHIM_SCRIPT = """
     offDatasetPreviewProgress: () => { delete electron._handlers['_datasetPreviewCallback']; },
 
     // ═══════════ Before Quit ═══════════
+    // ═══════════ Export ═══════════
+    exportRunColab: async (outputDir) => {
+      try { return await (await api()).export_run_colab(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    exportRunJs: async (outputDir) => {
+      try { return await (await api()).export_run_js(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    exportRunOllama: async (outputDir) => {
+      try { return await (await api()).export_run_ollama(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+
     onBeforeQuit: (callback) => { /* no-op in pywebview */ },
   };
 

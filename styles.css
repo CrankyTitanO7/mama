@@ -2299,6 +2299,93 @@ body.embed-fullscreen-active {
     opacity: 0.7;
 }
 
+.project-settings-section {
+    margin-top: 16px;
+}
+
+.project-settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 8px;
+    color: var(--page-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+.project-settings-toggle:hover {
+    background: color-mix(in srgb, var(--highlight-color) 10%, var(--widget-bg));
+}
+
+#project-settings-toggle-icon {
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+
+.project-settings-body {
+    margin-top: 0;
+    border: 1px solid var(--widget-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 16px;
+    background: var(--widget-bg);
+}
+
+.project-settings-body .settings-group {
+    margin-bottom: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.project-settings-body .settings-input[readonly] {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.project-settings-body .settings-status {
+    margin-top: 12px;
+}
+
+.ps-framework-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.ps-framework-row .settings-input {
+    width: 140px;
+}
+
+.ps-fw-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--widget-border);
+    border-radius: 6px;
+    background: var(--widget-bg);
+    color: var(--page-text);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.ps-fw-btn:hover {
+    background: color-mix(in srgb, var(--highlight-color) 10%, var(--widget-bg));
+}
+
+.ps-fw-btn.is-active {
+    background: color-mix(in srgb, var(--highlight-color) 20%, var(--widget-bg));
+    border-color: var(--highlight-color);
+}
+
 /* ============================================
    Fine-Tune Page
    ============================================ */

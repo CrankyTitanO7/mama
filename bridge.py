@@ -939,6 +939,31 @@ class MamaApi:
             logger.error('project_init failed: %s', e)
             return {'hasProjectJson': False, 'hasVenv': False}
 
+    def project_json_read(self, folder_path: str) -> Optional[dict]:
+        """Read project.json from a folder. Returns None if not found or invalid."""
+        try:
+            if not folder_path:
+                return None
+            path = Path(folder_path) / 'project.json'
+            if not path.exists():
+                return None
+            return json.loads(path.read_text('utf-8'))
+        except Exception as e:
+            logger.error('project_json_read failed: %s', e)
+            return None
+
+    def project_json_write(self, folder_path: str, data: dict) -> dict:
+        """Write project.json to a folder. Returns {success: bool, error: str}."""
+        try:
+            if not folder_path:
+                return {'success': False, 'error': 'No folder path provided.'}
+            path = Path(folder_path) / 'project.json'
+            path.write_text(json.dumps(data, indent=2), 'utf-8')
+            return {'success': True}
+        except Exception as e:
+            logger.error('project_json_write failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
     def project_create_json(self, folder_path: str) -> dict:
         """Create a project.json file in the given folder."""
         try:

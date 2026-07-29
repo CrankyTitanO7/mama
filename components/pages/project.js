@@ -20,6 +20,8 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+let _currentFolderPath = null;
+
 function getRecentPaths(recents) {
   if (!recents || !Array.isArray(recents.recent)) return [];
   return recents.recent.filter((entry) => typeof entry === 'string' && entry);
@@ -181,12 +183,25 @@ async function renderExplorer(folderData) {
   const container = document.getElementById('project-content');
   if (!container || !folderData) return;
 
+  _currentFolderPath = folderData.path;
+
   const parentPath = getParentPath(folderData.path);
   const templates = await window.electron.projectTemplatesRead();
   const templateOptions = Object.entries(templates || {}).map(([key, template]) => ({
     key,
     label: template?.name || template?.description || key,
   }));
+
+  let projectData, data;
+  try {
+    projectData = await window.electron.projectJsonRead(folderData.path);
+  } catch (e) {
+    console.warn('projectJsonRead failed:', e);
+  }
+  data = projectData || {};
+  if (!projectData) {
+    data.name = folderData.path.split('/').filter(Boolean).pop() || folderData.path.split('\\').filter(Boolean).pop() || '';
+  }
 
   const rows = (folderData.entries || []).map((entry) => {
     const icon = entry.isDirectory ? '📁' : '📄';
@@ -238,7 +253,65 @@ async function renderExplorer(folderData) {
           </tbody>
         </table>
       </div>
-    </div>
+      <div class="project-settings-section">
+        <button type="button" id="project-settings-toggle" class="project-settings-toggle">
+          <span id="project-settings-toggle-icon">▶</span> Project Settings
+        </button>
+        <div id="project-settings-body" class="project-settings-body" style="display:none">
+          <div class="settings-group">
+            <div class="settings-field">
+              <div class="settings-field-meta">
+                <label class="settings-label" for="ps-name">Name</label>
+              </div>
+              <div class="settings-field-control">
+                <input type="text" id="ps-name" class="settings-input" value="${escapeHtml(data.name || '')}">
+              </div>
+            </div>
+            <div class="settings-field">
+              <div class="settings-field-meta">
+                <label class="settings-label" for="ps-version">Version</label>
+              </div>
+              <div class="settings-field-control">
+                <input type="text" id="ps-version" class="settings-input" value="${escapeHtml(data.version || '')}">
+              </div>
+            </div>
+            <div class="settings-field">
+              <div class="settings-field-meta">
+                <label class="settings-label" for="ps-description">Description</label>
+              </div>
+              <div class="settings-field-control">
+                <input type="text" id="ps-description" class="settings-input" value="${escapeHtml(data.description || '')}">
+              </div>
+            </div>
+            <div class="settings-field">
+              <div class="settings-field-meta">
+                <label class="settings-label" for="ps-framework">Framework</label>
+              </div>
+              <div class="settings-field-control">
+                <div class="ps-framework-row">
+                  <input type="text" id="ps-framework" class="settings-input" value="${escapeHtml(data.framework || '')}" placeholder="e.g. pytorch, tensorflow">
+                  <button type="button" class="ps-fw-btn ps-fw-pytorch ${(data.framework || '').toLowerCase() === 'pytorch' ? 'is-active' : ''}" data-fw="pytorch">PyTorch</button>
+                  <button type="button" class="ps-fw-btn ps-fw-tensorflow ${(data.framework || '').toLowerCase() === 'tensorflow' ? 'is-active' : ''}" data-fw="tensorflow">TensorFlow</button>
+                </div>
+              </div>
+            </div>
+            <div class="settings-field">
+              <div class="settings-field-meta">
+                <label class="settings-label" for="ps-created">Created</label>
+              </div>
+              <div class="settings-field-control">
+                <input type="text" id="ps-created" class="settings-input" value="${escapeHtml(data.created || '')}" readonly>
+              </div>
+            </div>
+          </div>
+          <div class="settings-actions">
+            <button id="ps-save-btn" class="settings-btn settings-btn-primary">💾 Save Settings</button>
+            <button id="ps-revert-btn" class="settings-btn settings-btn-secondary">↻ Revert</button>
+          </div>
+          <div id="ps-status" class="settings-status" style="display:none"></div>
+        </div>
+      </div>
+  </div>
   `;
 
   document.getElementById('project-change-folder-btn')?.addEventListener('click', pickAndOpenFolder);
@@ -269,6 +342,53 @@ async function renderExplorer(folderData) {
       const folderPath = row.getAttribute('data-folder-path');
       if (folderPath) await openFolder(folderPath, false);
     });
+  });
+
+  document.getElementById('project-settings-toggle')?.addEventListener('click', () => {
+    const body = document.getElementById('project-settings-body');
+    const icon = document.getElementById('project-settings-toggle-icon');
+    if (!body || !icon) return;
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    icon.textContent = isOpen ? '▶' : '▼';
+  });
+
+  container.querySelectorAll('.ps-fw-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById('ps-framework');
+      if (input) input.value = btn.dataset.fw;
+      container.querySelectorAll('.ps-fw-btn').forEach((b) => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+    });
+  });
+
+  document.getElementById('ps-save-btn')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('ps-status');
+    const updated = {
+      name: document.getElementById('ps-name')?.value || '',
+      version: document.getElementById('ps-version')?.value || '',
+      description: document.getElementById('ps-description')?.value || '',
+      framework: document.getElementById('ps-framework')?.value || null,
+      created: data.created || new Date().toISOString(),
+    };
+    const result = await window.electron.projectJsonWrite(folderData.path, updated);
+    if (result.success) {
+      statusEl.textContent = 'Settings saved!';
+      statusEl.className = 'settings-status success';
+      statusEl.style.display = 'block';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    } else {
+      statusEl.textContent = 'Failed to save: ' + (result.error || 'unknown error');
+      statusEl.className = 'settings-status error';
+      statusEl.style.display = 'block';
+    }
+  });
+
+  document.getElementById('ps-revert-btn')?.addEventListener('click', async () => {
+    if (_currentFolderPath) {
+      const folderData = await window.electron.projectListFolder(_currentFolderPath);
+      if (folderData) await renderExplorer(folderData);
+    }
   });
 }
 
@@ -339,6 +459,13 @@ async function importTemplate(templateKey) {
 }
 
 async function init() {
+  await new Promise(function (resolve) {
+    if (window.pywebview && window.pywebview.api) { resolve(); return; }
+    window.addEventListener('pywebviewready', function onReady() {
+      window.removeEventListener('pywebviewready', onReady);
+      setTimeout(resolve, 0);
+    });
+  });
   const recents = await window.electron.projectRecentsRead();
   if (recents?.open) {
     try {

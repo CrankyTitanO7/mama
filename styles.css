@@ -2590,6 +2590,40 @@ body.embed-fullscreen-active {
     gap: 16px;
 }
 
+.ft-config-easy {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.ft-config-easy .ft-field {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    align-items: flex-start;
+    margin-bottom: 0;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.ft-config-easy .ft-field:last-child {
+    border-bottom: none;
+}
+
+.ft-config-easy .ft-field-left {
+    flex: 1;
+    min-width: 0;
+}
+
+.ft-config-easy .ft-field-right {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--body-color);
+    line-height: 1.5;
+    padding-top: 2px;
+}
+
 .ft-hardware-info {
     padding: 12px 16px;
     background: var(--widget-bg);

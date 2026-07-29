@@ -589,6 +589,80 @@ const Finetune = (() => {
     return formatSize(bytes);
   }
 
+  // ── Easy mode explanations ─────────────────────────────────────
+
+  const easyExplanations = {
+    'ft-method': 'Choose how much of the model to update. LoRA is memory-efficient and recommended for most users. QLoRA uses 4-bit quantization to reduce memory further. Full fine-tuning updates all parameters but requires significant VRAM.',
+    'ft-lora-r': 'The rank determines the size of the LoRA adapter matrices. Higher values (16-64) allow more expressiveness but use more memory. Start with 8-16.',
+    'ft-lora-alpha': 'Scaling factor for LoRA updates. Typically set to 2\u00d7 the rank value. Controls how strongly the adapter affects the model output.',
+    'ft-lora-dropout': 'Dropout probability for LoRA layers. Helps prevent overfitting on small datasets. 0.05 is a safe default.',
+    'ft-lr': 'The step size for optimizer updates. 2e-4 is a common starting point for LoRA fine-tuning. Lower for full fine-tuning (1e-5 to 5e-5).',
+    'ft-batch-size': 'Number of samples processed per device per step. Larger batch sizes use more memory but can give more stable gradients.',
+    'ft-grad-acc': 'Accumulates gradients over multiple steps before updating weights. Effective batch size = batch size \u00d7 accumulation steps.',
+    'ft-max-seq': 'Maximum number of tokens per input sequence. Longer sequences use more memory. 2048 is a good balance for most tasks.',
+    'ft-epochs': 'Number of complete passes through the training dataset. More epochs can improve performance but risk overfitting.',
+    'ft-max-steps': 'Maximum training steps. Overrides epochs if set to a positive value. Set to -1 to use epoch-based training.',
+    'ft-warmup': 'Number of steps to linearly increase the learning rate from 0 to the target value. Helps stabilize early training.',
+    'ft-log-steps': 'How often to log training metrics and save model checkpoints during training.',
+    'ft-scheduler': 'Controls how the learning rate changes over time. Cosine is the most common and generally works well.',
+    'ft-grad-checkpoint': 'Trades compute for memory. Uses less GPU memory but is slightly slower. Recommended for large models.',
+    'ft-use-flash': 'Flash Attention 2 speeds up attention computation. Requires a CUDA-compatible GPU and the flash-attn package.',
+    'ft-use-bf16': 'Uses bfloat16 precision for faster training and lower memory usage. Requires CUDA-capable GPU with bfloat16 support.',
+    'ft-resume': 'If a checkpoint exists in the output directory, training will resume from it rather than starting from scratch.',
+  };
+
+  async function applyEasyMode() {
+    try {
+      const recents = await window.electron.projectRecentsRead();
+      const openFolder = recents?.open;
+      if (!openFolder) return;
+
+      const projectData = await window.electron.projectJsonRead(openFolder);
+      if (!projectData || projectData.difficulty !== 'easy') return;
+
+      const grid = document.querySelector('.ft-config-grid');
+      if (!grid) return;
+      grid.classList.add('ft-config-easy');
+
+      grid.querySelectorAll('.ft-field').forEach(field => {
+        const children = Array.from(field.children);
+        const hint = field.querySelector('.ft-hint');
+        const control = field.querySelector('input, select');
+
+        const left = document.createElement('div');
+        left.className = 'ft-field-left';
+
+        const right = document.createElement('div');
+        right.className = 'ft-field-right';
+
+        children.forEach(child => {
+          if (child === hint || (child.classList && child.classList.contains('ft-hint'))) {
+            right.appendChild(child);
+          } else {
+            left.appendChild(child);
+          }
+        });
+
+        if (!right.children.length && control) {
+          const id = control.id;
+          if (id && easyExplanations[id]) {
+            const p = document.createElement('p');
+            p.textContent = easyExplanations[id];
+            right.appendChild(p);
+          }
+        }
+
+        field.textContent = '';
+        field.appendChild(left);
+        if (right.children.length > 0) {
+          field.appendChild(right);
+        }
+      });
+    } catch (e) {
+      console.warn('applyEasyMode failed:', e);
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────────────
 
   async function init() {
@@ -647,6 +721,7 @@ const Finetune = (() => {
       loadHardwareInfo(),
       setDefaultOutputDir(),
       restoreDatasetRecents(),
+      applyEasyMode(),
     ]);
 
     updateConfigPreview();

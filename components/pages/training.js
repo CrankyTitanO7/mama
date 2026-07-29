@@ -255,6 +255,8 @@ const TrainingMonitor = (() => {
       if (chunk.suggestions) {
         chunk.suggestions.forEach(s => appendLog(`  Suggestion: ${s}`));
       }
+      appendLog(`── Full JSON dump ──\n${JSON.stringify(chunk, null, 2)}`);
+      showErrorDetail(chunk);
       trainingActive = false;
       updateControlButtons();
     } else if (chunk.type === 'done') {
@@ -303,6 +305,24 @@ const TrainingMonitor = (() => {
     if (!lr) return '—';
     if (lr < 1e-5) return lr.toExponential(2);
     return lr.toFixed(6);
+  }
+
+  // ── Error detail panel ─────────────────────────────────────────
+
+  function showErrorDetail(chunk) {
+    const card = document.getElementById('train-error-card');
+    const el = document.getElementById('train-error-detail');
+    if (!card || !el) return;
+    el.textContent = JSON.stringify(chunk, null, 2);
+    card.style.display = '';
+  }
+
+  function clearErrorDetail() {
+    const card = document.getElementById('train-error-card');
+    const el = document.getElementById('train-error-detail');
+    if (!card || !el) return;
+    el.textContent = '';
+    card.style.display = 'none';
   }
 
   // ── Log ──────────────────────────────────────────────────────────
@@ -363,6 +383,7 @@ const TrainingMonitor = (() => {
 
   async function loadOutputFolder(folderPath) {
     if (!folderPath) return;
+    clearErrorDetail();
     currentOutputDir = folderPath;
     document.getElementById('train-current-folder').textContent = folderPath;
     metrics = [];

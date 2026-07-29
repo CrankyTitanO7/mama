@@ -2831,6 +2831,24 @@ body.embed-fullscreen-active {
     font-style: italic;
 }
 
+.train-error-detail {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #1a0a0a;
+    border: 1px solid #f44336;
+    border-radius: 6px;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #ff8a80;
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: text;
+    -webkit-user-select: text;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
 .train-muted {
     color: var(--body-color);
     font-size: 13px;

@@ -384,6 +384,12 @@ def train(cfg: dict):
     # SFTTrainer. Only pass a text field for genuine flat-text datasets, and
     # only once we've confirmed that column actually exists.
     column_names = set(dataset.column_names)
+    
+    # ADD THESE LINES: Drop 'prompt' column if 'messages' exists to prevent TRL confusion
+    if "messages" in column_names and "prompt" in column_names:
+        dataset = dataset.remove_columns(["prompt"])
+        column_names.remove("prompt")
+
     if {"prompt", "completion"} <= column_names or "messages" in column_names or "conversations" in column_names:
         dataset_text_field = None
     elif text_column_content in column_names:

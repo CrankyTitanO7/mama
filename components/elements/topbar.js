@@ -2,10 +2,11 @@ class Topbar {
   constructor(options = {}) {
     this.currentPage = options.currentPage || 'index';
     this.container = options.container || document.body;
+    this.multimodelMode = true;
   }
 
   getLeftNavItems() {
-    return [
+    const items = [
       { label: 'project', page: 'project.html', key: 'project' },
       { label: 'multimodel design', page: 'multicon.html', key: 'multicon' },
       { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
@@ -13,6 +14,10 @@ class Topbar {
       { label: 'training', page: 'training.html', key: 'training' },
       { label: 'export', page: 'export.html', key: 'export' }
     ];
+    if (!this.multimodelMode) {
+      return items.filter(item => item.key !== 'multicon');
+    }
+    return items;
   }
 
   getRightNavItems() {
@@ -60,7 +65,20 @@ class Topbar {
     }
   }
 
-  render() {
+  async render() {
+    try {
+      const a = window.pywebview?.api || window.electron;
+      if (a && a.projectRecentsRead) {
+        const recents = await a.projectRecentsRead();
+        if (recents?.open) {
+          const projectData = a.projectJsonRead ? await a.projectJsonRead(recents.open) : null;
+          if (projectData && projectData.multimodel_mode === false) {
+            this.multimodelMode = false;
+          }
+        }
+      }
+    } catch (_) {}
+
     const leftItems = this.getLeftNavItems();
     const rightItems = this.getRightNavItems();
     const activeKey = this.getActiveKey();
@@ -139,9 +157,9 @@ class Topbar {
     });
   }
 
-  static init(currentPage) {
+  static async init(currentPage) {
     const topbar = new Topbar({ currentPage });
-    topbar.render();
+    await topbar.render();
   }
 }
 

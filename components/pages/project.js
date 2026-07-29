@@ -303,6 +303,15 @@ async function renderExplorer(folderData) {
                 <input type="text" id="ps-created" class="settings-input" value="${escapeHtml(data.created || '')}" readonly>
               </div>
             </div>
+            <div class="settings-field">
+              <div class="settings-field-meta">
+                <label class="settings-label" for="ps-multimodel">Multimodel mode</label>
+                <p class="settings-field-desc">A handy GUI tool for designing multi-AI systems. This feature is not yet available.</p>
+              </div>
+              <div class="settings-field-control">
+                <input type="checkbox" id="ps-multimodel" class="settings-checkbox" ${data.multimodel_mode === true ? 'checked' : ''}>
+              </div>
+            </div>
           </div>
           <div class="settings-actions">
             <button id="ps-save-btn" class="settings-btn settings-btn-primary">💾 Save Settings</button>
@@ -364,19 +373,18 @@ async function renderExplorer(folderData) {
 
   document.getElementById('ps-save-btn')?.addEventListener('click', async () => {
     const statusEl = document.getElementById('ps-status');
+    const multimodelCheck = document.getElementById('ps-multimodel');
     const updated = {
       name: document.getElementById('ps-name')?.value || '',
       version: document.getElementById('ps-version')?.value || '',
       description: document.getElementById('ps-description')?.value || '',
       framework: document.getElementById('ps-framework')?.value || null,
       created: data.created || new Date().toISOString(),
+      multimodel_mode: multimodelCheck ? multimodelCheck.checked : true,
     };
     const result = await window.electron.projectJsonWrite(folderData.path, updated);
     if (result.success) {
-      statusEl.textContent = 'Settings saved!';
-      statusEl.className = 'settings-status success';
-      statusEl.style.display = 'block';
-      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+      location.reload();
     } else {
       statusEl.textContent = 'Failed to save: ' + (result.error || 'unknown error');
       statusEl.className = 'settings-status error';

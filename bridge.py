@@ -570,7 +570,7 @@ class MamaApi:
             if parts and parts[0] in ('pip', 'pip3'):
                 cmd = [python, '-m', 'pip'] + parts[1:]
             else:
-                cmd = [python, '-m', 'pip', 'install'] + parts
+                cmd = parts
         else:
             script = str(self._installs_dir / 'install_fw.py')
             args = [fw, gpu_variant]

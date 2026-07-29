@@ -228,7 +228,7 @@ function hasProviderUrl(value) {
 let activeFullscreen = null;
 
 function onFullscreenKeyDown(event) {
-  if (event.key === 'Escape' && event.shiftKey) {
+  if (event.key === 'Escape') {
     event.preventDefault();
     exitEmbedFullscreen();
   }
@@ -247,17 +247,6 @@ function enterEmbedFullscreen(widgetRoot) {
   overlay.className = 'embed-fullscreen-overlay';
   overlay.addEventListener('click', () => exitEmbedFullscreen());
 
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'embed-fullscreen-close';
-  closeBtn.setAttribute('aria-label', 'Exit fullscreen');
-  closeBtn.title = 'Exit fullscreen';
-  closeBtn.textContent = '×';
-  closeBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    exitEmbedFullscreen();
-  });
-
   const saved = {};
   ['position', 'top', 'left', 'width', 'height', 'zIndex', 'transition'].forEach(k => {
     saved[k] = widgetRoot.style[k] || '';
@@ -274,17 +263,8 @@ function enterEmbedFullscreen(widgetRoot) {
 
   widgetRoot.style.transition = 'top 0.42s cubic-bezier(0.22, 1, 0.36, 1), left 0.42s cubic-bezier(0.22, 1, 0.36, 1), width 0.42s cubic-bezier(0.22, 1, 0.36, 1), height 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
 
-  const fsBtn = widgetRoot.querySelector('.embed-fullscreen-btn');
-  if (fsBtn) {
-    fsBtn.dataset.origText = fsBtn.textContent;
-    fsBtn.dataset.origTitle = fsBtn.title;
-    fsBtn.textContent = '✕';
-    fsBtn.title = 'Exit fullscreen';
-  }
-
   document.body.appendChild(overlay);
   document.body.classList.add('embed-fullscreen-active');
-  overlay.appendChild(closeBtn);
 
   const onKeyDown = onFullscreenKeyDown;
   document.addEventListener('keydown', onKeyDown, true);
@@ -306,12 +286,6 @@ function exitEmbedFullscreen() {
 
   const { widget, overlay, saved, startRect, onKeyDown } = activeFullscreen;
   document.removeEventListener('keydown', onKeyDown, true);
-
-  const fsBtn = widget.querySelector('.embed-fullscreen-btn');
-  if (fsBtn && fsBtn.dataset.origText !== undefined) {
-    fsBtn.textContent = fsBtn.dataset.origText;
-    fsBtn.title = fsBtn.dataset.origTitle || 'Fullscreen';
-  }
 
   widget.style.transition = 'top 0.42s cubic-bezier(0.22, 1, 0.36, 1), left 0.42s cubic-bezier(0.22, 1, 0.36, 1), width 0.42s cubic-bezier(0.22, 1, 0.36, 1), height 0.42s cubic-bezier(0.22, 1, 0.36, 1)';
   widget.style.top = startRect.top + 'px';
@@ -339,7 +313,14 @@ function initEmbedFullscreen(widgetRoot) {
   const fsBtn = widgetRoot.querySelector('.embed-fullscreen-btn');
   const slot  = widgetRoot.querySelector('.embed-widget-slot');
 
-  fsBtn?.addEventListener('click', (e) => { e.stopPropagation(); enterEmbedFullscreen(widgetRoot); });
+  fsBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (activeFullscreen) {
+      exitEmbedFullscreen();
+    } else {
+      enterEmbedFullscreen(widgetRoot);
+    }
+  });
   slot?.addEventListener('dblclick', () => enterEmbedFullscreen(widgetRoot));
 }
 

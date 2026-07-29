@@ -30,8 +30,6 @@ while this does not solve all the problems of AI, by keeping this project open-s
 
 easy to pronounce in every language. 
 
-Stands for *M*ary mother of god *A*I is gonna take my *M*otherfucking job before I can wipe my *A*ss with my 2-figure paycheck
-
 ## credits
 
 - pytorch template from [pytorch-template](https://github.com/victoresque/pytorch-template.git) by @victoresque

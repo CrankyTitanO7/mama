@@ -254,22 +254,20 @@ def _count_flops_manual(model, input_shape, torch) -> float:
     Returns total FLOPs (1 MAC = 2 FLOPs).
     """
     total_macs = 0
-    dummy = torch.randn(1, *input_shape[1:])  # single sample for shape tracking
+    # FIX: Use the actual input_shape to respect the user's batch size
+    dummy = torch.randn(*input_shape)
 
     def _count_conv(module, input, output):
         nonlocal total_macs
-        # Conv2d: MACs = K_h * K_w * C_in * C_out * H_out * W_out
-        _, _, h_out, w_out = output.shape
-        macs = (module.kernel_size[0] * module.kernel_size[1] *
-                module.in_channels * module.out_channels *
-                h_out * w_out)
-        total_macs += macs
+        # FIX: MACs = kernel_area * (in_channels / groups) * total_output_elements
+        kernel_ops = module.kernel_size[0] * module.kernel_size[1]
+        in_ch_per_group = module.in_channels // module.groups
+        total_macs += kernel_ops * in_ch_per_group * output.numel()
 
     def _count_linear(module, input, output):
         nonlocal total_macs
-        # Linear: MACs = in_features * out_features
-        macs = module.in_features * module.out_features
-        total_macs += macs
+        # FIX: Output elements * in_features automatically handles multi-dim (e.g. sequences in Transformers)
+        total_macs += output.numel() * module.in_features
 
     hooks = []
     for name, module in model.named_modules():
@@ -370,13 +368,12 @@ def main():
                 progress(f"Warmup {i + 1}/{args.warmup}")
         sync(device, torch)
 
+    # FIX: Remove print statements inside the timer block to prevent I/O latency from skewing metrics
     progress(f"Measuring ({args.iterations} iterations)...")
     with torch.no_grad():
         start = time.perf_counter()
         for i in range(args.iterations):
             model(dummy_input)
-            if (i + 1) % 10 == 0:
-                progress(f"Measuring {i + 1}/{args.iterations}")
         sync(device, torch)
         elapsed = time.perf_counter() - start
 

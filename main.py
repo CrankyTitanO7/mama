@@ -19,18 +19,55 @@ from bridge import MamaApi
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 USER_SETTINGS_PATH = BASE_DIR / 'user' / 'settings.json'
+BACKUP_SETTINGS_PATH = BASE_DIR / 'user' / 'settings.json.bak'
 TEMPLATE_SETTINGS_PATH = BASE_DIR / 'user' / 'template' / 'settings.json'
 
 logging.basicConfig(level=logging.INFO, format='[mama] %(levelname)s %(message)s')
 logger = logging.getLogger('mama')
 
 
+def _strip_json_comments(text: str) -> str:
+    """Strip //-style comments from JSON text, handling strings properly."""
+    result = []
+    i = 0
+    in_string = False
+    string_char = None
+    while i < len(text):
+        c = text[i]
+        if in_string:
+            result.append(c)
+            if c == '\\':
+                i += 1
+                if i < len(text):
+                    result.append(text[i])
+            elif c == string_char:
+                in_string = False
+        elif c in ('"', "'"):
+            in_string = True
+            string_char = c
+            result.append(c)
+        elif c == '/' and i + 1 < len(text) and text[i+1] == '/':
+            while i < len(text) and text[i] != '\n':
+                i += 1
+            continue
+        else:
+            result.append(c)
+        i += 1
+    return ''.join(result)
+
+
 def load_settings():
-    """Load settings from user/settings.json, seeding from template if needed."""
+    """Load settings from user/settings.json, restoring from backup or template if needed."""
     if not USER_SETTINGS_PATH.exists():
-        if TEMPLATE_SETTINGS_PATH.exists():
+        if BACKUP_SETTINGS_PATH.exists():
+            logger.info('settings.json missing, restoring from backup')
             USER_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            raw = TEMPLATE_SETTINGS_PATH.read_text('utf-8')
+            raw = BACKUP_SETTINGS_PATH.read_text('utf-8')
+            USER_SETTINGS_PATH.write_text(raw, 'utf-8')
+        elif TEMPLATE_SETTINGS_PATH.exists():
+            logger.info('settings.json and backup missing, creating from template')
+            USER_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            raw = _strip_json_comments(TEMPLATE_SETTINGS_PATH.read_text('utf-8'))
             USER_SETTINGS_PATH.write_text(raw, 'utf-8')
         else:
             return None

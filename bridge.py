@@ -212,14 +212,49 @@ class MamaApi:
     # Settings
     # ═══════════════════════════════════════════════════════════════════════
 
+    @staticmethod
+    def _strip_json_comments(text: str) -> str:
+        """Strip //-style comments from JSON text, handling strings properly."""
+        result = []
+        i = 0
+        in_string = False
+        string_char = None
+        while i < len(text):
+            c = text[i]
+            if in_string:
+                result.append(c)
+                if c == '\\':
+                    i += 1
+                    if i < len(text):
+                        result.append(text[i])
+                elif c == string_char:
+                    in_string = False
+            elif c in ('"', "'"):
+                in_string = True
+                string_char = c
+                result.append(c)
+            elif c == '/' and i + 1 < len(text) and text[i+1] == '/':
+                while i < len(text) and text[i] != '\n':
+                    i += 1
+                continue
+            else:
+                result.append(c)
+            i += 1
+        return ''.join(result)
+
     def _ensure_settings(self):
-        """Seed user settings from template if they don't exist."""
+        """Seed user settings from backup or template if they don't exist."""
         if not self._user_settings_path.exists():
-            if self._template_dir.exists():
+            self._user_settings_path.parent.mkdir(parents=True, exist_ok=True)
+            if self._settings_backup_path.exists():
+                logger.info('settings.json missing, restoring from backup')
+                shutil.copy2(self._settings_backup_path, self._user_settings_path)
+            elif self._template_dir.exists():
                 template = self._template_dir / 'settings.json'
                 if template.exists():
-                    self._user_settings_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(template, self._user_settings_path)
+                    logger.info('settings.json and backup missing, creating from template')
+                    raw = self._strip_json_comments(template.read_text('utf-8'))
+                    self._user_settings_path.write_text(raw, 'utf-8')
 
     def _read_settings_raw(self) -> Optional[dict]:
         """Read settings JSON file."""

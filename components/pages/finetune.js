@@ -19,6 +19,18 @@ const Finetune = (() => {
     return d.innerHTML;
   }
 
+  function humanFlops(flops) {
+    if (flops >= 1e12) return (flops / 1e12).toFixed(3) + ' TFLOPS';
+    if (flops >= 1e9) return (flops / 1e9).toFixed(3) + ' GFLOPS';
+    return flops.toFixed(1) + ' FLOPS';
+  }
+
+  function humanParams(params) {
+    if (params >= 1e9) return (params / 1e9).toFixed(1) + 'B';
+    if (params >= 1e6) return (params / 1e6).toFixed(1) + 'M';
+    return Math.round(params).toLocaleString();
+  }
+
   function show(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = '';
@@ -141,6 +153,28 @@ const Finetune = (() => {
       const modules = result.suggested_lora_modules || [];
       const pipeline = result.pipeline_tag || 'unknown';
 
+      let flopsHtml = '';
+      const flopsPerPass = result.flops_per_pass;
+      const params = result.params;
+      if (flopsPerPass && params) {
+        const methodLabel = result.method === 'calflops' ? 'calflops' : 'estimated';
+        flopsHtml = `
+          <div class="ft-compat-flops">
+            <div class="ft-flops-row">
+              <span class="ft-flops-label">Parameters</span>
+              <span class="ft-flops-value">${humanParams(params)}</span>
+            </div>
+            <div class="ft-flops-row">
+              <span class="ft-flops-label">FLOPs / forward pass</span>
+              <span class="ft-flops-value">${humanFlops(flopsPerPass)}</span>
+            </div>
+            <div class="ft-flops-row ft-flops-row-method">
+              <span>(${methodLabel} at seq_len=512)</span>
+            </div>
+          </div>
+        `;
+      }
+
       resultDiv.innerHTML = `
         <div class="ft-compat-card ${isCompat ? 'ft-compat-ok' : 'ft-compat-warn'}">
           <div class="ft-compat-header">
@@ -151,6 +185,7 @@ const Finetune = (() => {
             <strong>Suggested LoRA modules:</strong>
             <code>${modules.length ? modules.join(', ') : 'q_proj, v_proj, k_proj, o_proj'}</code>
           </div>
+          ${flopsHtml}
         </div>
       `;
     } catch (e) {

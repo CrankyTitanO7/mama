@@ -2698,6 +2698,37 @@ body.embed-fullscreen-active {
     border-radius: 3px;
 }
 
+.ft-compat-flops {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ft-flops-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 13px;
+}
+
+.ft-flops-row-method {
+    justify-content: flex-end;
+    font-size: 11px;
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.ft-flops-label {
+    color: var(--body-color);
+}
+
+.ft-flops-value {
+    font-weight: 600;
+    font-family: monospace;
+    color: var(--page-text);
+}
+
 .ft-progress-bar-track {
     width: 100%;
     height: 20px;

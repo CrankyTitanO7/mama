@@ -18,6 +18,7 @@ import os
 import json
 import argparse
 from pathlib import Path
+from typing import Optional
 
 HERE = Path(__file__).resolve().parent
 
@@ -91,6 +92,80 @@ def list_local_models(models_dir: str) -> list:
     return results
 
 
+def estimate_model_flops(model_id: str, pipeline_tag: str) -> Optional[dict]:
+    """Estimate FLOPs per forward pass for a text generation model.
+
+    Uses calflops for small models (fits in memory), falls back to a
+    formula-based estimate for large models.
+    Returns {flops_per_pass, macs_per_pass, params, method} or None.
+    """
+    try:
+        from transformers import AutoConfig
+
+        config = AutoConfig.from_pretrained(model_id, trust_remote_code=False)
+
+        h = getattr(config, 'hidden_size', None) or getattr(config, 'd_model', 0)
+        l = getattr(config, 'num_hidden_layers', None) or getattr(config, 'num_layers', 0)
+        if not h or not l:
+            return None
+
+        # Compute parameter count from architectural dimensions
+        v = getattr(config, 'vocab_size', 0)
+        i = getattr(config, 'intermediate_size', 0) or h * 4
+        num_heads = getattr(config, 'num_attention_heads', 1)
+        num_kv_heads = getattr(config, 'num_key_value_heads', None) or num_heads
+
+        head_dim = h // num_heads
+        kv_size = num_kv_heads * head_dim
+
+        embed_params = v * h
+        attn_params = h * h + 2 * h * kv_size + h * h  # Q, K, V, O
+        mlp_params = 3 * h * i  # gate, up, down (SwiGLU-style)
+        total_params = embed_params + l * (attn_params + mlp_params + 2 * h) + v * h
+
+        # Try calflops for small models (h*l < ~500k → roughly < 1B params)
+        calflops_result = None
+        if h * l < 500000 and pipeline_tag in ("text-generation", "text2text-generation"):
+            try:
+                from transformers import AutoModelForCausalLM
+                from calflops import calculate_flops
+
+                model = AutoModelForCausalLM.from_config(config)
+                flops, macs, params = calculate_flops(
+                    model=model,
+                    input_shape=(1, 512),
+                    output_as_string=False,
+                    print_results=False,
+                )
+                calflops_result = {
+                    "flops_per_pass": flops,
+                    "macs_per_pass": macs,
+                    "params": params,
+                }
+            except Exception:
+                calflops_result = None
+
+        seq_len = 512
+        if calflops_result:
+            return {
+                "flops_per_pass": calflops_result["flops_per_pass"],
+                "macs_per_pass": calflops_result["macs_per_pass"],
+                "params": calflops_result["params"],
+                "method": "calflops",
+            }
+
+        # Formula-based: FLOPs ≈ 2 × params × tokens (forward pass)
+        flops_per_pass = 2 * total_params * seq_len
+        return {
+            "flops_per_pass": flops_per_pass,
+            "macs_per_pass": flops_per_pass / 2,
+            "params": total_params,
+            "method": "formula",
+        }
+    except Exception:
+        return None
+
+
 def check_model_compatibility(model_id: str):
     try:
         from huggingface_hub import HfApi
@@ -102,7 +177,7 @@ def check_model_compatibility(model_id: str):
         # Determine likely target modules for LoRA based on model type
         suggested_modules = get_suggested_modules(info)
 
-        emit({
+        result = {
             "type": "compatibility",
             "model_id": model_id,
             "pipeline_tag": pipeline_tag,
@@ -110,7 +185,14 @@ def check_model_compatibility(model_id: str):
             "is_text_generation": pipeline_tag in ("text-generation", "text2text-generation"),
             "suggested_lora_modules": suggested_modules,
             "card_data": info.card_data if hasattr(info, "card_data") else None,
-        })
+        }
+
+        # Add FLOP estimate (non-fatal if it fails)
+        flops_info = estimate_model_flops(model_id, pipeline_tag)
+        if flops_info:
+            result.update(flops_info)
+
+        emit(result)
     except Exception as e:
         emit_error("COMPAT", f"Failed to check model: {e}")
 

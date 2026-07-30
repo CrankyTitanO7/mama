@@ -1440,7 +1440,7 @@ class MamaApi:
         python = self._get_training_python()
         if not python:
             return {'compatible': False, 'error': 'Python 3 not found'}
-        result = self._run_script(script, ['--check', '--model-id', model_id], timeout=60_000, python_exe=python)
+        result = self._run_script(script, ['--check', '--model-id', model_id], timeout=120_000, python_exe=python)
         if result['code'] == 0 and result['stdout']:
             for line in reversed(result['stdout'].strip().split('\n')):
                 if line.startswith('{'):

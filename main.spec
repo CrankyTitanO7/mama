@@ -1,27 +1,36 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import platform
+import sys
 
 base_dir = os.path.dirname(os.path.abspath('main.py'))
+system = platform.system()
 
 datas = [
-    # Public HTML/CSS/JS
     (os.path.join(base_dir, 'public'), 'public'),
     (os.path.join(base_dir, 'components'), 'components'),
     (os.path.join(base_dir, 'user'), 'user'),
     (os.path.join(base_dir, 'docs'), 'docs'),
-    (os.path.join(base_dir, 'styles.css'), '.'),  # root-level CSS
+    (os.path.join(base_dir, 'styles.css'), '.'),
 ]
+
+if system == 'Windows':
+    platform_hiddenimports = ['webview.platforms.winforms']
+elif system == 'Linux':
+    platform_hiddenimports = ['webview.platforms.gtk']
+elif system == 'Darwin':
+    platform_hiddenimports = ['webview.platforms.cocoa']
+else:
+    print(f'WARNING: unknown platform {system}', file=sys.stderr)
+    platform_hiddenimports = []
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=[
-        'webview',
-        'webview.platforms.cocoa',  # Changed from winforms to cocoa for macOS
-    ],
+    hiddenimports=['webview'] + platform_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -53,10 +62,21 @@ exe = EXE(
     entitlements_file=None,
 )
 
-# --- ADDED: macOS App Bundle wrapper ---
-app = BUNDLE(
-    exe,
-    name='mama.app',
-    icon=None,  # Replace with 'icon.icns' path if you have an app icon
-    bundle_identifier='com.crankytitano7.mama',
-)
+if system == 'Linux':
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='mama',
+    )
+
+if system == 'Darwin':
+    app = BUNDLE(
+        exe,
+        name='mama.app',
+        icon=None,
+        bundle_identifier='com.crankytitano7.mama',
+    )

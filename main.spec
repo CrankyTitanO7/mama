@@ -19,8 +19,8 @@ a = Analysis(
     binaries=[],
     datas=datas,
     hiddenimports=[
-        'webview',  # pywebview
-        'webview.platforms.winforms',  # or win32/cocoa/gtk depending on OS
+        'webview',
+        'webview.platforms.cocoa',  # Changed from winforms to cocoa for macOS
     ],
     hookspath=[],
     hooksconfig={},
@@ -45,10 +45,18 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # Set True for debugging
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+# --- ADDED: macOS App Bundle wrapper ---
+app = BUNDLE(
+    exe,
+    name='mama.app',
+    icon=None,  # Replace with 'icon.icns' path if you have an app icon
+    bundle_identifier='com.crankytitano7.mama',
 )

@@ -1359,6 +1359,20 @@ class MamaApi:
     def _emit_model_progress(self, chunk: dict):
         self._enqueue_emit('_modelProgressCallback', chunk)
 
+    def _get_hf_token(self) -> str:
+        """Resolve Hugging Face token from env or cache."""
+        token = os.environ.get('HF_TOKEN') or os.environ.get('HUGGING_FACE_HUB_TOKEN', '')
+        if token:
+            return token
+        try:
+            from huggingface_hub import HfFolder
+            cached = HfFolder.get_token()
+            if cached:
+                return cached
+        except Exception:
+            pass
+        return ''
+
     def model_download(self, model_id: str, output_dir: str = '', revision: str = 'main') -> dict:
         """Download a model from HF Hub with progress streaming."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
@@ -1367,9 +1381,13 @@ class MamaApi:
         if not python:
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
 
+        hf_token = self._get_hf_token()
+        cmd = [python, script, '--model-id', model_id, '--output', models_dir, '--revision', revision]
+        if hf_token:
+            cmd.extend(['--token', hf_token])
+
         try:
-            proc = subprocess.Popen(
-                [python, script, '--model-id', model_id, '--output', models_dir, '--revision', revision],
+            proc = subprocess.Popen(cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -1440,7 +1458,11 @@ class MamaApi:
         python = self._get_training_python()
         if not python:
             return {'compatible': False, 'error': 'Python 3 not found'}
-        result = self._run_script(script, ['--check', '--model-id', model_id], timeout=120_000, python_exe=python)
+        args = ['--check', '--model-id', model_id]
+        hf_token = self._get_hf_token()
+        if hf_token:
+            args.extend(['--token', hf_token])
+        result = self._run_script(script, args, timeout=120_000, python_exe=python)
         if result['code'] == 0 and result['stdout']:
             for line in reversed(result['stdout'].strip().split('\n')):
                 if line.startswith('{'):

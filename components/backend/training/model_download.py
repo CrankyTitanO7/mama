@@ -32,12 +32,30 @@ def emit_error(code: str, message: str):
     sys.exit(1)
 
 
-def download_model(model_id: str, output_dir: str, revision: str = "main"):
+def _get_token(token_arg: str = "") -> Optional[str]:
+    """Resolve HF token from CLI arg, env var, or cached login."""
+    if token_arg:
+        return token_arg
+    env_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    if env_token:
+        return env_token
+    try:
+        from huggingface_hub import HfFolder
+        cached = HfFolder.get_token()
+        if cached:
+            return cached
+    except Exception:
+        pass
+    return None
+
+
+def download_model(model_id: str, output_dir: str, revision: str = "main", token: str = ""):
     try:
         from huggingface_hub import snapshot_download, HfApi
     except ImportError:
         emit_error("IMPORT", "huggingface_hub not installed. Run: pip install huggingface_hub")
 
+    hf_token = _get_token(token)
     output_path = Path(output_dir) / model_id.replace("/", "--")
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -60,6 +78,7 @@ def download_model(model_id: str, output_dir: str, revision: str = "main"):
             repo_id=model_id,
             local_dir=str(output_path),
             revision=revision,
+            token=hf_token,
             local_dir_use_symlinks=False,
             resume_download=True,
             ignore_patterns=["*.safetensors", "pytorch_model*.bin"] if "--no-weights" in sys.argv else None,
@@ -92,7 +111,7 @@ def list_local_models(models_dir: str) -> list:
     return results
 
 
-def estimate_model_flops(model_id: str, pipeline_tag: str) -> Optional[dict]:
+def estimate_model_flops(model_id: str, pipeline_tag: str, token: str = "") -> Optional[dict]:
     """Estimate FLOPs per forward pass for a text generation model.
 
     Uses calflops for small models (fits in memory), falls back to a
@@ -102,7 +121,8 @@ def estimate_model_flops(model_id: str, pipeline_tag: str) -> Optional[dict]:
     try:
         from transformers import AutoConfig
 
-        config = AutoConfig.from_pretrained(model_id, trust_remote_code=False)
+        hf_token = _get_token(token)
+        config = AutoConfig.from_pretrained(model_id, trust_remote_code=False, token=hf_token)
 
         h = getattr(config, 'hidden_size', None) or getattr(config, 'd_model', 0)
         l = getattr(config, 'num_hidden_layers', None) or getattr(config, 'num_layers', 0)
@@ -166,10 +186,11 @@ def estimate_model_flops(model_id: str, pipeline_tag: str) -> Optional[dict]:
         return None
 
 
-def check_model_compatibility(model_id: str):
+def check_model_compatibility(model_id: str, token: str = ""):
     try:
+        hf_token = _get_token(token)
         from huggingface_hub import HfApi
-        api = HfApi()
+        api = HfApi(token=hf_token)
         info = api.model_info(model_id)
         pipeline_tag = info.pipeline_tag if info.pipeline_tag else "unknown"
         library_name = info.library_name if info.library_name else "unknown"
@@ -188,7 +209,7 @@ def check_model_compatibility(model_id: str):
         }
 
         # Add FLOP estimate (non-fatal if it fails)
-        flops_info = estimate_model_flops(model_id, pipeline_tag)
+        flops_info = estimate_model_flops(model_id, pipeline_tag, token=hf_token or "")
         if flops_info:
             result.update(flops_info)
 
@@ -231,6 +252,7 @@ def main():
     parser.add_argument("--list", action="store_true", help="List locally downloaded models")
     parser.add_argument("--check", action="store_true", help="Check model compatibility")
     parser.add_argument("--no-weights", action="store_true", help="Skip weight files (config only)")
+    parser.add_argument("--token", default="", help="Hugging Face Hub token (or set HF_TOKEN env var)")
 
     args = parser.parse_args()
 
@@ -240,13 +262,13 @@ def main():
         return
 
     if args.check and args.model_id:
-        check_model_compatibility(args.model_id)
+        check_model_compatibility(args.model_id, token=args.token)
         return
 
     if not args.model_id:
         emit_error("USAGE", "Provide --model-id for download or --list to list local models")
 
-    download_model(args.model_id, args.output, args.revision)
+    download_model(args.model_id, args.output, args.revision, token=args.token)
 
 
 if __name__ == "__main__":

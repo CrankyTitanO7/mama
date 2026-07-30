@@ -37,6 +37,13 @@
             <input type="number" id="flops-batch" value="8" min="1" max="512">
             <span class="flops-field-hint">Larger batches saturate the GPU better.</span>
           </div>
+          <div class="flops-field flops-field-checkbox">
+            <label class="flops-checkbox-label">
+              <input type="checkbox" id="flops-install-calflops" checked>
+              <span>Install calflops (accurate FLOP counting)</span>
+            </label>
+            <span class="flops-field-hint">Installs in the open project&#39;s venv. Falls back to manual counting if skipped.</span>
+          </div>
           <button id="flops-run-btn" class="flops-run-btn">Run Benchmark</button>
           <button id="flops-export-btn" class="flops-export-btn" style="display:none">Export Results</button>
         </div>

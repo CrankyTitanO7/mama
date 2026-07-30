@@ -305,6 +305,7 @@
   async function runBenchmark() {
     const model = document.getElementById('flops-model').value;
     const batchSize = Math.max(1, parseInt(document.getElementById('flops-batch').value, 10) || 1);
+    const installCalflops = document.getElementById('flops-install-calflops').checked;
     const runBtn = document.getElementById('flops-run-btn');
     const exportBtn = document.getElementById('flops-export-btn');
 
@@ -315,13 +316,26 @@
     showProgress('Starting benchmark…');
 
     try {
+      // Load project folder from recents to use its .venv
+      let projectFolder = '';
+      try {
+        const bridge = api();
+        if (window.pywebview?.api) {
+          const recents = await bridge.project_recents_read();
+          if (recents && recents.open) projectFolder = recents.open;
+        } else if (window.electron) {
+          const recents = await bridge.projectRecentsRead();
+          if (recents && recents.open) projectFolder = recents.open;
+        }
+      } catch (_) {}
+
       const bridge = api();
       let result;
 
       if (window.pywebview?.api) {
-        result = await bridge.run_flops_test(batchSize, model, true);
+        result = await bridge.run_flops_test(batchSize, model, true, projectFolder, installCalflops);
       } else if (window.electron) {
-        result = await bridge.runFlopsTest(batchSize, model, true);
+        result = await bridge.runFlopsTest(batchSize, model, true, projectFolder, installCalflops);
       } else {
         throw new Error('No API bridge available');
       }

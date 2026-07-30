@@ -3162,6 +3162,32 @@ body.embed-fullscreen-active {
     font-style: italic;
 }
 
+.flops-field-checkbox {
+    display: flex;
+    flex-direction: column;
+}
+
+.flops-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.flops-checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    accent-color: var(--highlight-color);
+}
+
+.flops-checkbox-label span {
+    font-size: 0.85rem;
+    color: var(--page-text);
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+}
+
 .flops-run-btn {
     display: block;
     width: 100%;

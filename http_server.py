@@ -123,8 +123,8 @@ SHIM_SCRIPT = """
     runImportTest: async (framework, projectFolder) => {
       try { return wrapResult(await (await api()).run_import_test(framework, projectFolder || null)); } catch(e) { return wrapError(e); }
     },
-    runFlopsTest: async (batchSize, model, jsonOutput) => {
-      try { return wrapResult(await (await api()).run_flops_test(batchSize || 1, model || 'resnet18', jsonOutput || false)); } catch(e) { return wrapError(e); }
+    runFlopsTest: async (batchSize, model, jsonOutput, projectFolder, installCalflops) => {
+      try { return wrapResult(await (await api()).run_flops_test(batchSize || 1, model || 'resnet18', jsonOutput || false, projectFolder || '', installCalflops || false)); } catch(e) { return wrapError(e); }
     },
     exportFlopsResult: async (resultJson) => {
       try { return await (await api()).export_flops_result(resultJson); } catch(e) { return { success: false, error: String(e) }; }

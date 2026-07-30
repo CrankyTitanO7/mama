@@ -691,19 +691,45 @@ class MamaApi:
     # ═══════════════════════════════════════════════════════════════════════
 
     def run_flops_test(self, batch_size: int = 1, model: str = "resnet18",
-                       json_output: bool = False) -> dict:
+                       json_output: bool = False, project_folder: str = '',
+                       install_calflops: bool = False) -> dict:
         """Run flops.py benchmark.
 
         Args:
             batch_size: Batch size for dummy input.
             model: Model name (resnet18, resnet50, vit_b_16).
             json_output: If True, add --json flag for machine-readable output.
+            project_folder: Project folder to use its .venv python.
+            install_calflops: If True, pip install calflops before running.
         """
         script = str(self._python_tests_dir / 'flops.py')
         args = ['--batch-size', str(batch_size), '--model', model]
         if json_output:
             args.append('--json')
-        return self._run_script(script, args, timeout=300_000)
+
+        python = self._get_python()
+
+        # Use venv python if project folder has .venv
+        if project_folder:
+            venv_python = self._get_venv_python(project_folder)
+            if venv_python:
+                python = venv_python
+
+        # Install calflops if requested
+        if install_calflops and python:
+            try:
+                proc = subprocess.Popen(
+                    [python, '-m', 'pip', 'install', 'calflops'],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    env={**os.environ}
+                )
+                _, stderr = proc.communicate(timeout=120)
+                if proc.returncode != 0:
+                    logger.warning('calflops install failed: %s', stderr)
+            except Exception as e:
+                logger.warning('calflops install exception: %s', e)
+
+        return self._run_script(script, args, timeout=300_000, python_exe=python)
 
     def export_flops_result(self, result_json: str) -> dict:
         """Export FLOPS benchmark result to a user-chosen file.

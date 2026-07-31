@@ -59,6 +59,17 @@ exe = EXE(
     entitlements_file=None,
 )
 
+if system == 'Windows':
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='mama',
+    )
+
 if system == 'Linux':
     coll = COLLECT(
         exe,

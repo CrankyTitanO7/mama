@@ -135,11 +135,19 @@ class MamaApi:
     # ═══════════════════════════════════════════════════════════════════════
 
     def _run_script(self, script_path: str, args: list = None,
-                    timeout: int = 120_000, python_exe: str = None) -> dict:
-        """Run a Python script and return {code, stdout, stderr}."""
+                    timeout: int = 120_000, python_exe: str = None,
+                    fallback_python: bool = False) -> dict:
+        """Run a Python script and return {code, stdout, stderr}.
+
+        fallback_python: if True and no system Python is found, run the
+        script with the app's own interpreter instead. Use only for
+        pure-stdlib detection scripts that never pip-install.
+        """
         if args is None:
             args = []
         python = python_exe or self._get_python()
+        if not python and fallback_python and sys.executable:
+            python = sys.executable
         if not python:
             return {'code': 1, 'stdout': '', 'stderr': 'Python 3 not found on PATH.'}
 
@@ -407,15 +415,15 @@ class MamaApi:
 
     def run_os_detect(self) -> dict:
         script = str(self._system_detect_dir / 'detect_os.py')
-        return self._run_script(script, timeout=15_000)
+        return self._run_script(script, timeout=15_000, fallback_python=True)
 
     def run_python_detect(self) -> dict:
         script = str(self._system_detect_dir / 'detect_python.py')
-        return self._run_script(script, timeout=15_000)
+        return self._run_script(script, timeout=15_000, fallback_python=True)
 
     def run_gpu_detect(self) -> dict:
         script = str(self._system_detect_dir / 'detect_gpu' / '__init__.py')
-        return self._run_script(script, timeout=90_000)
+        return self._run_script(script, timeout=90_000, fallback_python=True)
 
     def run_compatibility_check(self, params: dict) -> dict:
         script = str(self._system_detect_dir / 'check_compatibility.py')
@@ -432,7 +440,7 @@ class MamaApi:
             '--mps-avail', params.get('mpsAvail', ''),
             '--python-ver', params.get('pythonVer', ''),
         ]
-        return self._run_script(script, args, timeout=30_000)
+        return self._run_script(script, args, timeout=30_000, fallback_python=True)
 
     # ═══════════════════════════════════════════════════════════════════════
     # System commands (generic)

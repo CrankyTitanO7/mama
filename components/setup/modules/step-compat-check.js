@@ -90,6 +90,11 @@
 
           const result = await api.runCompatibilityCheck(params);
           const kv     = U.parseKV(result.stdout);
+          if (result.code !== 0 || !kv['COMPAT_OVERALL']) {
+            out.innerHTML = `<p class="setup-hint">⚠️ Compatibility check failed: ${U.escapeHtml(result.stderr || 'No output received.')}</p>`;
+            if (results) results.style.display = 'none';
+            return;
+          }
           S.detected.compatResults = kv;
 
           const checks = [

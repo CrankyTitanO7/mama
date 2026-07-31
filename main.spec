@@ -71,8 +71,17 @@ if system == 'Linux':
     )
 
 if system == 'Darwin':
-    app = BUNDLE(
+    coll = COLLECT(
         exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='mama',
+    )
+    app = BUNDLE(
+        coll,
         name='mama.app',
         icon=None,
         bundle_identifier='com.crankytitano7.mama',

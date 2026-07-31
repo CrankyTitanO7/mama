@@ -13,6 +13,7 @@
       return `
         <h2>Language</h2>
         <p>Select your preferred language:</p>
+        <p>in development: only english available currently</p>
         <select id="setup-language" class="setup-select">
           ${langs.map(([v, l]) => `<option value="${v}" ${lang === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select>

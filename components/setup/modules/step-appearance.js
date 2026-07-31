@@ -17,15 +17,8 @@
           </select>
         </div>
         <div class="setup-field">
-          <label>Accent Color:</label>
-          <select id="setup-accent" class="setup-select">
-            ${accentColors.map(c =>
-              `<option value="${c}" ${accent === c ? 'selected' : ''}>${c.charAt(0).toUpperCase() + c.slice(1)}</option>`
-            ).join('')}
-          </select>
-        </div>
-        <div class="setup-field">
           <label>Scaling Factor:</label>
+          <p>in development: for window managers</p>
           <input type="number" id="setup-scaling" class="setup-input"
             min="0.5" max="3" step="0.25" value="${scaling}">
         </div>
@@ -51,7 +44,6 @@
     },
     collect: () => ({
       appearance:       document.getElementById('setup-appearance')?.value || 'system',
-      'accent color':   document.getElementById('setup-accent')?.value    || 'default',
       'scaling factor': parseFloat(document.getElementById('setup-scaling')?.value) || 1,
     })
   });

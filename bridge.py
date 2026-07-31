@@ -428,17 +428,17 @@ class MamaApi:
     def run_compatibility_check(self, params: dict) -> dict:
         script = str(self._system_detect_dir / 'check_compatibility.py')
         args = [
-            '--os-family', params.get('osFamily', ''),
-            '--os-version', params.get('osVersion', ''),
-            '--arch', params.get('arch', ''),
-            '--gpu-mfr', params.get('gpuMfr', ''),
-            '--gpu-name', params.get('gpuName', ''),
+            '--os-family', str(params.get('osFamily', '')),
+            '--os-version', str(params.get('osVersion', '')),
+            '--arch', str(params.get('arch', '')),
+            '--gpu-mfr', str(params.get('gpuMfr', '')),
+            '--gpu-name', str(params.get('gpuName', '')),
             '--gpu-vram-mb', str(params.get('gpuVramMB', '')),
-            '--cuda-ver', params.get('cudaVer', ''),
-            '--rocm-ver', params.get('rocmVer', ''),
-            '--metal-ver', params.get('metalVer', ''),
-            '--mps-avail', params.get('mpsAvail', ''),
-            '--python-ver', params.get('pythonVer', ''),
+            '--cuda-ver', str(params.get('cudaVer', '')),
+            '--rocm-ver', str(params.get('rocmVer', '')),
+            '--metal-ver', str(params.get('metalVer', '')),
+            '--mps-avail', str(params.get('mpsAvail', '')),
+            '--python-ver', str(params.get('pythonVer', '')),
         ]
         return self._run_script(script, args, timeout=30_000, fallback_python=True)
 

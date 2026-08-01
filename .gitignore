@@ -25,6 +25,7 @@ venv/
 # user
 user/settings.json
 user/settings.json.bak
+*.log
 
 # Playwright
 /test-results/

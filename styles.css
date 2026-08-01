@@ -867,6 +867,9 @@ a:hover {
     height: 500px;
     overflow-y: auto;
     scroll-behavior: smooth;
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
 }
 
 .terminal-stdout {
@@ -875,6 +878,11 @@ a:hover {
 
 .terminal-stderr {
     color: #f0883e;
+}
+
+.terminal-meta {
+    color: #6e7681;
+    font-style: italic;
 }
 
 .terminal-status {

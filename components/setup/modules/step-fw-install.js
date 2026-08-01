@@ -275,6 +275,9 @@
               installStderr += chunk.text;
               appendTerminal(chunk.text, 'terminal-stderr');
             }
+            if (chunk.type === 'meta') {
+              appendTerminal(chunk.text + '\n', 'terminal-meta');
+            }
           });
 
           const rawCmd = cmdInput ? cmdInput.value : '';
@@ -296,6 +299,11 @@
               S.installSucceeded = true;
               btn.textContent = '✓ Installed';
             } else {
+              // Never hide the failure: print the complete captured output.
+              const full = (installStdout || '') + (installStderr || '');
+              if (full.trim()) {
+                appendTerminal('\\n── Full install output ──\\n' + full + '\\n', 'terminal-stderr');
+              }
               btn.textContent = '⬇️ Retry';
               btn.disabled    = false;
             }
@@ -304,7 +312,11 @@
             appendTerminal('✅ Installation complete!\\n', 'terminal-success');
             btn.textContent = '✓ Installed';
           } else {
-            appendTerminal('❌ Installation failed — see output above.\\n', 'terminal-error');
+            const full = (installStdout || '') + (installStderr || '');
+            appendTerminal('❌ Installation failed — see full output below.\\n', 'terminal-error');
+            if (full.trim()) {
+              appendTerminal(full + '\\n', 'terminal-stderr');
+            }
             btn.textContent = '⬇️ Retry';
             btn.disabled    = false;
           }

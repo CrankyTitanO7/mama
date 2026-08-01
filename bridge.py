@@ -11,13 +11,80 @@ import json
 import re
 import subprocess
 import shutil
+import platform
 import threading
 import logging
 import time
+import datetime
 from pathlib import Path
 from typing import Optional, Any
 
 logger = logging.getLogger('mama.bridge')
+
+
+# Python sources the app is allowed to use for installs/venvs. Only:
+#   - python.org "website" installer  (/Library/Frameworks/Python.framework)
+#   - Homebrew                       (/opt/homebrew, /usr/local)
+#   - conda (miniforge/miniconda/anaconda/mambaforge under /opt, /usr/local, ~)
+# Anything else (Apple's /usr/bin/python3, CommandLineTools, pyenv, ...) is
+# rejected so the app never creates 3.9.6 venvs or fails to install wheels.
+CONDA_PREFIX_NAMES = (
+    'miniforge', 'miniconda', 'anaconda', 'mambaforge',
+    'miniforge3', 'miniconda3', 'anaconda3', 'mambaforge3',
+)
+
+
+def allowed_python_path(real: str) -> bool:
+    """Return True if the real path belongs to an allowed Python source.
+
+    Enforced on macOS only; Windows/Linux keep their usual PATH behavior.
+    """
+    if sys.platform != 'darwin':
+        return True
+    prefixes = [
+        '/Library/Frameworks/Python.framework/',
+        '/opt/homebrew/',
+        '/usr/local/',
+    ]
+    home = str(Path.home())
+    for root in ('/opt', '/usr/local', home):
+        for name in CONDA_PREFIX_NAMES:
+            prefixes.append(f'{root}/{name}/')
+    return any(real.startswith(p) for p in prefixes)
+
+
+def augment_path_for_gui_launch() -> None:
+    """Prepend allowed Python install dirs to PATH.
+
+    GUI apps launched from Finder get a minimal PATH (e.g. /usr/bin:/bin:/usr/
+    sbin:/sbin), so bare 'python3' resolves to Apple's /usr/bin/python3 (3.9.6,
+    no pip, no PyTorch wheels). Homebrew and conda installs live outside that
+    PATH — add them so the app and every subprocess can find a real, modern
+    Python. Other interpreters stay discoverable but are filtered out later by
+    allowed_python_path().
+    """
+    extra = []
+    home = str(Path.home())
+    for p in ('/opt/homebrew/bin', '/usr/local/bin'):
+        if os.path.isdir(p):
+            extra.append(p)
+    for prefix in ('/opt', '/usr/local', home, '/opt/homebrew/Caskroom'):
+        for sub in CONDA_PREFIX_NAMES:
+            for sub_dir in (os.path.join(prefix, sub, 'bin'),
+                            os.path.join(prefix, sub, 'base', 'bin')):
+                if os.path.isdir(sub_dir):
+                    extra.append(sub_dir)
+    if not extra:
+        return
+    current = os.environ.get('PATH', '')
+    merged = os.pathsep.join(dict.fromkeys(
+        p for p in (extra + ([current] if current else [])) if p
+    ))
+    if merged != current:
+        os.environ['PATH'] = merged
+
+
+augment_path_for_gui_launch()
 
 
 class MamaApi:
@@ -94,22 +161,135 @@ class MamaApi:
     # ═══════════════════════════════════════════════════════════════════════
 
     def _find_python(self) -> Optional[str]:
-        """Find a working Python 3 interpreter."""
+        """Find a working Python 3 interpreter.
+
+        Prefers an interpreter that can actually install PyTorch:
+        version >= 3.10 (older versions have no wheels) and, on macOS, one
+        matching the OS architecture (an x86_64 interpreter under Rosetta can
+        never satisfy an arm64 wheel index). Falls back to any working Python 3.
+        """
         candidates = ['python3', 'python']
         if sys.platform == 'win32':
             candidates = ['python', 'py', 'python3']
 
-        for cmd in candidates:
+        os_machine = platform.machine().lower()
+
+        # Also probe well-known conda install locations directly: Finder
+        # launches never have these on PATH, and conda pythons are the ones
+        # pip can actually install into (no PEP 668 guard).
+        known_dirs = []
+        if sys.platform != 'win32':
+            for root in ('/opt/homebrew/Caskroom', '/usr/local/Caskroom',
+                         '/opt', str(Path.home())):
+                for sub in CONDA_PREFIX_NAMES:
+                    d = Path(root) / sub
+                    if d.is_dir():
+                        known_dirs.append(d / 'base' / 'bin' / 'python3')
+                        known_dirs.append(d / 'bin' / 'python3')
+
+        def probe(cmd: str) -> Optional[tuple]:
+            """Return (major, minor, machine, externally_managed, has_pip)."""
             try:
                 result = subprocess.run(
-                    [cmd, '--version'],
-                    capture_output=True, text=True, timeout=5
+                    [cmd, '-c',
+                     'import sys,platform;print(f"{sys.version_info.major}.{sys.version_info.minor} {platform.machine()}")'],
+                    capture_output=True, text=True, timeout=8
                 )
-                if 'Python 3' in result.stdout or 'Python 3' in result.stderr:
-                    return cmd
-            except (subprocess.TimeoutExpired, FileNotFoundError):
+                if result.returncode != 0:
+                    return None
+                parts = (result.stdout or result.stderr).strip().split()
+                major, minor = (int(x) for x in parts[0].split('.')[:2])
+                machine = parts[1].lower() if len(parts) > 1 else ''
+            except Exception:
+                return None
+
+            has_pip = False
+            externally_managed = False
+            try:
+                proc = subprocess.run(
+                    [cmd, '-m', 'pip', 'install', '--dry-run', '--no-index',
+                     'mama-probe-nonexistent-package'],
+                    capture_output=True, text=True, timeout=30)
+                if proc.returncode == 0:
+                    has_pip = True  # no marker, pip works (nothing to install)
+                else:
+                    # Either PEP 668 guard or "no matching distribution".
+                    text = (proc.stderr or '') + (proc.stdout or '')
+                    if 'externally-managed' in text:
+                        externally_managed = True
+                    else:
+                        has_pip = True  # normal resolution failure — pip works
+            except Exception:
+                pass
+            return (major, minor, machine, externally_managed, has_pip)
+
+        matches = []
+        seen = set()
+        for cmd in candidates:
+            path = shutil.which(cmd)
+            if not path:
                 continue
-        return None
+            real = os.path.realpath(path)
+            if real in seen:
+                continue  # python3/python often resolve to the same binary
+            seen.add(real)
+            if not allowed_python_path(real):
+                continue  # reject Apple's python3, pyenv, etc.
+            info = probe(real)
+            if info:
+                matches.append((real, info))
+
+        for path in known_dirs:
+            if not path.exists():
+                continue
+            real = os.path.realpath(str(path))
+            if real in seen:
+                continue
+            seen.add(real)
+            if not allowed_python_path(real):
+                continue
+            info = probe(str(path))
+            if info:
+                matches.append((real, info))
+
+        if not matches:
+            return None
+
+        # On macOS, drop interpreters that don't match the OS architecture
+        # (e.g. x86_64 pythons running under Rosetta on Apple Silicon).
+        if sys.platform == 'darwin':
+            native = [m for m in matches if m[1][2] == os_machine]
+            if native:
+                matches = native
+
+        # Prefer Python >= 3.10 (PyTorch publishes no wheels for older).
+        new_enough = [m for m in matches
+                      if m[1][0] > 3 or (m[1][0] == 3 and m[1][1] >= 10)]
+        if new_enough:
+            matches = new_enough
+
+        # Prefer Python 3.10–3.14: PyTorch nightly wheels (incl. torchvision
+        # and torchaudio) are only published for cp310–cp314.
+        def in_wheel_range(m):
+            return 3.10 <= m[1][0] + m[1][1] / 10.0 <= 3.14
+
+        # Prefer interpreters pip can install into (not PEP 668 managed).
+        def installable(m):
+            return not m[1][3]
+
+        wheel_range = [m for m in matches if in_wheel_range(m)]
+        if wheel_range:
+            matches = wheel_range
+
+        installable_ok = [m for m in matches if installable(m)]
+        if installable_ok:
+            matches = installable_ok
+
+        with_pip = [m for m in matches if m[1][4]]
+        if with_pip:
+            matches = with_pip
+
+        return matches[0][0]
 
     def _get_python(self) -> Optional[str]:
         """Get cached Python executable."""
@@ -505,7 +685,12 @@ class MamaApi:
         return self._run_script(script, args, timeout=20 * 60_000)
 
     def _get_venv_python(self, project_folder: str) -> Optional[str]:
-        """Get path to venv python if it exists."""
+        """Get path to venv python if it exists and is usable.
+
+        A venv made by Apple's /usr/bin/python3 (3.9.6) realpaths back to the
+        CommandLineTools framework — rejected by allowed_python_path(), so the
+        caller recreates the venv with a proper interpreter.
+        """
         if not project_folder:
             return None
         venv_path = Path(project_folder) / '.venv'
@@ -514,17 +699,35 @@ class MamaApi:
         else:
             venv_python = venv_path / 'bin' / 'python3'
 
-        if venv_python.exists():
-            return str(venv_python)
-        return None
+        if not venv_python.exists():
+            return None
+        try:
+            real = os.path.realpath(str(venv_python))
+        except Exception:
+            return None
+        if not allowed_python_path(real):
+            return None
+        return str(venv_python)
 
     def _create_venv(self, project_folder: str) -> Optional[str]:
-        """Create a .venv in the project folder and return the python path."""
+        """Create a .venv in the project folder and return the python path.
+
+        If a stale/incompatible .venv exists (e.g. created by Apple's
+        /usr/bin/python3 3.9.6), remove it first so the new venv is clean.
+        """
         python = self._get_python()
         if not python:
             return None
 
         venv_path = Path(project_folder) / '.venv'
+        if venv_path.exists():
+            try:
+                shutil.rmtree(str(venv_path))
+                self._emit_install_progress(
+                    {'type': 'meta', 'text': 'removed stale .venv (recreating with a proper Python)'})
+            except Exception as e:
+                logger.error('venv cleanup failed: %s', e)
+
         try:
             proc = subprocess.Popen(
                 [python, '-m', 'venv', str(venv_path)],
@@ -589,6 +792,9 @@ class MamaApi:
             args.extend(['--distro', os_info['distro']])
             cmd = [python, script] + args
 
+        self._emit_install_progress({'type': 'meta', 'text': f'python: {python}'})
+        self._emit_install_progress({'type': 'meta', 'text': f'command: {" ".join(cmd)}'})
+
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -599,9 +805,14 @@ class MamaApi:
                 env={**os.environ}
             )
 
+            stdout_lines: list = []
+            stderr_lines: list = []
+
             def read_stream(stream, stream_type):
+                lines = stdout_lines if stream_type == 'stdout' else stderr_lines
                 for line in iter(stream.readline, ''):
                     if line:
+                        lines.append(line)
                         self._emit_install_progress({'type': stream_type, 'text': line})
                 stream.close()
 
@@ -614,8 +825,33 @@ class MamaApi:
             stdout_thread.join(timeout=5)
             stderr_thread.join(timeout=5)
 
-            self._emit_install_progress({'type': 'done', 'code': proc.returncode or 0})
-            return {'code': proc.returncode or 0}
+            code = proc.returncode or 0
+            stdout = ''.join(stdout_lines)
+            stderr = ''.join(stderr_lines)
+
+            # Persist install.log only for UNKNOWN failures — known errors
+            # (package-not-found, externally-managed, network, ...) are already
+            # explained in the UI and don't need a log file.
+            if self._is_unknown_install_error(code, stdout, stderr):
+                log_path = self._user_settings_path.parent / 'install.log'
+                try:
+                    log_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(log_path, 'a', encoding='utf-8') as log_file:
+                        log_file.write(
+                            f"\n===== {datetime.datetime.now().isoformat()} =====\n"
+                            f"python: {python}\n"
+                            f"command: {' '.join(cmd)}\n"
+                        )
+                        log_file.write(stdout)
+                        log_file.write(stderr)
+                        log_file.write(f"exit code: {code}\n")
+                    self._emit_install_progress(
+                        {'type': 'meta', 'text': f'full output log: {log_path}'})
+                except Exception as e:
+                    logger.error('install log write failed: %s', e)
+
+            self._emit_install_progress({'type': 'done', 'code': code})
+            return {'code': code, 'stdout': stdout, 'stderr': stderr}
 
         except subprocess.TimeoutExpired:
             proc.kill()
@@ -625,6 +861,31 @@ class MamaApi:
             logger.error('run_install_stream error: %s', e)
             self._emit_install_progress({'type': 'done', 'code': 1})
             return {'code': 1}
+
+    @staticmethod
+    def _is_unknown_install_error(code: int, stdout: str, stderr: str) -> bool:
+        """True when the install failed for an unrecognized reason.
+
+        Mirrors the known-error patterns of components/setup/install-parser.js;
+        known failures (package-not-found, externally-managed, network, disk,
+        permission, conflicts, os errors) don't produce a log file.
+        """
+        if code == 0:
+            return False
+        text = ((stdout or '') + '\n' + (stderr or '')).lower()
+        known = (
+            'externally-managed',
+            'could not find a version',
+            'no matching distribution',
+            'dependency conflict',
+            'conflicting dependencies',
+            'oserror', 'errno',
+            'permission denied', 'access is denied',
+            'network is unreachable', 'connection refused', 'connection timed out',
+            'could not reach', 'ssl error', 'certificate verify failed',
+            'no space left on device', 'disk full',
+        )
+        return not any(p in text for p in known)
 
     # ── Thread-safe emit queue ──────────────────────────────────────────────
 

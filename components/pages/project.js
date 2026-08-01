@@ -222,7 +222,7 @@ async function renderExplorer(folderData) {
         <div class="project-explorer-text">
           <h1>Project</h1>
           <div class="project-current-path">
-            <code class="project-path-value">${escapeHtml(folderData.path)}</code>
+            <code class="project-path-value">📁 ${escapeHtml(folderData.path)}</code>
             <button type="button" id="project-path-copy-btn" class="project-path-copy-btn" title="Copy path">📋</button>
           </div>
           <div class="project-explorer-actions">

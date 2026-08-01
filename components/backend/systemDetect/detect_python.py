@@ -22,11 +22,84 @@ import subprocess
 import sys
 
 
-def check_command(*candidates):
-    """Return True if any of the candidate commands exist on PATH."""
+def login_shell_path():
+    """
+    PATH as the user's login shell sees it ('' if it can't be recovered).
+
+    A GUI-launched (frozen) app inherits a minimal PATH that lacks the
+    user's shell additions (Homebrew, /usr/local, custom toolchains such
+    as STM32CubeCLT, ...). Running the login shell non-interactively
+    re-reads ~/.zprofile / ~/.zshrc / ~/.bash_profile etc. and prints the
+    real PATH, which includes every directory the user deliberately added.
+    """
+    if sys.platform == "win32":
+        return ""
+    shells = []
+    if os.environ.get("SHELL"):
+        shells.append(os.environ["SHELL"])
+    shells += ["/bin/zsh", "/bin/bash"]
+    for shell in shells:
+        if not os.path.exists(shell):
+            continue
+        try:
+            result = subprocess.run(
+                [shell, "-l", "-c", 'echo "__PATHPROBE__$PATH"'],
+                capture_output=True, text=True, timeout=10,
+                env=clean_subprocess_env(),
+            )
+            # Startup scripts may print noise to stdout; the marker line is
+            # guaranteed to come last, so take its occurrence.
+            for line in reversed(result.stdout.splitlines()):
+                if "__PATHPROBE__" in line:
+                    return line.split("__PATHPROBE__", 1)[1].strip()
+        except Exception:
+            continue
+    return ""
+
+
+def registry_path_windows():
+    """User + system PATH from the Windows registry ('' if unavailable)."""
+    paths = []
+    try:
+        import winreg
+        for hive, key in (
+            (winreg.HKEY_CURRENT_USER, r"Environment"),
+            (winreg.HKEY_LOCAL_MACHINE,
+             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+        ):
+            with winreg.OpenKey(hive, key) as regkey:
+                value, _ = winreg.QueryValueEx(regkey, "Path")
+                if value:
+                    paths.append(value)
+    except Exception:
+        pass
+    return os.pathsep.join(paths)
+
+
+def merge_user_path():
+    """Prepend the user's real PATH to os.environ['PATH']."""
+    extra = registry_path_windows() if sys.platform == "win32" else login_shell_path()
+    current = os.environ.get("PATH", "")
+    if extra:
+        os.environ["PATH"] = extra + (os.pathsep + current if current else "")
+
+
+def check_command(*candidates, extra_dirs=()):
+    """Return True if any candidate exists on PATH or in extra_dirs.
+
+    extra_dirs are checked as exact absolute paths. They cover tools that
+    are installed but not on PATH — a GUI-launched (frozen) app inherits a
+    minimal PATH that lacks the user's shell additions (Homebrew, /usr/local,
+    official installers, ...), so PATH lookup alone misses real installs.
+    """
     for cmd in candidates:
         if shutil.which(cmd):
             return True
+        exe = cmd + (".exe" if sys.platform == "win32" else "")
+        for directory in extra_dirs:
+            path = os.path.join(directory, exe)
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                return True
     return False
 
 
@@ -136,8 +209,60 @@ def check_pip(python):
     return run(python, "-m", "pip", "--version") is not None
 
 
+def cmake_fallback_dirs():
+    """Well-known CMake installation directories, per platform."""
+    dirs = []
+    if sys.platform == "darwin":
+        dirs += [
+            "/opt/homebrew/bin",          # Apple Silicon Homebrew
+            "/usr/local/bin",             # Intel Homebrew / official installer
+            "/opt/local/bin",             # MacPorts
+            "/Applications/CMake.app/Contents/bin",
+        ]
+    elif sys.platform == "win32":
+        dirs += [
+            os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "CMake", "bin"),
+            os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "CMake", "bin"),
+        ]
+        install_path = _vswhere_install_path()
+        if install_path:
+            # CMake bundled with Visual Studio / Build Tools
+            dirs.append(os.path.join(install_path, "CMake", "bin"))
+            dirs.append(os.path.join(
+                install_path, "Common7", "IDE", "CommonExtensions",
+                "Microsoft", "CMake", "CMake", "bin"))
+    else:
+        dirs += ["/usr/bin", "/usr/local/bin", "/opt/cmake/bin", "/snap/bin"]
+    return dirs
+
+
 def check_cmake():
-    return check_command("cmake")
+    return check_command("cmake", extra_dirs=cmake_fallback_dirs())
+
+
+def _vswhere_install_path():
+    """
+    Locate the latest Visual Studio / Build Tools installation via
+    vswhere.exe and return its installation path (or None). See
+    _check_msvc_windows for why vswhere is the right tool for this.
+    """
+    vswhere = os.path.join(
+        os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+        "Microsoft Visual Studio", "Installer", "vswhere.exe",
+    )
+    if not os.path.exists(vswhere):
+        return None
+    try:
+        result = subprocess.run(
+            [vswhere, "-latest", "-products", "*",
+             "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+             "-property", "installationPath"],
+            capture_output=True, text=True, timeout=15,
+            env=clean_subprocess_env(),
+        )
+        return result.stdout.strip() or None
+    except Exception:
+        return None
 
 
 def _check_msvc_windows():
@@ -149,23 +274,7 @@ def _check_msvc_windows():
     detection problem, always installed alongside VS/Build Tools at a fixed,
     documented path.
     """
-    vswhere = os.path.join(
-        os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
-        "Microsoft Visual Studio", "Installer", "vswhere.exe",
-    )
-    if not os.path.exists(vswhere):
-        return False
-    try:
-        result = subprocess.run(
-            [vswhere, "-latest", "-products", "*",
-             "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-             "-property", "installationPath"],
-            capture_output=True, text=True, timeout=15,
-            env=clean_subprocess_env(),
-        )
-        return bool(result.stdout.strip())
-    except Exception:
-        return False
+    return _vswhere_install_path() is not None
 
 
 def check_gcc():
@@ -183,6 +292,7 @@ def check_gcc():
 
 
 def main():
+    merge_user_path()
     system_python, python_version = find_system_python()
     pip_ok = check_pip(system_python) if system_python else False
     cmake_ok = check_cmake()

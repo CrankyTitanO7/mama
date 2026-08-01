@@ -31,6 +31,7 @@ Additionally, if you do not have command line tools installed, MacOS may prompt 
 ### macos
 1) delete the app
 2) delete ~/Library/Caches/com.crankytitano7.mama
+3) delete ~/Library/Caches/mama
 ### windows 
 1) delete the app
 2) delete C:\Users\USERNAME\AppData\Roaming\mama

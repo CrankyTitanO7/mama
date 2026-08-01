@@ -3814,6 +3814,35 @@ body.embed-fullscreen-active {
 
 /* ── Export Page ─────────────────────────────────────────────────── */
 
+.export-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    margin-top: 20px;
+    margin-bottom: 28px;
+}
+
+.export-header-text {
+    flex: 1;
+}
+
+.export-hero-img {
+    width: 320px;
+    height: 320px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.export-header h1 {
+    margin: 0 0 4px;
+}
+
+.export-header p {
+    margin: 0;
+    color: var(--body-color);
+}
+
 .export-layout {
     display: flex;
     flex-direction: column;

@@ -219,25 +219,29 @@ async function renderExplorer(folderData) {
   container.innerHTML = `
     <div class="project-explorer">
       <header class="project-explorer-header">
-        <div>
+        <div class="project-explorer-text">
           <h1>Project</h1>
-          <p class="project-current-path">${escapeHtml(folderData.path)}</p>
-        </div>
-        <div class="project-explorer-actions">
-          ${parentPath ? `<button type="button" id="project-up-btn" class="settings-btn settings-btn-secondary">⬆ Up</button>` : ''}
-          <button type="button" id="project-change-folder-btn" class="settings-btn settings-btn-secondary">📂 Open folder</button>
-          <button type="button" id="project-open-in-explorer-btn" class="settings-btn settings-btn-secondary">${escapeHtml(getExplorerLabel())}</button>
-          <div class="project-import-menu">
-            <button type="button" id="project-import-template-btn" class="settings-btn settings-btn-primary">⬇ Import template</button>
-            <div class="project-import-menu-options" id="project-import-template-options">
-              ${templateOptions.map((entry) => `
-                <button type="button" class="project-import-option" data-template-key="${escapeHtml(entry.key)}">
-                  ${escapeHtml(entry.label)}
-                </button>
-              `).join('')}
+          <div class="project-current-path">
+            <code class="project-path-value">${escapeHtml(folderData.path)}</code>
+            <button type="button" id="project-path-copy-btn" class="project-path-copy-btn" title="Copy path">📋</button>
+          </div>
+          <div class="project-explorer-actions">
+            ${parentPath ? `<button type="button" id="project-up-btn" class="settings-btn settings-btn-secondary">⬆ Up</button>` : ''}
+            <button type="button" id="project-change-folder-btn" class="settings-btn settings-btn-secondary">📂 Open folder</button>
+            <button type="button" id="project-open-in-explorer-btn" class="settings-btn settings-btn-secondary">${escapeHtml(getExplorerLabel())}</button>
+            <div class="project-import-menu">
+              <button type="button" id="project-import-template-btn" class="settings-btn settings-btn-primary">⬇ Import template</button>
+              <div class="project-import-menu-options" id="project-import-template-options">
+                ${templateOptions.map((entry) => `
+                  <button type="button" class="project-import-option" data-template-key="${escapeHtml(entry.key)}">
+                    ${escapeHtml(entry.label)}
+                  </button>
+                `).join('')}
+              </div>
             </div>
           </div>
         </div>
+        <img src="images/file_explorer.png" alt="File explorer" class="project-hero-img">
       </header>
       <div class="project-file-table-wrap">
         <table class="project-file-table">
@@ -336,6 +340,33 @@ async function renderExplorer(folderData) {
   `;
 
   document.getElementById('project-change-folder-btn')?.addEventListener('click', pickAndOpenFolder);
+  document.getElementById('project-path-copy-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('project-path-copy-btn');
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = folderData.path;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    };
+    try {
+      await navigator.clipboard.writeText(folderData.path);
+    } catch (e) {
+      fallback();
+    }
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✅';
+      btn.title = 'Copied!';
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.title = 'Copy path';
+      }, 1500);
+    }
+  });
   document.getElementById('project-up-btn')?.addEventListener('click', async () => {
     if (parentPath) await openFolder(parentPath, false);
   });

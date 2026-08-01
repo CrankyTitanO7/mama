@@ -213,6 +213,9 @@ SHIM_SCRIPT = """
     modelDownloadCancel: async () => {
       try { return await (await api()).model_download_cancel(); } catch(e) { return { success: false }; }
     },
+    modelInstallHub: async () => {
+      try { return await (await api()).model_install_hub(); } catch(e) { return { success: false, error: String(e) }; }
+    },
     modelList: async (modelsDir) => {
       try { return await (await api()).model_list(modelsDir || ''); } catch(e) { return []; }
     },

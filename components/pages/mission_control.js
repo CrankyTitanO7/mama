@@ -531,8 +531,8 @@ const MC = (() => {
         const bridge = window.pywebview?.api || window.electron;
         const result = bridge
           ? window.pywebview?.api
-            ? await bridge.run_flops_test(batchSize, model, true)
-            : await bridge.runFlopsTest(batchSize, model, true)
+            ? await bridge.run_flops_test(batchSize, model, true, projectFolder)
+            : await bridge.runFlopsTest(batchSize, model, true, projectFolder)
           : { code: 1, stdout: '', stderr: 'No API bridge available' };
         const output = result.stdout || '';
         const err = result.stderr || '';

@@ -104,21 +104,41 @@ const TrainingMonitor = (() => {
     return 'ask';
   }
 
-  function showResourcePrompt(container) {
-    return new Promise((resolve) => {
-      container.innerHTML = `
-        <div class="task-manager-prompt">
-          <p class="task-manager-prompt-text">Enable resource monitoring during training?</p>
-          <div class="task-manager-prompt-actions">
-            <button type="button" class="nav-btn task-manager-enable">Enable</button>
-            <button type="button" class="nav-btn task-manager-skip">Not now</button>
-          </div>
-          <p class="task-manager-prompt-text"><i>This can be changed in <a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/settings.html')">settings</a>.</i></p>
+  function showResourcePrompt(container, onEnable) {
+    container.innerHTML = `
+      <div class="task-manager-prompt">
+        <p class="task-manager-prompt-text">Enable resource monitoring during training?</p>
+        <div class="task-manager-prompt-actions">
+          <button type="button" class="nav-btn task-manager-enable">Enable</button>
+          <button type="button" class="nav-btn task-manager-skip">Not now</button>
         </div>
-      `;
-      container.querySelector('.task-manager-enable')?.addEventListener('click', () => resolve(true));
-      container.querySelector('.task-manager-skip')?.addEventListener('click', () => resolve(false));
-    });
+        <p class="task-manager-prompt-text"><i>This can be changed in <a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/settings.html')">settings</a>.</i></p>
+      </div>
+    `;
+    container.querySelector('.task-manager-enable')?.addEventListener('click', () => onEnable(true));
+    container.querySelector('.task-manager-skip')?.addEventListener('click', () => onEnable(false));
+  }
+
+  function initResourceWidget(container, hw) {
+    if (typeof initResourcesWidget !== 'function') {
+      container.innerHTML = '<p class="train-muted">Resources widget not loaded.</p>';
+      return;
+    }
+    try {
+      initResourcesWidget(container, {
+        gpuConfig: {
+          manufacturer:  hw['graphics manufacturer'],
+          name:          hw['target card name'],
+          cudaVersion:   hw['cuda version'],
+          rocmVersion:   hw['rocm version'],
+          metalVersion:  hw['metal version'],
+          mpsAvailable:  hw['mps available'],
+          gpuType:       hw['gpu type'],
+        }
+      });
+    } catch (e) {
+      container.innerHTML = '<p class="train-muted">Resource monitoring unavailable</p>';
+    }
   }
 
   async function renderResourcesWidget() {
@@ -138,30 +158,19 @@ const TrainingMonitor = (() => {
       }
 
       if (mode === 'ask') {
-        const enabled = await showResourcePrompt(container);
-        if (!enabled) {
-          container.innerHTML = '<p class="disabled-msg">Resource monitoring skipped for this visit.</p>';
-          return;
-        }
+        // Non-blocking: answer can come at any time, init must not wait on it.
+        showResourcePrompt(container, (enabled) => {
+          if (!enabled) {
+            container.innerHTML = '<p class="disabled-msg">Resource monitoring skipped for this visit.</p>';
+            return;
+          }
+          initResourceWidget(container, settings?.['hardware settings'] || {});
+        });
+        return;
       }
 
       // mode is 'enabled' or user chose Enable in prompt
-      if (typeof initResourcesWidget === 'function') {
-        const hw = settings?.['hardware settings'] || {};
-        initResourcesWidget(container, {
-          gpuConfig: {
-            manufacturer:  hw['graphics manufacturer'],
-            name:          hw['target card name'],
-            cudaVersion:   hw['cuda version'],
-            rocmVersion:   hw['rocm version'],
-            metalVersion:  hw['metal version'],
-            mpsAvailable:  hw['mps available'],
-            gpuType:       hw['gpu type'],
-          }
-        });
-      } else {
-        container.innerHTML = '<p class="train-muted">Resources widget not loaded.</p>';
-      }
+      initResourceWidget(container, settings?.['hardware settings'] || {});
     } catch (e) {
       container.innerHTML = '<p class="train-muted">Resource monitoring unavailable</p>';
     }

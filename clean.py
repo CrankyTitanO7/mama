@@ -9,6 +9,7 @@ USER_FILES = [
     "user/settings.json",
     "user/settings.json.bak",
     "components/recents.json",
+    "user/install.log",
 ]
 
 

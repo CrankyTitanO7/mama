@@ -57,6 +57,67 @@ const Finetune = (() => {
 
   // ── Model tab ──────────────────────────────────────────────────
 
+  let installingHub = false;
+  let installLogLines = [];
+
+  function showDownloadErrorDialog(detail, onInstall) {
+    const old = document.getElementById('ft-dl-error-modal');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ft-dl-error-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#1e1e2e;border:1px solid #f44336aa;border-radius:8px;padding:20px 24px;max-width:640px;width:90%;display:flex;flex-direction:column;gap:12px;';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:1.05rem;font-weight:700;color:#ff6b6b;';
+    title.textContent = 'Model Download Failed';
+
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'background:#11111b;border:1px solid #333;border-radius:6px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:.85rem;line-height:1.45;color:#cdd6f4;margin:0;max-height:50vh;';
+    pre.textContent = detail || 'No error details were captured. Check the app log for more information.';
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+
+    if (onInstall) {
+      const installBtn = document.createElement('button');
+      installBtn.textContent = 'Install huggingface_hub & Retry';
+      installBtn.className = 'settings-btn settings-btn-success';
+      installBtn.onclick = () => {
+        overlay.remove();
+        onInstall();
+      };
+      btnRow.prepend(installBtn);
+    }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.className = 'settings-btn settings-btn-primary';
+    closeBtn.onclick = () => overlay.remove();
+    btnRow.appendChild(closeBtn);
+
+    box.append(title, pre, btnRow);
+    overlay.appendChild(box);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+  }
+
+  function installHubAndRetry() {
+    const modelId = document.getElementById('ft-model-id').value.trim();
+    if (!modelId) return;
+    installingHub = true;
+    installLogLines = [];
+    show('ft-download-progress');
+    setText('ft-dl-text', 'Installing huggingface_hub...');
+    document.getElementById('ft-dl-bar').style.width = '0%';
+    window.electron.modelInstallHub();
+  }
+
   async function refreshLocalModels() {
     try {
       const models = await window.electron.modelList();
@@ -202,19 +263,46 @@ const Finetune = (() => {
     document.getElementById('ft-dl-bar').style.width = '0%';
 
     window.electron.onModelProgress((chunk) => {
-      if (chunk.type === 'progress' && chunk.total > 0) {
+      if (chunk.type === 'install_log') {
+        installLogLines.push(chunk.text);
+        const last = String(chunk.text).slice(-90);
+        setText('ft-dl-text', `Installing huggingface_hub: ${last}`);
+      } else if (chunk.type === 'install_done') {
+        installingHub = false;
+        if (chunk.success) {
+          setText('ft-dl-text', 'huggingface_hub installed. Retrying download...');
+          downloadModel();
+        } else {
+          setText('ft-dl-text', 'Failed to install huggingface_hub.');
+          document.getElementById('ft-dl-bar').style.width = '0%';
+          const pipError = chunk.error || 'pip install failed';
+          showDownloadErrorDialog(pipError + '\n\n' + installLogLines.join('\n'));
+        }
+      } else if (chunk.type === 'progress' && chunk.total > 0) {
         const pct = Math.min(100, Math.round((chunk.current / chunk.total) * 100));
         document.getElementById('ft-dl-bar').style.width = pct + '%';
         setText('ft-dl-text', `Downloading: ${pct}% (${formatBytes(chunk.current)} / ${formatBytes(chunk.total)})`);
       } else if (chunk.type === 'status') {
         setText('ft-dl-text', chunk.message || '');
       } else if (chunk.type === 'done') {
+        if (chunk.code !== 0) {
+          setText('ft-dl-text', 'Download failed.');
+          document.getElementById('ft-dl-bar').style.width = '0%';
+          refreshLocalModels();
+          const detail = chunk.error || `Exit code ${chunk.code}`;
+          showDownloadErrorDialog(
+            detail,
+            /huggingface/i.test(detail) ? installHubAndRetry : null
+          );
+          return;
+        }
         setText('ft-dl-text', 'Download complete!');
         document.getElementById('ft-dl-bar').style.width = '100%';
         setTimeout(() => hide('ft-download-progress'), 2000);
         refreshLocalModels();
       } else if (chunk.type === 'error') {
         setText('ft-dl-text', `Error: ${chunk.message}`);
+        document.getElementById('ft-dl-bar').style.width = '0%';
       }
     });
 

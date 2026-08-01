@@ -87,6 +87,28 @@ def augment_path_for_gui_launch() -> None:
 augment_path_for_gui_launch()
 
 
+def clean_subprocess_env():
+    """Return a copy of os.environ safe for spawning real Python subprocesses.
+
+    When frozen, PyInstaller's onefile bootloader points LD_LIBRARY_PATH /
+    DYLD_LIBRARY_PATH at its own bundled-libs temp directory; a spawned
+    system/venv Python would otherwise load the app's bundled shared
+    libraries instead of its own. PyInstaller saves the pre-bootloader value
+    as *_ORIG so children can restore it.
+    """
+    env = os.environ.copy()
+    if getattr(sys, 'frozen', False):
+        for var, orig_var in (
+            ('LD_LIBRARY_PATH', 'LD_LIBRARY_PATH_ORIG'),
+            ('DYLD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH_ORIG'),
+        ):
+            if orig_var in env:
+                env[var] = env[orig_var]
+            else:
+                env.pop(var, None)
+    return env
+
+
 class MamaApi:
     """Python backend exposed to the frontend via pywebview JS bridge."""
 
@@ -298,7 +320,11 @@ class MamaApi:
         return self._python_exe
 
     def _get_training_python(self, project_folder: str = None) -> Optional[str]:
-        """Python for training subprocesses — prefers project .venv, then app interpreter."""
+        """Python for training subprocesses — prefers project .venv, then a real interpreter.
+
+        The frozen (PyInstaller) executable is never used: it is not a Python
+        interpreter, and spawning it with a script path just relaunches the app.
+        """
         if not project_folder:
             recents = self._read_recents() or {}
             project_folder = recents.get('open')
@@ -306,9 +332,28 @@ class MamaApi:
             venv_python = self._get_venv_python(project_folder)
             if venv_python:
                 return venv_python
+        if getattr(sys, 'frozen', False):
+            return self._get_python()
         if sys.executable:
             return sys.executable
         return self._get_python()
+
+    def _models_dir(self) -> Path:
+        """User-writable directory for downloaded models.
+
+        In development this is the repo's models/ folder; in frozen builds
+        the app bundle may be read-only or replaced on update, so models live
+        in a per-user data directory instead.
+        """
+        if getattr(sys, 'frozen', False):
+            if sys.platform == 'darwin':
+                base = Path.home() / 'Library' / 'Application Support' / 'mama'
+            elif sys.platform == 'win32':
+                base = Path(os.environ.get('APPDATA') or str(Path.home() / 'AppData' / 'Roaming')) / 'mama'
+            else:
+                base = Path(os.environ.get('XDG_DATA_HOME') or str(Path.home() / '.local' / 'share')) / 'mama'
+            return base / 'models'
+        return self._base_dir / 'models'
 
     # ═══════════════════════════════════════════════════════════════════════
     # Script runner
@@ -326,7 +371,7 @@ class MamaApi:
         if args is None:
             args = []
         python = python_exe or self._get_python()
-        if not python and fallback_python and sys.executable:
+        if not python and fallback_python and sys.executable and not getattr(sys, 'frozen', False):
             python = sys.executable
         if not python:
             return {'code': 1, 'stdout': '', 'stderr': 'Python 3 not found on PATH.'}
@@ -337,7 +382,7 @@ class MamaApi:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ},
+                env=clean_subprocess_env(),
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
             )
 
@@ -976,21 +1021,24 @@ class MamaApi:
         if json_output:
             args.append('--json')
 
-        python = self._get_python()
+        # Prefer the project .venv python — that's where the app installs
+        # torch and calflops. In a frozen (PyInstaller) deployment neither
+        # the app's bundled interpreter nor the detected system Python has
+        # torch, so running the test anywhere else just fails with
+        # "ERROR: PyTorch is not installed."
+        python = self._get_training_python(project_folder)
+        if python == sys.executable and getattr(sys, 'frozen', False):
+            # Never benchmark with the bundled interpreter — no torch, and
+            # pip installs into it are meaningless. Fall back to system.
+            python = self._get_python()
 
-        # Use venv python if project folder has .venv
-        if project_folder:
-            venv_python = self._get_venv_python(project_folder)
-            if venv_python:
-                python = venv_python
-
-        # Install calflops if requested
+        # Install calflops if requested (into the same python that runs the test)
         if install_calflops and python:
             try:
                 proc = subprocess.Popen(
                     [python, '-m', 'pip', 'install', 'calflops'],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                    env={**os.environ}
+                    env=clean_subprocess_env()
                 )
                 _, stderr = proc.communicate(timeout=120)
                 if proc.returncode != 0:
@@ -1645,7 +1693,7 @@ class MamaApi:
     def model_download(self, model_id: str, output_dir: str = '', revision: str = 'main') -> dict:
         """Download a model from HF Hub with progress streaming."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
-        models_dir = output_dir or str(self._base_dir / 'models')
+        models_dir = output_dir or str(self._models_dir())
         python = self._get_training_python()
         if not python:
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
@@ -1665,14 +1713,25 @@ class MamaApi:
             )
             self._model_download_process = proc
 
+            error_lines: list = []
+            error_lock = threading.Lock()
+
             def read_stream(stream, stream_type):
                 for line in iter(stream.readline, ''):
                     if line:
                         try:
                             data = json.loads(line)
                             data['_stream'] = stream_type
+                            if data.get('type') == 'error' and data.get('message'):
+                                with error_lock:
+                                    error_lines.append(data['message'])
                             self._emit_model_progress(data)
                         except json.JSONDecodeError:
+                            if stream_type == 'stderr':
+                                with error_lock:
+                                    error_lines.append(line.strip())
+                                    if len(error_lines) > 20:
+                                        del error_lines[:len(error_lines) - 20]
                             self._emit_model_progress({'type': stream_type, 'text': line, '_stream': stream_type})
                 stream.close()
 
@@ -1685,7 +1744,11 @@ class MamaApi:
                 proc.wait()
                 stdout_thread.join(timeout=5)
                 stderr_thread.join(timeout=5)
-                self._emit_model_progress({'type': 'done', 'code': proc.returncode or 0})
+                detail = ''
+                with error_lock:
+                    if error_lines:
+                        detail = '\n'.join(error_lines[-5:])
+                self._emit_model_progress({'type': 'done', 'code': proc.returncode or 0, 'error': detail})
                 self._model_download_process = None
 
             threading.Thread(target=wait_thread, daemon=True).start()
@@ -1701,10 +1764,70 @@ class MamaApi:
             self._model_download_process = None
         return {'success': True}
 
+    def model_install_hub(self) -> dict:
+        """Install huggingface_hub into the active training Python.
+
+        Prefers the open project's .venv (creating it if needed) so the
+        package is installed where model downloads/training run.
+        Streams pip output via _modelProgressCallback as install_log /
+        install_done events.
+        """
+        python = None
+        recents = self._read_recents() or {}
+        project_folder = recents.get('open')
+        if project_folder:
+            python = self._get_venv_python(project_folder)
+            if not python:
+                python = self._create_venv(project_folder)
+        if not python:
+            python = self._get_training_python()
+        if not python:
+            return {'success': False, 'error': 'Python 3 not found on PATH.'}
+
+        self._emit_model_progress({
+            'type': 'install_log',
+            'text': f'Installing huggingface_hub into: {python}',
+        })
+
+        try:
+            proc = subprocess.Popen(
+                [python, '-m', 'pip', 'install', '--no-input', '--disable-pip-version-check', 'huggingface_hub'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                env={**os.environ},
+            )
+        except Exception as e:
+            logger.error('model_install_hub failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+        def read_stream(stream):
+            for line in iter(stream.readline, ''):
+                if line and line.strip():
+                    self._emit_model_progress({'type': 'install_log', 'text': line.rstrip('\n')})
+            stream.close()
+
+        stream_thread = threading.Thread(target=read_stream, args=(proc.stdout,), daemon=True)
+        stream_thread.start()
+
+        def wait_thread():
+            proc.wait()
+            stream_thread.join(timeout=5)
+            self._emit_model_progress({
+                'type': 'install_done',
+                'success': proc.returncode == 0,
+                'python': python,
+                'error': '' if proc.returncode == 0 else f'pip install failed (exit code {proc.returncode}). See log above.',
+            })
+
+        threading.Thread(target=wait_thread, daemon=True).start()
+        return {'success': True, 'python': python}
+
     def model_list(self, models_dir: str = '') -> list:
         """List locally downloaded models."""
         script = str(self._base_dir / 'components' / 'backend' / 'training' / 'model_download.py')
-        models_dir = models_dir or str(self._base_dir / 'models')
+        models_dir = models_dir or str(self._models_dir())
         python = self._get_training_python()
         if not python:
             return []

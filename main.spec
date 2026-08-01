@@ -15,6 +15,9 @@ datas = [
     (os.path.join(base_dir, 'styles.css'), '.'),
 ]
 
+icons_dir = os.path.join(base_dir, 'icons')
+app_icon = os.path.join(icons_dir, 'icon.ico' if system == 'Windows' else 'icon.icns')
+
 if system == 'Windows':
     platform_hiddenimports = ['webview.platforms.winforms']
 elif system == 'Linux':
@@ -57,6 +60,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=app_icon,
 )
 
 if system == 'Windows':
@@ -94,6 +98,6 @@ if system == 'Darwin':
     app = BUNDLE(
         coll,
         name='mama.app',
-        icon=None,
+        icon=app_icon,
         bundle_identifier='com.crankytitano7.mama',
     )

@@ -236,10 +236,6 @@ const MC = (() => {
     // Load project folder from recents for project-scoped checks
     await loadProjectFolder();
 
-    const title = document.createElement('h2');
-    title.textContent = '🚀 Pre-Flight Checks';
-    container.appendChild(title);
-
     const flexGrid = document.createElement('div');
     flexGrid.className = 'mc-grid';
 

@@ -218,8 +218,8 @@ async function renderExplorer(folderData) {
 
   container.innerHTML = `
     <div class="project-explorer">
-      <header class="project-explorer-header">
-        <div class="project-explorer-text">
+      <header class="hero-card project-explorer-header">
+        <div class="hero-card-text">
           <h1>Project</h1>
           <div class="project-current-path">
             <code class="project-path-value">📁 ${escapeHtml(folderData.path)}</code>
@@ -241,7 +241,7 @@ async function renderExplorer(folderData) {
             </div>
           </div>
         </div>
-        <img src="images/file_explorer.png" alt="File explorer" class="project-hero-img">
+        <img src="images/file_explorer.png" alt="File explorer" class="hero-card-img">
       </header>
       <div class="project-file-table-wrap">
         <table class="project-file-table">

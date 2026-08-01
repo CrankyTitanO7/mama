@@ -411,10 +411,18 @@ const MC = (() => {
       text-align: center;
     `;
 
-    const modalSpinner = document.createElement('div');
-    modalSpinner.textContent = '⏳';
-    modalSpinner.style.fontSize = '2.5rem';
-    modalSpinner.style.marginBottom = '1rem';
+    const modalSpinner = document.createElement('img');
+    modalSpinner.src = 'images/loading.png';
+    modalSpinner.alt = 'Loading';
+    modalSpinner.style.cssText = `
+      width: 110px;
+      height: 110px;
+      object-fit: contain;
+      margin-bottom: 1rem;
+      border-radius: 20px;
+      filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.4));
+      animation: hero-float 2s ease-in-out infinite;
+    `;
 
     const modalTitle = document.createElement('div');
     modalTitle.textContent = 'Running FLOPS Benchmark…';
@@ -506,7 +514,7 @@ const MC = (() => {
       flopsResults.style.display = 'none';
       exportBtn.style.display = 'none';
       flopsRunBtn.disabled = true;
-      flopsRunBtn.textContent = '⏳ Running…';
+      flopsRunBtn.textContent = 'Running…';
 
       // Show modal
       modalOverlay.style.display = 'flex';

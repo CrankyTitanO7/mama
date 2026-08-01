@@ -38,11 +38,51 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller main.spec
 
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p release
+          ditto -c -k --keepParent dist/mama.app release/mama-macos.zip
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Compress-Archive -Path dist/mama -DestinationPath release/mama-windows.zip
+
+      - name: Package Linux AppImage
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          mkdir -p release/AppDir
+          cp -r dist/mama/. release/AppDir/
+          pip install pillow
+          python -c "from PIL import Image; im = Image.open('public/images/icon.png'); im.thumbnail((512, 512)); im.save('release/AppDir/mama.png')"
+          cat > release/AppDir/mama.desktop <<'DESKTOP'
+          [Desktop Entry]
+          Type=Application
+          Name=mama
+          Exec=mama
+          Icon=mama
+          Comment=the mama application: a GUI app for training ai
+          Categories=Utility;
+          Terminal=false
+          DESKTOP
+          cat > release/AppDir/AppRun <<'RUN'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/mama" "$@"
+          RUN
+          chmod +x release/AppDir/AppRun
+          curl -sL https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run release/AppDir release/mama-linux.AppImage
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
           name: release-${{ matrix.os }}
-          path: dist/*
+          path: release/*
           if-no-files-found: error
 
   release:

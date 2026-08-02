@@ -33,6 +33,19 @@ app_icon = os.path.join(icons_dir, 'icon.ico' if system == 'Windows' else 'icon.
 
 if system == 'Windows':
     platform_hiddenimports = ['webview.platforms.winforms']
+    # pythonnet/clr_loader must be bundled completely (runtime dir, .deps.json,
+    # native ClrLoader.dll for the netfx loader); the shipped hooks only pick
+    # up Python.Runtime.dll and may miss the rest, which makes `import clr`
+    # fail with "Failed to resolve Python.Runtime.Loader.Initialize".
+    try:
+        from PyInstaller.utils.hooks import collect_all
+        pn_datas, pn_binaries, pn_hidden = collect_all('pythonnet')
+        cl_datas, cl_binaries, cl_hidden = collect_all('clr_loader')
+        datas += pn_datas + cl_datas
+        binaries += pn_binaries + cl_binaries
+        platform_hiddenimports += pn_hidden + cl_hidden
+    except Exception as e:
+        print('WARNING: could not collect pythonnet/clr_loader files:', e, file=sys.stderr)
 elif system == 'Linux':
     platform_hiddenimports = ['webview.platforms.gtk']
 elif system == 'Darwin':

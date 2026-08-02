@@ -17,7 +17,13 @@ from pathlib import Path
 logger = logging.getLogger('mama.template_download')
 
 TEMPLATES_PATH = Path(__file__).resolve().parent.parent.parent / 'templates.json'
-RECENTS_PATH = Path(__file__).resolve().parent.parent.parent / 'recents.json'
+
+try:
+    import paths
+    RECENTS_PATH = paths.app_data_dir() / 'components' / 'recents.json'
+except Exception:
+    # Fallback when running outside the app (e.g. as a standalone script).
+    RECENTS_PATH = Path(__file__).resolve().parent.parent.parent / 'recents.json'
 
 
 def read_templates() -> dict:

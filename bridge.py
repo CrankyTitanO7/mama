@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional, Any
 
 import updater
+import paths
 
 logger = logging.getLogger('mama.bridge')
 
@@ -125,10 +126,23 @@ class MamaApi:
         self._emit_lock = threading.Lock()
         self._emit_timer: Optional[threading.Timer] = None
 
-        # Template paths
-        self._template_dir = self._base_dir / 'user' / 'template'
+        # Writable user-data location: a per-user data dir in frozen builds
+        # (the bundle can be read-only, e.g. AppImage mount or Program Files),
+        # the repo root in development.
+        self._data_dir = paths.app_data_dir()
+        self._bundle_dir = paths.bundle_dir()
+
+        # Template paths: templates ship read-only in the bundle; the
+        # settings/themes/recents they seed are written to the data dir.
+        if getattr(sys, 'frozen', False):
+            self._template_dir = self._bundle_dir / 'user' / 'template'
+            self._themes_dir = self._data_dir / 'user' / 'themes'
+            self._recents_path = self._data_dir / 'components' / 'recents.json'
+        else:
+            self._template_dir = self._base_dir / 'user' / 'template'
+            self._themes_dir = self._base_dir / 'user' / 'themes'
+            self._recents_path = self._base_dir / 'components' / 'recents.json'
         self._descriptions_path = self._template_dir / 'descriptions.json'
-        self._recents_path = self._base_dir / 'components' / 'recents.json'
 
         # Script paths
         self._script_dir = self._base_dir / 'components' / 'backend'
@@ -356,13 +370,7 @@ class MamaApi:
         in a per-user data directory instead.
         """
         if getattr(sys, 'frozen', False):
-            if sys.platform == 'darwin':
-                base = Path.home() / 'Library' / 'Application Support' / 'mama'
-            elif sys.platform == 'win32':
-                base = Path(os.environ.get('APPDATA') or str(Path.home() / 'AppData' / 'Roaming')) / 'mama'
-            else:
-                base = Path(os.environ.get('XDG_DATA_HOME') or str(Path.home() / '.local' / 'share')) / 'mama'
-            return base / 'models'
+            return self._data_dir / 'models'
         return self._base_dir / 'models'
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -1179,9 +1187,33 @@ class MamaApi:
     # Themes
     # ═══════════════════════════════════════════════════════════════════════
 
+    def _seed_themes(self):
+        """Copy bundled themes into the writable themes dir on first run.
+
+        In frozen builds the bundle's user/themes/ is read-only, so on a
+        fresh install the bundled themes are copied into the data dir once;
+        afterwards only the data-dir copies are used (and user themes can
+        be added/deleted there).
+        """
+        if not getattr(sys, 'frozen', False):
+            return
+        if self._themes_dir.is_dir() and any(self._themes_dir.glob('*.json')):
+            return
+        bundled = self._base_dir / 'user' / 'themes'
+        if not bundled.is_dir():
+            return
+        try:
+            self._themes_dir.mkdir(parents=True, exist_ok=True)
+            for f in bundled.glob('*.json'):
+                shutil.copy2(f, self._themes_dir / f.name)
+            logger.info('Seeded bundled themes into %s', self._themes_dir)
+        except OSError as e:
+            logger.warning('Could not seed themes: %s', e)
+
     def themes_read(self) -> list:
         """Read custom themes from user/themes/ directory."""
-        themes_dir = self._base_dir / 'user' / 'themes'
+        self._seed_themes()
+        themes_dir = self._themes_dir
         themes = []
         if themes_dir.exists():
             for f in sorted(themes_dir.iterdir()):
@@ -1199,7 +1231,7 @@ class MamaApi:
         file has a different theme name property.
         """
         try:
-            themes_dir = self._base_dir / 'user' / 'themes'
+            themes_dir = self._themes_dir
             themes_dir.mkdir(parents=True, exist_ok=True)
 
             # Build a safe filename from the name

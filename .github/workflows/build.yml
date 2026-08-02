@@ -43,11 +43,9 @@ jobs:
       - name: Package macOS
         if: runner.os == 'macOS'
         run: |
-          mkdir -p release/dmg
-          cp -R dist/mama.app release/dmg/
-          ln -s /Applications release/dmg/Applications
-          hdiutil create -volname mama -srcfolder release/dmg -ov -format UDZO release/mama-macos.dmg
-          rm -rf release/dmg
+          pip install dmgbuild
+          mkdir -p release
+          dmgbuild -s dmgbuild.py mama release/mama-macos.dmg
 
       - name: Package Windows
         if: runner.os == 'Windows'

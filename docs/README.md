@@ -27,6 +27,11 @@ github actions also auto-generates an executable app enclosed in a zip file usin
 for mac users, it may take a moment to launch at first (when the .app is run for the first time, it has to copy everything to Library folder) but subsequent launches will be faster. Also, you may have to allow the app to run by going to Settings -> privacy + security -> allow app store apps and trusted developers -> allow mama to run. 
 Additionally, if you do not have command line tools installed, MacOS may prompt you to install them in order to use python.
 
+Windows users, 
+BEFORE YOU UNZIP THE FOLDER, right click the .zip, press properties, then press unblock.
+then you must bypass the windows firewall by entering the folder, then running the .exe, then press more info, then run anyway. 
+
+
 ## complete uninstall
 ### macos
 1) delete the app

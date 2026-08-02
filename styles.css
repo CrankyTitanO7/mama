@@ -2271,6 +2271,7 @@ body.embed-fullscreen-active {
 .project-landing,
 .project-explorer {
     max-width: 960px;
+    margin: 0 auto;
 }
 
 .project-landing {

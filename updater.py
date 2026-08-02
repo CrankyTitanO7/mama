@@ -52,7 +52,11 @@ def is_frozen() -> bool:
 def load_version() -> str:
     """Return the bundled app version (components/version.json) or the fallback."""
     try:
-        path = Path(__file__).resolve().parent / VERSION_FILENAME
+        if is_frozen():
+            base = Path(sys._MEIPASS)
+        else:
+            base = Path(__file__).resolve().parent
+        path = base / VERSION_FILENAME
         data = json.loads(path.read_text('utf-8'))
         version = str(data.get('version', '')).strip()
         if version:

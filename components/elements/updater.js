@@ -53,7 +53,7 @@
     }
     info = res;
     if (res.available) setPhase('available');
-    else if (res.error && res.update_exists) setPhase('error', res.error);
+    else if (res.error) setPhase('error', res.error);
     else setPhase('uptodate');
   }
 

@@ -85,6 +85,11 @@ def main():
 
     if not args.skip_build:
         print('Running PyInstaller…')
+        try:
+            import certifi  # noqa: F401  # bundles CA certs so HTTPS works in the frozen app
+        except ImportError:
+            print('WARNING: certifi is not installed — HTTPS from the packaged app will fail '
+                  '(the updater cannot reach GitHub). Run: pip install certifi')
         subprocess.run([sys.executable, '-m', 'PyInstaller', 'main.spec'],
                        cwd=base, check=True)
 

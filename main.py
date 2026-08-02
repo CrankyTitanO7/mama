@@ -89,6 +89,8 @@ def main():
     parser.add_argument("-d", "--debug", action="store_true", help="debug mode")
     parser.add_argument("--apply-update", metavar="MARKER",
                         help="internal: apply a staged update and exit (used by the auto-updater)")
+    parser.add_argument("--check-update", action="store_true",
+                        help="internal: run the update check, print the result and exit")
     args = parser.parse_args()
 
     # Internal updater mode: swap in the staged update, relaunch, exit.
@@ -96,6 +98,12 @@ def main():
     if args.apply_update:
         from updater import apply_update
         sys.exit(apply_update(args.apply_update))
+
+    # Diagnostic mode: run the update check and print the raw result.
+    if args.check_update:
+        from updater import check_for_update
+        print(json.dumps(check_for_update(), indent=2, default=str))
+        sys.exit(0)
 
     # Crash recovery: if a staged update's owner process is gone, apply it now.
     from updater import recover_pending

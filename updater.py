@@ -250,7 +250,11 @@ def check_for_update() -> dict:
         _last_check = result
         return result
     except Exception as e:
-        result['error'] = f'Could not reach update server: {e}'
+        logger.exception('Update check failed')
+        msg = f'Could not reach update server: {type(e).__name__}: {e}'
+        if 'ssl' in type(e).__name__.lower():
+            msg += ' (TLS failed — is the build missing CA certificates / certifi?)'
+        result['error'] = msg
         _last_check = result
         return result
 

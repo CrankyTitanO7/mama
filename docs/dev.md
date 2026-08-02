@@ -260,4 +260,6 @@ the GitHub workflow `.github/workflows/build.yml` handles the whole release: pus
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
+**the build environment MUST have `certifi` installed** (the workflow installs it, and `build_release.py` warns if it is missing): without it the packaged app contains no CA certificates and every HTTPS request fails from inside the app — the updater can't reach GitHub and reports a TLS error (older builds showed this as an empty error that the UI masked as "up to date").
+
 the workflow uses the same artifact names the updater expects — a release created any other way must use those names, or the updater won't offer it. to build locally instead, `python build_release.py --version 0.2.0` bumps `components/version.json`, runs PyInstaller, zips the build into `dist/mama-<os>-<arch>.zip` and prints the sha256; then create a GitHub release and attach the zip (the script prints the exact `gh release create` command).

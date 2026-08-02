@@ -83,6 +83,14 @@ def version_greater(a: str, b: str) -> bool:
     return kb[len(ka)][0] != 'n'      # b only has extra suffix (rc/beta) → a newer
 
 
+def version_sort_key(v: str) -> list:
+    """Sortable key for a version string ('0.0.45b' → [(0,0),(0,0),(0,45),(1,'b')])."""
+    out = []
+    for p in re.findall(r'\d+|[a-zA-Z]+', str(v)):
+        out.append((0, int(p)) if p.isdigit() else (1, p.lower()))
+    return out
+
+
 def get_updates_dir() -> Path:
     """User-writable directory for downloads/staging (never inside the app bundle)."""
     if sys.platform == 'darwin':
@@ -97,8 +105,12 @@ def get_updates_dir() -> Path:
 def get_app_root() -> Path:
     """Absolute path of the install root:
     macOS → the .app bundle; Windows/Linux → the folder containing the executable.
+    AppImage → the folder containing the AppImage file (APPIMAGE env var).
     In dev (unfrozen) it is the repo root.
     """
+    appimage = os.environ.get('APPIMAGE')
+    if appimage:
+        return Path(appimage).resolve().parent
     if is_frozen():
         exe = Path(sys.executable).resolve()
         if sys.platform == 'darwin':
@@ -145,22 +157,43 @@ def _asset_info(asset: dict) -> dict:
     }
 
 
+def _asset_candidates(os_name: str, arch: str) -> list:
+    """Release asset names we accept, most specific first. Real releases ship
+    mama-linux.AppImage, mama-macos.dmg, mama-windows.zip (+ optional -<arch>)."""
+    zip_name = f'mama-{os_name}-{arch}.zip'
+    if os_name == 'macos':
+        return [
+            f'mama-macos.dmg',
+            f'mama-macos-{arch}.dmg',
+            f'mama-macos.zip',
+            f'mama-macos-{arch}.zip',
+        ]
+    if os_name == 'windows':
+        return [
+            f'mama-windows.zip',
+            f'mama-windows-{arch}.zip',
+        ]
+    return [
+        f'mama-linux.AppImage',
+        f'mama-linux-{arch}.AppImage',
+        f'mama-linux-{arch}.zip',
+        f'mama-linux.zip',
+    ]
+
+
 def _match_asset(assets: list) -> dict:
     os_name, arch = _platform_tag()
-    wanted = (
-        f'mama-{os_name}-{arch}.zip',
-        f'mama-{os_name}-{arch}-latest.zip',
-        f'mama-{os_name}.zip',
-    )
+    wanted = _asset_candidates(os_name, arch)
     for asset in assets or []:
         if asset.get('name') in wanted:
             return _asset_info(asset)
-    # Fallback: a single zip whose name does not target another platform
-    zips = [a for a in (assets or []) if (a.get('name') or '').endswith('.zip')]
+    # Fallback: a single archive whose name does not target another platform
     platform_words = ('macos', 'windows', 'win32', 'win64', 'linux', 'darwin', 'arm64', 'x64', 'x86')
     candidates = []
-    for asset in zips:
+    for asset in assets or []:
         name = (asset.get('name') or '').lower()
+        if not (name.endswith('.zip') or name.endswith('.dmg') or name.endswith('.appimage')):
+            continue
         if any(w in name for w in platform_words if w not in (os_name, arch)):
             continue
         candidates.append(asset)
@@ -169,10 +202,21 @@ def _match_asset(assets: list) -> dict:
     return None
 
 
+def _pick_latest_release(releases: list) -> dict:
+    """Pick the release with the highest version tag. /releases/latest returns the
+    most recently *published* release, which can be an older version uploaded later
+    (e.g. v0.0.45b published after v1.0.0), so we pick by version, not by publish time."""
+    stable = [r for r in (releases or []) if not r.get('prerelease')]
+    pool = stable or (releases or [])
+    if not pool:
+        return None
+    return max(pool, key=lambda r: version_sort_key(str(r.get('tag_name', '')).lstrip('v')))
+
+
 def check_for_update() -> dict:
-    """Query GitHub releases/latest and return update info for this platform."""
+    """Query GitHub releases and return update info for this platform."""
     global _last_check
-    url = f'https://api.github.com/repos/{REPO}/releases/latest'
+    url = f'https://api.github.com/repos/{REPO}/releases?per_page=100'
     result = {
         'available': False,
         'update_exists': False,
@@ -206,13 +250,18 @@ def check_for_update() -> dict:
         _last_check = result
         return result
 
-    tag = str(data.get('tag_name', '')).lstrip('v')
+    release = _pick_latest_release(data) if isinstance(data, list) else None
+    if not release:
+        result['error'] = 'No releases found'
+        _last_check = result
+        return result
+    tag = str(release.get('tag_name', '')).lstrip('v')
     result['latest_version'] = tag
-    result['release_name'] = data.get('name') or ''
-    result['notes'] = data.get('body') or ''
-    result['published_at'] = data.get('published_at')
+    result['release_name'] = release.get('name') or ''
+    result['notes'] = release.get('body') or ''
+    result['published_at'] = release.get('published_at')
     result['update_exists'] = bool(tag) and version_greater(tag, result['current_version'])
-    result['asset'] = _match_asset(data.get('assets') or [])
+    result['asset'] = _match_asset(release.get('assets') or [])
     result['available'] = result['update_exists'] and result['asset'] is not None
     if result['update_exists'] and not result['asset']:
         result['error'] = f'No build available for {_platform_tag()[0]}-{_platform_tag()[1]} yet'
@@ -278,13 +327,54 @@ def _extract_zip(zip_path: Path, dest: Path) -> Path:
     return dest
 
 
-def _staged_root_valid(staged: Path) -> bool:
-    """Sanity-check that a staged directory really is a mama install."""
-    if sys.platform == 'darwin':
-        macos_dir = staged / 'Contents' / 'MacOS'
-        return any(p.is_file() for p in macos_dir.iterdir()) if macos_dir.is_dir() else False
-    exe_name = 'mama.exe' if sys.platform == 'win32' else 'mama'
-    return (staged / exe_name).is_file()
+def _extract_macos_dmg(dmg_path: Path, dest: Path) -> Path:
+    """Mount the release dmg read-only and copy the .app bundle out of it."""
+    dest.mkdir(parents=True, exist_ok=True)
+    mount = dest / '.mount'
+    mount.mkdir(exist_ok=True)
+    try:
+        r = subprocess.run(
+            ['hdiutil', 'attach', str(dmg_path), '-nobrowse', '-readonly', '-mountpoint', str(mount)],
+            capture_output=True, text=True, timeout=120,
+        )
+        if r.returncode != 0:
+            raise IOError(r.stderr.strip() or 'hdiutil attach failed')
+        apps = [p for p in mount.iterdir() if p.is_dir() and p.suffix == '.app']
+        if not apps:
+            raise IOError('No .app found inside the dmg')
+        app_dest = dest / apps[0].name
+        subprocess.run(['ditto', str(apps[0]), str(app_dest)], check=True, timeout=300)
+        return app_dest
+    finally:
+        try:
+            subprocess.run(['hdiutil', 'detach', str(mount)], capture_output=True, timeout=60)
+        except Exception:
+            pass
+        shutil.rmtree(mount, ignore_errors=True)
+
+
+def _staged_root_valid(staged: Path, is_file: bool = False) -> bool:
+    """Sanity-check that a staged artifact really is a mama install.
+    Platform-agnostic: a macOS .app bundle, or a dir containing the
+    mama / mama.exe binary (Windows zip wraps it in a 'mama' folder)."""
+    if is_file:
+        return staged.is_file() and staged.stat().st_size > 1_000_000
+    if not staged.is_dir():
+        return False
+    if (staged / 'Contents' / 'MacOS').is_dir():
+        return True
+    return any((staged / exe).is_file() for exe in ('mama', 'mama.exe'))
+
+
+def _locate_staged_root(dest: Path) -> Path:
+    """Find the actual app root inside the extracted archive. Windows builds wrap
+    everything in a top-level 'mama' folder (dist/mama.zip)."""
+    if _staged_root_valid(dest):
+        return dest
+    inner = dest / 'mama'
+    if inner.is_dir() and _staged_root_valid(inner):
+        return inner
+    return dest
 
 
 def stage_update() -> dict:
@@ -299,26 +389,51 @@ def stage_update() -> dict:
         return {'success': False, 'error': info.get('error') or 'No update to install'}
 
     updates_dir = get_updates_dir()
-    zip_path = updates_dir / asset['name']
-    if not zip_path.exists():
+    artifact = updates_dir / asset['name']
+    if not artifact.exists():
         dl = download_update()
         if not dl.get('success'):
             return {'success': False, 'error': dl.get('error')}
 
-    staged = _extract_zip(zip_path, updates_dir / f'mama-{tag}')
-    if not _staged_root_valid(staged):
-        shutil.rmtree(staged, ignore_errors=True)
-        return {'success': False, 'error': 'Downloaded update is not a valid mama build'}
+    dest = updates_dir / f'mama-{tag}'
+    name = asset['name'].lower()
+    staged_is_file = False
+    try:
+        if name.endswith('.dmg') and sys.platform == 'darwin':
+            staged = _extract_macos_dmg(artifact, dest)
+        elif name.endswith('.appimage') and sys.platform != 'win32':
+            staged = artifact  # the AppImage file itself is the artifact
+            try:
+                staged.chmod(staged.stat().st_mode | 0o111)  # AppImages must be executable
+            except OSError:
+                pass
+            staged_is_file = True
+        elif name.endswith('.zip'):
+            extracted = _extract_zip(artifact, dest)
+            staged = _locate_staged_root(extracted)
+        else:
+            return {'success': False, 'error': f'Unsupported update format: {asset["name"]}'}
+
+        if not _staged_root_valid(staged, is_file=staged_is_file):
+            if not staged_is_file:
+                shutil.rmtree(dest, ignore_errors=True)
+            return {'success': False, 'error': 'Downloaded update is not a valid mama build'}
+    except Exception as e:
+        shutil.rmtree(dest, ignore_errors=True)
+        return {'success': False, 'error': str(e)}
 
     marker = {
         'pid': os.getpid(),
         'tag': tag,
         'app_root': str(get_app_root()),
         'staged_root': str(staged),
+        'staged_is_file': staged_is_file,
         'meipass_rel': str(_meipass_rel()),
         'exe_rel': None,
     }
-    if is_frozen():
+    if staged_is_file:
+        marker['exe_rel'] = staged.name  # file moves into the app root on apply
+    elif is_frozen():
         try:
             marker['exe_rel'] = str(Path(sys.executable).resolve().relative_to(get_app_root()))
         except ValueError:
@@ -404,10 +519,24 @@ def _safe_rmtree(path: Path, attempts: int = 3) -> None:
             time.sleep(0.5)
 
 
+def _data_dir(root: Path) -> Path:
+    """Locate a bundle's data dir (the one holding components/), tolerating
+    PyInstaller layout changes between builds (macOS: Contents/Resources in
+    new PyInstaller, Contents/_internal in older; Windows/Linux: _internal)."""
+    candidates = ['Contents/Resources', 'Contents/_internal', '_internal', ''] \
+        if sys.platform == 'darwin' else ['_internal', '']
+    for rel in candidates:
+        cand = root / rel
+        if cand.is_dir() and (cand / 'components').is_dir():
+            return cand
+    return root / candidates[0]
+
+
 def _preserve_user_data(old_root: Path, new_root: Path, marker: dict) -> None:
     """Copy user data (settings, themes, recents) from the old install into the new one."""
     meipass_rel = Path(marker.get('meipass_rel') or str(_meipass_rel()))
-    old_data, new_data = old_root / meipass_rel, new_root / meipass_rel
+    old_data = old_root / meipass_rel
+    new_data = _data_dir(new_root)
     if not old_data.is_dir():
         return
     for rel in PRESERVE_RELS:
@@ -460,6 +589,7 @@ def apply_update(marker_path: str) -> int:
 
     root = Path(marker.get('app_root', '')).resolve()
     staged = Path(marker.get('staged_root', '')).resolve()
+    staged_is_file = bool(marker.get('staged_is_file'))
     pid = marker.get('pid')
 
     lock = _acquire_apply_lock()
@@ -468,31 +598,55 @@ def apply_update(marker_path: str) -> int:
     try:
         if pid and pid != os.getpid():
             _wait_for_process_exit(pid)
-        if not staged.is_dir():
+        if not (staged.is_dir() or staged.is_file()):
             marker_path.unlink(missing_ok=True)  # already applied / never extracted
             return 2
-        if not root.is_dir():
+        if not (root.is_dir() or root.is_file()):
             logger.error('App root missing: %s', root)
             return 1
 
-        backup = root.with_name(root.name + '.old')
-        _safe_rmtree(backup)
-        try:
-            root.rename(backup)
-            staged.rename(root)
-        except OSError as e:
+        if staged_is_file:
+            # single-file swap (AppImage): replace the executable file inside the app dir
+            exe_rel = marker.get('exe_rel') or staged.name
+            exe = root / exe_rel
+            if not exe.is_file():
+                logger.error('App file missing: %s', exe)
+                return 1
+            backup = exe.with_name(exe.name + '.old')
+            _safe_rmtree(backup)
             try:
-                if backup.is_dir() and not root.exists():
-                    backup.rename(root)
-            except OSError:
-                pass
-            logger.error('Update swap failed: %s', e)
-            return 1
+                exe.rename(backup)
+                staged.rename(exe)
+            except OSError as e:
+                try:
+                    if backup.is_file() and not exe.exists():
+                        backup.rename(exe)
+                except OSError:
+                    pass
+                logger.error('Update swap failed: %s', e)
+                return 1
+            _safe_rmtree(backup)
+            marker_path.unlink(missing_ok=True)
+            logger.info('Update %s applied', marker.get('tag'))
+        else:
+            backup = root.with_name(root.name + '.old')
+            _safe_rmtree(backup)
+            try:
+                root.rename(backup)
+                staged.rename(root)
+            except OSError as e:
+                try:
+                    if backup.is_dir() and not root.exists():
+                        backup.rename(root)
+                except OSError:
+                    pass
+                logger.error('Update swap failed: %s', e)
+                return 1
 
-        _preserve_user_data(backup, root, marker)
-        _safe_rmtree(backup)
-        marker_path.unlink(missing_ok=True)
-        logger.info('Update %s applied', marker.get('tag'))
+            _preserve_user_data(backup, root, marker)
+            _safe_rmtree(backup)
+            marker_path.unlink(missing_ok=True)
+            logger.info('Update %s applied', marker.get('tag'))
     finally:
         try:
             lock.unlink(missing_ok=True)
@@ -535,7 +689,7 @@ def recover_pending() -> bool:
     if pid and _process_alive(pid):
         return False
     staged = Path(data.get('staged_root', ''))
-    if not staged.is_dir():
+    if not (staged.is_dir() or staged.is_file()):
         try:
             marker.unlink(missing_ok=True)
         except OSError:

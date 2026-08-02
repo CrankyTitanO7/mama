@@ -238,10 +238,10 @@ mama can update itself from GitHub releases. the whole system lives in `updater.
 
 ### how it works
 
-1. **check** — `updater.check_for_update()` queries `api.github.com/repos/CrankyTitanO7/mama/releases/latest`, compares the release tag against the bundled `components/version.json`, and looks for an asset named `mama-<os>-<arch>.zip` (e.g. `mama-macos-arm64.zip`). one plain zip is used as a fallback only if it clearly does not target another platform.
+1. **check** — `updater.check_for_update()` lists `api.github.com/repos/CrankyTitanO7/mama/releases` and picks the release with the highest version tag (stable over prerelease — `/releases/latest` can't be used because it returns the most recently *published* release, so a later-published lower tag would hide a higher one). it compares the tag against the bundled `components/version.json` and matches an asset: macOS → `mama-macos.dmg` (or `mama-macos-<arch>.dmg`/`.zip`), Windows → `mama-windows.zip`, Linux → `mama-linux.AppImage`. one plain archive not targeting another platform is used as a fallback.
 2. **download** — `updater.download_update()` streams the asset into `~/Library/Application Support/mama/updates` (per-OS equivalent elsewhere) and verifies its sha256 against the GitHub-provided asset digest.
-3. **stage** — `updater.stage_update()` extracts the zip into `updates/mama-<tag>/` and writes an `apply.json` marker. staging is refused when running from source (unpackaged).
-4. **apply** — on quit, `bridge.py`'s `on_quit` spawns a detached `mama --apply-update <marker>` process. it waits for the old process to exit, renames the old install to `.old`, moves the staged one into place, copies user data (`user/`, `components/recents.json`) from the old install, deletes the backup, and relaunches the new build (`open` on macOS, direct exec elsewhere). a `applying.lock` prevents two processes swapping at once, and a marker left by a crashed session is applied on the next startup (`updater.recover_pending()` in `main.py`).
+3. **stage** — `updater.stage_update()` unpacks the artifact (dmg → `hdiutil attach` + `ditto` out the `.app`; zip → extract + locate the app folder, handling the Windows `mama/` wrapper; AppImage → used as-is, made executable) into `updates/mama-<tag>/` and writes an `apply.json` marker. staging is refused when running from source (unpackaged).
+4. **apply** — on quit, `bridge.py`'s `on_quit` spawns a detached `mama --apply-update <marker>` process. it waits for the old process to exit, swaps the old install for the staged one (whole bundle/folder, or single-file replacement for AppImages), copies user data (`user/`, `components/recents.json`) from the old install — locating the data dir in the new build even if the PyInstaller layout changed (`Contents/Resources` vs `_internal`) — deletes the backup, and relaunches the new build (`open` on macOS, direct exec elsewhere). a `applying.lock` prevents two processes swapping at once, and a marker left by a crashed session is applied on the next startup (`updater.recover_pending()` in `main.py`).
 
 ### frontend api (via the shim)
 
@@ -254,8 +254,10 @@ mama can update itself from GitHub releases. the whole system lives in `updater.
 
 ### releasing a new version
 
+the GitHub workflow `.github/workflows/build.yml` handles the whole release: push a tag and it builds on all three platforms, writes the version into `components/version.json` from the tag name, packages the artifacts (`mama-macos.dmg`, `mama-windows.zip`, `mama-linux.AppImage`) and uploads them to a GitHub release:
+
 ```sh
-python build_release.py --version 0.2.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
-this bumps `components/version.json`, runs PyInstaller, zips the build into `dist/mama-<os>-<arch>.zip` and prints the sha256. then create a GitHub release and attach the zip (the script prints the exact `gh release create` command). the updater only offers a release whose asset name matches the user's platform — run `build_release.py` on each platform you support (macOS arm64/x64, Windows, Linux).
+the workflow uses the same artifact names the updater expects — a release created any other way must use those names, or the updater won't offer it. to build locally instead, `python build_release.py --version 0.2.0` bumps `components/version.json`, runs PyInstaller, zips the build into `dist/mama-<os>-<arch>.zip` and prints the sha256; then create a GitHub release and attach the zip (the script prints the exact `gh release create` command).

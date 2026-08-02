@@ -45,6 +45,28 @@ PRESERVE_RELS = ('user', 'components/recents.json')
 _last_check = None
 
 
+def _setup_ssl_certs() -> None:
+    """Make plain urllib/ssl trust the bundled CA bundle.
+
+    Packaged builds ship certifi's cacert.pem as a data file, but Python's
+    ssl module does not read it unless SSL_CERT_FILE points at it (PyInstaller
+    does not do this for us). Without it, every HTTPS request from the frozen
+    app fails with SSLCertVerificationError and the updater can never reach
+    GitHub. Call this before any HTTPS request.
+    """
+    if os.environ.get('SSL_CERT_FILE') or os.environ.get('SSL_CERT_DIR'):
+        return
+    try:
+        import certifi
+        os.environ['SSL_CERT_FILE'] = certifi.where()
+        logger.info('Using CA bundle: %s', certifi.where())
+    except Exception:
+        pass
+
+
+_setup_ssl_certs()
+
+
 def is_frozen() -> bool:
     return bool(getattr(sys, 'frozen', False))
 

@@ -15,6 +15,19 @@ datas = [
     (os.path.join(base_dir, 'styles.css'), '.'),
 ]
 
+# Bundle CA certificates: without them every HTTPS request from the packaged
+# app fails with SSLCertVerificationError (the updater cannot reach GitHub).
+# certifi's hook normally covers this, but we add the pem explicitly so it is
+# bundled even if the hook is missing.
+try:
+    import certifi
+    cert_pem = certifi.where()
+    datas.append((cert_pem, 'certifi'))
+except Exception:
+    print('WARNING: certifi not available at build time — the packaged app will',
+          'not be able to verify HTTPS certificates. Install it: pip install certifi',
+          file=sys.stderr)
+
 icons_dir = os.path.join(base_dir, 'icons')
 app_icon = os.path.join(icons_dir, 'icon.ico' if system == 'Windows' else 'icon.icns')
 

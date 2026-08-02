@@ -93,6 +93,10 @@ def main():
                         help="internal: run the update check, print the result and exit")
     args = parser.parse_args()
 
+    # Ensure HTTPS works from the packaged app (uses the bundled certifi CA bundle).
+    from updater import _setup_ssl_certs
+    _setup_ssl_certs()
+
     # Internal updater mode: swap in the staged update, relaunch, exit.
     # Runs before pywebview is imported so the swapper never loads GUI frameworks.
     if args.apply_update:

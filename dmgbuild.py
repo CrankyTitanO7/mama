@@ -9,15 +9,15 @@ background = os.path.join(base, 'icons', 'dmg-background.png')
 icon = os.path.join(base, 'icons', 'icon.icns')
 
 format = 'UDZO'
-size = None
+size = '170M'
 
-files = [app_path, '/Applications']
-symlinks = {}
+files = [app_path]
+symlinks = {'Applications': '/Applications'}
 badge_icon = icon
 
 icon_locations = {
     app_name + '.app': (220, 190),
-    '/Applications': (440, 190),
+    'Applications': (440, 190),
 }
 window_rect = ((100, 100), (660, 400))
 icon_size = 110

@@ -219,7 +219,23 @@ def main():
 
     window.events.closed += api.on_quit
 
-    webview.start(debug=args.debug)
+    try:
+        webview.start(debug=args.debug)
+    except Exception as exc:
+        # A raw traceback tells users nothing useful when the GUI toolkit is
+        # missing, so log it and exit with a plain-language hint instead.
+        logger.exception('Failed to start the pywebview window')
+        if sys.platform.startswith('linux'):
+            print(
+                'mama could not open its window.\n'
+                'Reason: %s\n'
+                'On Debian/Ubuntu, install the WebKit2GTK runtime and its '
+                'GObject introspection bindings, e.g.:\n'
+                '  sudo apt install libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1\n'
+                'On Fedora: sudo dnf install webkit2gtk4.1' % exc,
+                file=sys.stderr,
+            )
+        sys.exit(1)
 
 
 if __name__ == '__main__':

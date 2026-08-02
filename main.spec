@@ -15,6 +15,8 @@ datas = [
     (os.path.join(base_dir, 'styles.css'), '.'),
 ]
 
+binaries = []
+
 # Bundle CA certificates: without them every HTTPS request from the packaged
 # app fails with SSLCertVerificationError (the updater cannot reach GitHub).
 # certifi's hook normally covers this, but we add the pem explicitly so it is
@@ -47,7 +49,29 @@ if system == 'Windows':
     except Exception as e:
         print('WARNING: could not collect pythonnet/clr_loader files:', e, file=sys.stderr)
 elif system == 'Linux':
-    platform_hiddenimports = ['webview.platforms.gtk']
+    platform_hiddenimports = ['webview.platforms.gtk', 'gi']
+    # pywebview's GTK backend loads WebKit2GTK through PyGObject (`gi`).
+    # PyInstaller's shipped gi.repository hooks cover Gtk/Gdk/Gio/GLib but
+    # not WebKit2, so collect its typelib (and the shared library it refers
+    # to) at build time; otherwise the frozen app fails with
+    # "No module named 'gi'" / "WebKit2 cannot be loaded".
+    try:
+        from PyInstaller.utils.hooks.gi import GiModuleInfo
+        for gi_module, gi_version in (('WebKit2', '4.1'), ('Soup', '3.0')):
+            gi_info = GiModuleInfo(gi_module, gi_version)
+            if not gi_info.available:
+                print(f'WARNING: gi typelib {gi_module}-{gi_version} not found on this '
+                      'build machine; the AppImage may not be able to load WebKit2GTK. '
+                      'Install PyGObject and the webkit2gtk/gir packages (e.g. '
+                      'libwebkit2gtk-4.1-dev gir1.2-webkit2-4.1) before building.',
+                      file=sys.stderr)
+                continue
+            gi_binaries, gi_datas, gi_hidden = gi_info.collect_typelib_data()
+            binaries += gi_binaries
+            datas += gi_datas
+            platform_hiddenimports += gi_hidden
+    except Exception as e:
+        print('WARNING: could not collect WebKit2 gi typelibs:', e, file=sys.stderr)
 elif system == 'Darwin':
     platform_hiddenimports = ['webview.platforms.cocoa']
 else:

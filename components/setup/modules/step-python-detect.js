@@ -14,8 +14,9 @@
         <button id="py-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-scan</button>
       </div>
       <div id="py-warn" class="setup-warn-msg" style="display:none">
-        ⚠️ Python not found. mama requires Python 3.8+.<br>
-        Install from <strong>python.org</strong> then re-scan.
+        ⚠️ Python 3.10+ not found. mama requires Python 3.10 or higher — PyTorch
+        publishes no wheels for older versions.<br>
+        Install from <a href="https://www.python.org/downloads/" target="_blank"><strong>python.org</strong></a> then re-scan.
       </div>
     `,
     afterRender: () => {
@@ -43,10 +44,11 @@
           S.detected.pipAvailable   = U.boolVal(kv['PIP_AVAILABLE']);
           S.detected.cmakeAvailable = U.boolVal(kv['CMAKE_AVAILABLE']);
           S.detected.gccAvailable   = U.boolVal(kv['GCC_AVAILABLE']);
-          const pyOk = !!S.detected.pythonVersion;
+          const pyOk = !!S.detected.pythonVersion
+            && U.versionAtLeast(S.detected.pythonVersion, 3, 10);
           out.innerHTML = `
             <table class="setup-status-table"><tbody>
-              <tr><td>${U.okIcon(pyOk)}</td><td>Python</td><td class="setup-hint">${U.escapeHtml(S.detected.pythonVersion || 'not found')}</td></tr>
+              <tr><td>${S.detected.pythonVersion ? (pyOk ? '✅' : '⚠️') : '❌'}</td><td>Python</td><td class="setup-hint">${U.escapeHtml(S.detected.pythonVersion || 'not found')}</td></tr>
               <tr><td>${U.okIcon(S.detected.pipAvailable)}</td><td>pip</td><td class="setup-hint">${S.detected.pipAvailable ? 'available' : 'not found'}</td></tr>
               <tr><td>${U.warnIcon(S.detected.cmakeAvailable)}</td><td>CMake <span class="setup-hint">(optional)</span></td><td class="setup-hint">${S.detected.cmakeAvailable ? 'available' : 'not found'}</td></tr>
               <tr><td>${U.warnIcon(S.detected.gccAvailable)}</td><td>GCC / C++ <span class="setup-hint">(optional)</span></td><td class="setup-hint">${S.detected.gccAvailable ? 'available' : 'not found'}</td></tr>

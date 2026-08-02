@@ -19,8 +19,8 @@
         <table class="setup-status-table"><tbody id="py-dep-tbody"></tbody></table>
       </div>
       <div id="py-dep-warn" class="setup-warn-msg" style="display:none">
-        <p style="font-weight:bold; margin-top:0">❌ Python 3 not found!</p>
-        <p>mama requires Python 3.8 or higher to function. Please install it from:</p>
+        <p id="py-dep-warn-title" style="font-weight:bold; margin-top:0">❌ Python 3.10+ not found!</p>
+        <p id="py-dep-warn-reason">mama requires Python 3.10 or higher — PyTorch publishes no wheels for older versions. Please install it from:</p>
         <ul>
           <li><strong>macOS:</strong> <code>brew install python</code> or download from <a href="https://www.python.org/downloads/" target="_blank">python.org</a></li>
           <li><strong>Linux:</strong> <code>sudo apt install python3 python3-venv python3-pip</code> (Debian/Ubuntu) or <code>sudo dnf install python3</code> (Fedora)</li>
@@ -56,22 +56,31 @@
           const kv = U.parseKV(result.stdout);
           const pythonVer = kv['PYTHON_VERSION'] || null;
           const pipAvail  = U.boolVal(kv['PIP_AVAILABLE']);
+          const pyOk = !!pythonVer && U.versionAtLeast(pythonVer, 3, 10);
 
           const tbody = document.getElementById('py-dep-tbody');
           if (tbody) {
             tbody.innerHTML = `
-              <tr><td>${pythonVer ? '✅' : '❌'}</td><td>Python 3</td><td class="setup-hint">${U.escapeHtml(pythonVer || 'not found')}</td></tr>
+              <tr><td>${pythonVer ? (pyOk ? '✅' : '⚠️') : '❌'}</td><td>Python 3</td><td class="setup-hint">${U.escapeHtml(pythonVer || 'not found')}</td></tr>
               <tr><td>${pipAvail ? '✅' : '❌'}</td><td>pip</td><td class="setup-hint">${pipAvail ? 'available' : 'not found'}</td></tr>
-              <tr><td>${pythonVer ? '✅' : '⏳'}</td><td>Python venv support</td><td class="setup-hint">${pythonVer ? 'available (python3 -m venv)' : 'unavailable without Python'}</td></tr>
+              <tr><td>${pyOk ? '✅' : '⏳'}</td><td>Python venv support</td><td class="setup-hint">${pyOk ? 'available (python3 -m venv)' : 'unavailable without Python 3.10+'}</td></tr>
             `;
           }
 
-          if (pythonVer) {
+          if (pyOk) {
             out.innerHTML = `<div class="setup-success-msg">✅ Python ${U.escapeHtml(pythonVer)} detected</div>`;
             if (detail) detail.style.display = 'block';
             if (warn) warn.style.display = 'none';
           } else {
-            out.innerHTML = '<div class="setup-error-msg">❌ Python 3 not found</div>';
+            if (pythonVer) {
+              out.innerHTML = `<div class="setup-warn-msg">⚠️ Python ${U.escapeHtml(pythonVer)} detected, but PyTorch requires 3.10+</div>`;
+              const warnTitle  = document.getElementById('py-dep-warn-title');
+              const warnReason = document.getElementById('py-dep-warn-reason');
+              if (warnTitle)  warnTitle.textContent  = `⚠️ Python ${U.escapeHtml(pythonVer)} is too old!`;
+              if (warnReason) warnReason.textContent = 'mama requires Python 3.10 or higher — PyTorch publishes no wheels for older versions. Please install a newer version from:';
+            } else {
+              out.innerHTML = '<div class="setup-error-msg">❌ Python 3 not found</div>';
+            }
             if (warn) warn.style.display = 'block';
             if (detail) detail.style.display = 'block';
           }

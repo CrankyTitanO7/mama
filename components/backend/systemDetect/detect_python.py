@@ -153,10 +153,24 @@ def get_python_version(python):
     return match.group(0) if match else ""
 
 
+def is_apple_python(real: str) -> bool:
+    """True if the real path is Apple's system Python (CommandLineTools / Xcode).
+
+    macOS ships /usr/bin/python3 — a symlink to
+    /Library/Developer/CommandLineTools/usr/bin/python3 (3.9.6) when the
+    CommandLineTools are installed. It has no usable pip (it cannot install
+    anything into system-protected locations) and no PyTorch wheels exist for
+    it, so it must never count as a detected Python.
+    """
+    return (real.startswith("/usr/bin/")
+            or real.startswith("/Library/Developer/"))
+
+
 def find_system_python():
     """
     Locate a real, WORKING system Python on PATH, excluding this app's own
-    bundled interpreter.
+    bundled interpreter and (on macOS) Apple's CommandLineTools /usr/bin/
+    python3, which has no usable pip.
 
     Validates each PATH candidate by actually running --version and checking
     it parses, rather than accepting the first PATH match unconditionally.
@@ -188,6 +202,9 @@ def find_system_python():
 
         if own and real == own:
             continue
+
+        if sys.platform == "darwin" and is_apple_python(real):
+            continue  # reject Apple's /usr/bin/python3 (3.9.6, no usable pip)
 
         version = get_python_version(path)
         if version:

@@ -76,6 +76,15 @@
     okIcon(ok)     { return ok ? '✅' : '❌'; },
     warnIcon(ok)   { return ok ? '✅' : '⚠️'; },
 
+    // True if a "X.Y(.Z)" version string is >= minMajor.minMinor.
+    versionAtLeast(version, minMajor, minMinor) {
+      const m = /(\d+)\.(\d+)/.exec(version || '');
+      if (!m) return false;
+      const major = parseInt(m[1], 10);
+      const minor = parseInt(m[2], 10);
+      return major > minMajor || (major === minMajor && minor >= minMinor);
+    },
+
     gpuVariant() {
       const s = window.__setupState;
       if (s.selectedMode === 'cpu') return 'cpu';

@@ -70,6 +70,15 @@ const MC = (() => {
     return div.innerHTML;
   }
 
+  // True if a "X.Y(.Z)" version string is >= minMajor.minMinor.
+  function versionAtLeast(version, minMajor, minMinor) {
+    const m = /(\d+)\.(\d+)/.exec(version || '');
+    if (!m) return false;
+    const major = parseInt(m[1], 10);
+    const minor = parseInt(m[2], 10);
+    return major > minMajor || (major === minMajor && minor >= minMinor);
+  }
+
   // ── Render structured FLOPS results ──────────────────────────
   function renderFlopsResults(data, container, exportBtn) {
     container.style.display = 'block';
@@ -633,17 +642,32 @@ const MC = (() => {
   async function runCheckPython() {
     setStatus('python', 'pending');
     try {
-      const result = await window.electron.runSystemCommand('python', ['--version']);
-      if (result.code === 0 && result.stdout) {
-        const ver = result.stdout.trim().replace(/^Python\s+/i, '');
+      // Uses the same detection as the setup wizard: Apple's /usr/bin/python3
+      // (3.9.6, no usable pip) is rejected, so only a real Python counts.
+      const result = await window.electron.runPythonDetect();
+      const kv = {};
+      for (const line of (result.stdout || '').split('\n')) {
+        const eq = line.indexOf('=');
+        if (eq > -1) kv[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+      }
+      const ver = kv.PYTHON_VERSION || '';
+      if (!ver) {
+        setStatus('python', 'fail', 'Not found');
+        return;
+      }
+      if (versionAtLeast(ver, 3, 10)) {
         setStatus('python', 'pass', `v${ver}`);
       } else {
-        const result3 = await window.electron.runSystemCommand('python3', ['--version']);
-        if (result3.code === 0 && result3.stdout) {
-          const ver = result3.stdout.trim().replace(/^Python\s+/i, '');
-          setStatus('python', 'pass', `v${ver}`);
-        } else {
-          setStatus('python', 'fail', 'Not found');
+        setStatus('python', 'warn', `v${ver} — PyTorch needs 3.10+`);
+        const c = cards['python'];
+        if (c && c.detailEl) {
+          c.detailEl.appendChild(document.createTextNode(' '));
+          const link = document.createElement('a');
+          link.href = 'https://www.python.org/downloads/';
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Get Python from python.org';
+          c.detailEl.appendChild(link);
         }
       }
     } catch (e) {

@@ -686,6 +686,13 @@
       html += `</div>`;
     }
 
+    html += `
+      <div class="settings-group">
+        <h2 class="settings-group-title">Updates</h2>
+        <div id="updates-panel" class="updates-panel"></div>
+      </div>
+    `;
+
     html += `<div class="settings-actions">
       <button id="settings-save-btn" class="settings-btn settings-btn-primary">💾 Save Settings</button>
       <button id="settings-reload-btn" class="settings-btn settings-btn-secondary">↻ Reload</button>
@@ -694,6 +701,8 @@
     </div>`;
 
     container.innerHTML = html;
+
+    renderUpdatesPanel();
 
     container.querySelectorAll('[data-group][data-key]').forEach(el => {
       el.addEventListener('change', () => {
@@ -767,6 +776,114 @@
     }
   }
 
+  // ── Updates panel ───────────────────────────────────────────────────────────
+
+  let updatesUnsub = null;
+  let updatesCheckedOnce = false;
+
+  function fmtUpdateSize(bytes) {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function renderUpdatesPanel() {
+    const panel = document.getElementById('updates-panel');
+    if (!panel || !window.UpdateManager) return;
+
+    const s = window.UpdateManager.getState();
+    const cur = s.currentVersion ? 'v' + s.currentVersion : '—';
+    const latest = s.latestVersion ? 'v' + s.latestVersion : '—';
+
+    let body = '';
+    if (s.phase === 'checking') {
+      body = `<p class="updates-status">Checking for updates…</p>`;
+    } else if (s.phase === 'downloading') {
+      body = `
+        <p class="updates-status">Downloading ${latest}… ${Math.round(s.progress)}%</p>
+        <div class="update-banner-progress"><div class="update-banner-progress-fill" style="width:${Math.round(s.progress)}%"></div></div>
+      `;
+    } else if (s.phase === 'done') {
+      body = `<p class="updates-status">Update ${latest} downloaded — install and restart to apply.</p>`;
+    } else if (s.phase === 'ready') {
+      body = `<p class="updates-status">Restart mama to apply update ${latest}.</p>`;
+    } else if (s.phase === 'error') {
+      body = `<p class="updates-status updates-error">⚠ ${escapeHtml(s.error || 'Update check failed.')}</p>`;
+    } else if (s.phase === 'available') {
+      body = `<p class="updates-status">A new version is ready to download.</p>`;
+    } else if (s.phase === 'uptodate') {
+      body = `<p class="updates-status">You're on the latest version.</p>`;
+    } else {
+      body = `<p class="updates-status">No update check yet.</p>`;
+    }
+
+    let notes = '';
+    if (s.notes) {
+      notes = `
+        <details class="update-banner-notes">
+          <summary>release notes</summary>
+          <pre>${escapeHtml(s.notes)}</pre>
+        </details>
+      `;
+    }
+
+    const downloading = s.phase === 'downloading';
+    panel.innerHTML = `
+      <div class="updates-version-row">
+        <span>Current version: <strong>${cur}</strong></span>
+        <span>Latest release: <strong>${latest}</strong>${s.size ? ' <span class="updates-size">' + fmtUpdateSize(s.size) + '</span>' : ''}</span>
+      </div>
+      ${notes}
+      ${body}
+      <div class="updates-actions">
+        <button id="updates-check-btn" class="settings-btn settings-btn-secondary" ${downloading ? 'disabled' : ''}>↻ Check for updates</button>
+        <button id="updates-download-btn" class="settings-btn settings-btn-secondary" ${downloading ? 'disabled' : ''}>⬇ Download</button>
+        <button id="updates-install-btn" class="settings-btn settings-btn-primary">⚙ Install &amp; restart</button>
+        <button id="updates-restart-btn" class="settings-btn settings-btn-primary">▶ Restart now</button>
+      </div>
+    `;
+
+    const enableDownload = s.phase === 'available';
+    const enableInstall = s.phase === 'done' || s.phase === 'available';
+    const enableRestart = s.phase === 'ready' || s.phase === 'done';
+
+    const checkBtn = panel.querySelector('#updates-check-btn');
+    const downloadBtn = panel.querySelector('#updates-download-btn');
+    const installBtn = panel.querySelector('#updates-install-btn');
+    const restartBtn = panel.querySelector('#updates-restart-btn');
+
+    if (checkBtn) checkBtn.addEventListener('click', () => window.UpdateManager.check(false));
+    if (downloadBtn) {
+      downloadBtn.disabled = !enableDownload;
+      downloadBtn.addEventListener('click', () => window.UpdateManager.download());
+    }
+    if (installBtn) {
+      installBtn.disabled = !enableInstall;
+      installBtn.addEventListener('click', async () => { await window.UpdateManager.install(); });
+    }
+    if (restartBtn) {
+      restartBtn.disabled = !enableRestart;
+      restartBtn.addEventListener('click', () => window.UpdateManager.restart());
+    }
+  }
+
+  function wireUpdatesPanel(attempts) {
+    if (!window.UpdateManager) {
+      // updater.js loads async on every page; retry until it is available
+      if ((attempts || 10) > 0) setTimeout(() => wireUpdatesPanel((attempts || 10) - 1), 300);
+      return;
+    }
+    if (updatesUnsub) return;
+    updatesUnsub = window.UpdateManager.subscribe(() => {
+      const panel = document.getElementById('updates-panel');
+      if (panel) renderUpdatesPanel();
+    });
+    if (!updatesCheckedOnce) {
+      updatesCheckedOnce = true;
+      setTimeout(() => window.UpdateManager.check(false), 300);
+    }
+  }
+
   async function init() {
     window.__themeApplyDeferred = true;
     wireNavigationGuards();
@@ -780,6 +897,7 @@
     });
     await Promise.all([loadSettings(), loadDescriptions()]);
     await renderSettings();
+    wireUpdatesPanel();
   }
 
   if (document.readyState === 'loading') {

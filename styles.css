@@ -4201,3 +4201,161 @@ body.embed-fullscreen-active {
     color: #f9e2af;
     line-height: 1.4;
 }
+
+/* ============================================
+   Update Banner + Updates Panel
+   ============================================ */
+.update-banner {
+    position: fixed;
+    top: 42px;
+    left: 0;
+    right: 0;
+    z-index: 999;
+    background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+    border-bottom: 1px solid var(--panel-border);
+    box-shadow: 0 6px 18px var(--shadow-color);
+}
+
+.update-banner-inner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 8px 20px;
+    font-size: 13px;
+}
+
+.update-banner-text {
+    color: var(--page-text);
+}
+
+.update-banner-meta {
+    color: var(--page-muted);
+    margin-left: 8px;
+}
+
+.update-banner-error {
+    color: #f44336;
+}
+
+.update-banner-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.update-banner-btn {
+    background: var(--highlight-color);
+    color: #000;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: filter 0.2s;
+}
+
+.update-banner-btn:hover {
+    filter: brightness(1.15);
+}
+
+.update-banner-btn-ghost {
+    background: transparent;
+    color: var(--page-muted);
+    border: 1px solid var(--panel-border);
+}
+
+.update-banner-notes {
+    font-size: 12px;
+}
+
+.update-banner-notes summary {
+    color: var(--highlight-color);
+    cursor: pointer;
+    user-select: none;
+}
+
+.update-banner-notes pre {
+    max-height: 180px;
+    overflow: auto;
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--page-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.update-banner-progress {
+    flex: 1;
+    min-width: 160px;
+    height: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.update-banner-progress-fill {
+    height: 100%;
+    background: var(--highlight-color);
+    border-radius: 4px;
+    transition: width 0.2s;
+}
+
+body.has-update-banner .page-content {
+    margin-top: 108px;
+}
+
+/* Settings page updates panel */
+.updates-panel .updates-version-row {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 0 10px;
+    font-size: 13px;
+    color: var(--page-muted);
+}
+
+.updates-panel .updates-version-row strong {
+    color: var(--page-text);
+}
+
+.updates-panel .updates-size {
+    color: var(--page-muted);
+    font-size: 12px;
+}
+
+.updates-panel .updates-status {
+    margin: 6px 0;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--panel-border) 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--panel-border) 50%, transparent);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--page-text);
+}
+
+.updates-panel .updates-error {
+    background: color-mix(in srgb, #f44336 12%, var(--panel-bg));
+    border-color: color-mix(in srgb, #f44336 40%, transparent);
+    color: #f44336;
+}
+
+.updates-panel .update-banner-progress {
+    min-width: 0;
+}
+
+.updates-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.updates-actions .settings-btn {
+    margin-top: 0;
+}

@@ -207,8 +207,7 @@ SHIM_SCRIPT = """
     offTrainingProgress: () => { delete electron._handlers['_trainingProgressCallback']; },
 
     // ═══════════ Model Management ═══════════
-    modelDownload: async (modelId, outputDir, revision) => {
-      try { return await (await api()).model_download(modelId, outputDir || '', revision || 'main'); } catch(e) { return { success: false, error: String(e) }; }
+    modelDownload: async (modelId, outputDir, revision) => {      try { return await (await api()).model_download(modelId, outputDir || '', revision || 'main'); } catch(e) { return { success: false, error: String(e) }; }
     },
     modelDownloadCancel: async () => {
       try { return await (await api()).model_download_cancel(); } catch(e) { return { success: false }; }
@@ -233,6 +232,22 @@ SHIM_SCRIPT = """
     },
     onModelProgress: (callback) => { electron._handlers['_modelProgressCallback'] = callback; },
     offModelProgress: () => { delete electron._handlers['_modelProgressCallback']; },
+
+    // ═══════════ Updates ═══════════
+    updateCheck: async () => {
+      try { return await (await api()).update_check(); } catch(e) { return { available: false, error: String(e) }; }
+    },
+    updateDownload: async () => {
+      try { return await (await api()).update_download(); } catch(e) { return { started: false, error: String(e) }; }
+    },
+    updateInstall: async () => {
+      try { return await (await api()).update_install(); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    appQuit: async () => {
+      try { await (await api()).app_quit(); } catch(e) {}
+    },
+    onUpdateProgress: (callback) => { electron._handlers['_updateProgressCallback'] = callback; },
+    offUpdateProgress: () => { delete electron._handlers['_updateProgressCallback']; },
 
     // ═══════════ Dataset ═══════════
     datasetPreview: async (path, maxRows) => {
@@ -264,6 +279,14 @@ SHIM_SCRIPT = """
     arch: () => navigator.platform
   };
   console.log('[mama] pywebview compatibility shim loaded');
+
+  // Load the update banner UI (idempotent across page navigations)
+  if (!window.__mamaUpdaterLoaded) {
+    window.__mamaUpdaterLoaded = true;
+    var _u = document.createElement('script');
+    _u.src = '/components/elements/updater.js';
+    document.head.appendChild(_u);
+  }
 })();
 </script>
 """

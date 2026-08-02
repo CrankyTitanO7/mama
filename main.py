@@ -11,11 +11,6 @@ import threading
 import logging
 from pathlib import Path
 
-import webview
-
-from http_server import start_http_server
-from bridge import MamaApi
-
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 USER_SETTINGS_PATH = BASE_DIR / 'user' / 'settings.json'
@@ -86,13 +81,30 @@ def get_startup_page():
     return 'public/index.html'
 
 
-def main(): 
+def main():
 
     # argument parser for debug mode
     import argparse
     parser = argparse.ArgumentParser(description="the mama application: a GUI app for training ai based in pywebview")
     parser.add_argument("-d", "--debug", action="store_true", help="debug mode")
+    parser.add_argument("--apply-update", metavar="MARKER",
+                        help="internal: apply a staged update and exit (used by the auto-updater)")
     args = parser.parse_args()
+
+    # Internal updater mode: swap in the staged update, relaunch, exit.
+    # Runs before pywebview is imported so the swapper never loads GUI frameworks.
+    if args.apply_update:
+        from updater import apply_update
+        sys.exit(apply_update(args.apply_update))
+
+    # Crash recovery: if a staged update's owner process is gone, apply it now.
+    from updater import recover_pending
+    if recover_pending():
+        sys.exit(0)
+
+    import webview
+    from http_server import start_http_server
+    from bridge import MamaApi
 
     # Start the static HTTP server on a random port
     port = start_http_server(str(BASE_DIR))

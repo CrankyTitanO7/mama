@@ -43,8 +43,11 @@ jobs:
       - name: Package macOS
         if: runner.os == 'macOS'
         run: |
-          mkdir -p release
-          ditto -c -k --keepParent dist/mama.app release/mama-macos.zip
+          mkdir -p release/dmg
+          cp -R dist/mama.app release/dmg/
+          ln -s /Applications release/dmg/Applications
+          hdiutil create -volname mama -srcfolder release/dmg -ov -format UDZO release/mama-macos.dmg
+          rm -rf release/dmg
 
       - name: Package Windows
         if: runner.os == 'Windows'

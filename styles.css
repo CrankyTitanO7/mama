@@ -1419,6 +1419,10 @@ body.embed-fullscreen-active {
     margin-bottom: 16px;
 }
 
+#error-message {
+    color: var(--highlight-color);
+}
+
 .error-hint {
     font-size: 13px;
     color: var(--body-color);

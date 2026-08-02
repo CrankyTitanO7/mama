@@ -55,11 +55,14 @@
     </script>
 
     <div class="page-content error-page-shell">
-      <div class="error-page">
-        <h2>Something went wrong</h2>
-        <p id="error-message" class="error-message">An error occurred.</p>
-        <p class="error-hint">Update the provider in Settings from the top bar.</p>
-      </div>
+      <header class="hero-card" style="max-width: 640px; width: 100%; text-align: left;">
+        <div class="hero-card-text">
+          <h1>Something went wrong</h1>
+          <p class="hero-card-desc" id="error-message">An error occurred.</p>
+          <p class="error-hint" style="margin: 8px 0 0;">Update the provider in Settings from the top bar.</p>
+        </div>
+        <img src="images/error.png" alt="Error" class="hero-card-img">
+      </header>
     </div>
     <script>
       const params = new URLSearchParams(location.search);

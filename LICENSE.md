@@ -10,6 +10,9 @@
  */
 
 ## Third-Party Licenses
+licenses taken from the githubs of the templates referenced in this app, although
+no code from these templates was actually used in the creation and maintaining 
+of the app.
 
 ### pytorch template
 MIT License

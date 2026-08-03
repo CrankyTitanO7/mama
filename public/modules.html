@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>mama - Modules</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <script src="../components/elements/topbar.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        Topbar.init('modules');
+      });
+    </script>
+
+    <div class="page-content">
+      <header class="hero-card">
+        <div class="hero-card-text">
+          <h1>Modules</h1>
+          <p class="hero-card-desc">Install and uninstall AI training modules for this machine.</p>
+        </div>
+      </header>
+      <div id="modules-content"></div>
+    </div>
+
+    <script src="../components/pages/modules.js"></script>
+    <script src="../components/styling/theme.js"></script>
+  </body>
+</html>

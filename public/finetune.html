@@ -27,7 +27,7 @@
         <button class="ft-tab" data-tab="model">1. Model</button>
         <button class="ft-tab" data-tab="dataset">2. Dataset</button>
         <button class="ft-tab" data-tab="config">3. Configure</button>
-        <button class="ft-tab" data-tab="train">4. Train</button>
+        <button class="ft-tab" data-tab="train">4. Confirm Point</button>
       </div>
 
       <!-- Tab: Step 0 - Start -->
@@ -288,13 +288,20 @@
         </div>
       </div>
 
-      <!-- Tab: Training View (embedded) -->
+      <!-- Tab: Step 4 - Confirmation screen -->
       <div class="ft-tab-content" id="ft-tab-train">
-        <div id="ft-train-tab-config-summary">
-          <p>Fill out the previous steps to generate a training configuration, then start training below.</p>
+        <div class="ft-section">
+          <h2>Review Your Configuration</h2>
+          <p>Step 4 is your confirmation screen. Review the configuration below, then start training — or generate a ready-to-run Axolotl YAML / Google Colab notebook on the Export page instead.</p>
         </div>
+
+        <div id="ft-train-tab-config-summary" class="ft-config-summary-stage">
+          <p>Complete steps 1-3 to generate a training configuration, then confirm below.</p>
+        </div>
+
         <div class="ft-field ft-field-row">
           <button id="ft-start-train-from-step4" class="settings-btn settings-btn-success" style="font-size:16px;padding:14px 32px">Start Training</button>
+          <button id="ft-export-axolotl-colab" class="settings-btn settings-btn-secondary" style="font-size:15px;padding:12px 22px">Generate Axolotl YAML or Colab Notebook</button>
           <button id="ft-go-training" class="settings-btn settings-btn-primary">Open Training Monitor</button>
         </div>
       </div>

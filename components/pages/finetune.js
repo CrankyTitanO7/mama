@@ -871,8 +871,16 @@ const Finetune = (() => {
       return;
     }
 
-    sessionStorage.setItem('pendingTrainingConfig', JSON.stringify(cfg));
-    window.electron.navigateTo('public/training.html');
+    // Persist the generated config so step 4 (confirmation) and the Export
+    // page (Axolotl YAML / Colab) can pick it up even before training runs.
+    if (window.electron.trainConfigSave) {
+      window.electron.trainConfigSave(cfg.output_dir, JSON.stringify(cfg)).catch(() => {});
+    }
+
+    // Work-from-example: generate the config, then land on step 4 which now
+    // acts as a confirmation screen (review + confirm) rather than jumping
+    // straight into the training monitor.
+    switchTab('train');
   }
 
   function buildConfig() {
@@ -951,15 +959,40 @@ const Finetune = (() => {
     const cfg = buildConfig();
     const summary = document.getElementById('ft-train-tab-config-summary');
     if (cfg.model_name_or_path && cfg.dataset_path && cfg.output_dir) {
+      const method = cfg.use_qlora ? 'QLoRA' : cfg.use_lora ? 'LoRA' : 'Full';
+      const backend = cfg.training_backend === 'axolotl' ? 'Axolotl (Linux + CUDA)' : 'Built-in (TRL)';
+      const effectiveBatch = (cfg.per_device_train_batch_size || 2) * (cfg.gradient_accumulation_steps || 4);
+      const details = [
+        ['Backend', backend],
+        ['Method', method],
+        ['Model', cfg.model_name_or_path],
+        ['Dataset', cfg.dataset_path],
+        ['Text column', cfg.text_column || 'text'],
+        ['Max samples', cfg.max_samples ? String(cfg.max_samples) : 'All'],
+        ['Output dir', cfg.output_dir],
+        ['Sequence length', String(cfg.max_seq_length || 2048)],
+        ['Effective batch size', String(effectiveBatch)],
+        ['Learning rate', String(cfg.learning_rate || 2e-4)],
+        ['Epochs', String(cfg.num_train_epochs || 3)],
+        ['Warmup steps', String(cfg.warmup_steps || 100)],
+        ['Save steps', String(cfg.save_steps || 500)],
+        ['Scheduler', cfg.lr_scheduler_type || 'cosine'],
+      ].map(([k, v]) => `
+        <div class="ft-confirm-row">
+          <span class="ft-confirm-key">${escapeHtml(k)}</span>
+          <span class="ft-confirm-value">${escapeHtml(v)}</span>
+        </div>`).join('');
+
       summary.innerHTML = `
-        <div class="train-config-summary">
-          <p><strong>Model:</strong> ${escapeHtml(cfg.model_name_or_path)}</p>
-          <p><strong>Dataset:</strong> ${escapeHtml(cfg.dataset_path)}</p>
-          <p><strong>Output:</strong> ${escapeHtml(cfg.output_dir)}</p>
-          <p><strong>Method:</strong> ${cfg.use_qlora ? 'QLoRA' : cfg.use_lora ? 'LoRA' : 'Full'}</p>
+        <div class="ft-confirm-card">
+          <div class="ft-confirm-head">
+            <span>Configuration Summary</span>
+            <span class="ft-confirm-ok">Ready to confirm</span>
+          </div>
+          ${details}
         </div>`;
     } else {
-      summary.innerHTML = `<p>Complete steps 1-3 to generate a training configuration, then start training below.</p>`;
+      summary.innerHTML = `<p>Complete steps 1-3 to generate a training configuration, then confirm below.</p>`;
     }
   }
 
@@ -1140,6 +1173,9 @@ const Finetune = (() => {
 
     // Training tab
     document.getElementById('ft-start-train-from-step4')?.addEventListener('click', startTraining);
+    document.getElementById('ft-export-axolotl-colab')?.addEventListener('click', () => {
+      window.electron.navigateTo('public/export.html');
+    });
     document.getElementById('ft-go-training')?.addEventListener('click', () => {
       window.electron.navigateTo('public/training.html');
     });

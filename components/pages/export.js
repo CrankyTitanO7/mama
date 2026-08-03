@@ -18,6 +18,7 @@ const ExportPage = (() => {
     document.getElementById('export-btn-colab')?.addEventListener('click', () => exportTo('colab'));
     document.getElementById('export-btn-js')?.addEventListener('click', () => exportTo('js'));
     document.getElementById('export-btn-ollama')?.addEventListener('click', () => exportTo('ollama'));
+    document.getElementById('export-btn-axolotl')?.addEventListener('click', () => exportTo('axolotl'));
 
     tryAutoDetect();
   }
@@ -65,6 +66,15 @@ const ExportPage = (() => {
               </div>
               <button type="button" id="export-btn-ollama" class="settings-btn settings-btn-primary" disabled>Export</button>
             </div>
+
+            <div class="export-card" id="export-card-axolotl">
+              <div class="export-card-icon">📄</div>
+              <div class="export-card-body">
+                <h4>Axolotl YAML</h4>
+                <p>Generate an Axolotl training config (<code>config.yaml</code>) from <code>training_config.json</code> for the Linux + CUDA power backend.</p>
+              </div>
+              <button type="button" id="export-btn-axolotl" class="settings-btn settings-btn-primary" disabled>Export</button>
+            </div>
           </div>
         </div>
 
@@ -78,10 +88,11 @@ const ExportPage = (() => {
     document.getElementById('export-btn-colab')?.addEventListener('click', () => exportTo('colab'));
     document.getElementById('export-btn-js')?.addEventListener('click', () => exportTo('js'));
     document.getElementById('export-btn-ollama')?.addEventListener('click', () => exportTo('ollama'));
+    document.getElementById('export-btn-axolotl')?.addEventListener('click', () => exportTo('axolotl'));
   }
 
   function updateButtons(enabled) {
-    ['colab', 'js', 'ollama'].forEach(type => {
+    ['colab', 'js', 'ollama', 'axolotl'].forEach(type => {
       const btn = document.getElementById(`export-btn-${type}`);
       if (btn) btn.disabled = !enabled;
     });
@@ -171,12 +182,15 @@ const ExportPage = (() => {
         case 'ollama':
           result = await window.electron.exportRunOllama(currentOutputDir);
           break;
+        case 'axolotl':
+          result = await window.electron.exportRunAxolotl(currentOutputDir);
+          break;
       }
 
       if (result.success) {
         const notes = [];
-        if (type === 'colab' && result.has_config === false) {
-          notes.push('No training_config.json found. The notebook includes default placeholder settings — edit the CONFIG cell before running.');
+        if ((type === 'colab' || type === 'axolotl') && result.has_config === false) {
+          notes.push('No training_config.json found. The export includes default placeholder settings — edit them before running.');
         }
         if (type !== 'colab' && result.has_model === false) {
           notes.push('No trained model found in this folder. The template has been copied but you will need to provide a model manually.');
@@ -218,14 +232,14 @@ const ExportPage = (() => {
     const el = document.getElementById('export-result');
     if (!el) return;
 
-    const labels = { colab: 'Google Colab', js: 'JavaScript', ollama: 'Ollama' };
+    const labels = { colab: 'Google Colab', js: 'JavaScript', ollama: 'Ollama', axolotl: 'Axolotl YAML' };
     const label = labels[type] || type;
     const path = result.path || '';
     const command = result.ollama_command || '';
 
     const notes = [];
-    if (type === 'colab' && result.has_config === false) {
-      notes.push('No training_config.json was found. The notebook contains default placeholder settings — edit the CONFIG cell before running in Colab.');
+    if ((type === 'colab' || type === 'axolotl') && result.has_config === false) {
+      notes.push('No training_config.json was found. The export contains default placeholder settings — edit them before running.');
     }
     if (type !== 'colab' && result.has_model === false) {
       notes.push('No trained model was found in this folder. Edit the exported files to point to your model before using.');
@@ -235,7 +249,11 @@ const ExportPage = (() => {
     }
 
     let extraHtml = '';
-    if (notes.length) {
+    const yamlText = result.yaml || '';
+    if (yamlText) {
+      extraHtml += '<p class="export-ollama-cmd">Generated Axolotl config:</p>';
+      extraHtml += `<pre class="export-ollama-command">${escapeHtml(yamlText)}</pre>`;
+    } else if (notes.length) {
       extraHtml += '<div class="export-notes">' + notes.map(n => '<p>' + escapeHtml(n) + '</p>').join('') + '</div>';
     }
     if (command) {
@@ -243,14 +261,15 @@ const ExportPage = (() => {
                     <pre class="export-ollama-command">${escapeHtml(command)}</pre>`;
     }
 
+    const copyTarget = command || yamlText || path;
     el.innerHTML = `
       <h4>${label} Export — Complete</h4>
       <p>Exported to: <code>${escapeHtml(path)}</code></p>
       ${extraHtml}
       <button type="button" class="settings-btn settings-btn-secondary" onclick="
-        navigator.clipboard.writeText(${JSON.stringify(command || path)});
+        navigator.clipboard.writeText(${JSON.stringify(copyTarget)});
         this.textContent = 'Copied!';
-        setTimeout(() => this.textContent = 'Copy Path', 2000);
+        setTimeout(() => this.textContent = 'Copy ${command ? 'Command' : yamlText ? 'YAML' : 'Path'}', 2000);
       ">Copy Path</button>
     `;
     el.style.display = 'block';

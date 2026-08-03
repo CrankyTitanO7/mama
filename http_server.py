@@ -209,6 +209,9 @@ SHIM_SCRIPT = """
     trainAxolotlWriteConfig: async (outputDir, configJson) => {
       try { return await (await api()).train_axolotl_write_config(outputDir || '', configJson || ''); } catch(e) { return { success: false, error: String(e) }; }
     },
+    trainConfigSave: async (outputDir, configJson) => {
+      try { return await (await api()).train_config_save(outputDir || '', configJson || ''); } catch(e) { return { success: false, error: String(e) }; }
+    },
     onTrainingProgress: (callback) => { electron._handlers['_trainingProgressCallback'] = callback; },
     offTrainingProgress: () => { delete electron._handlers['_trainingProgressCallback']; },
 
@@ -272,6 +275,9 @@ SHIM_SCRIPT = """
     },
     exportRunOllama: async (outputDir) => {
       try { return await (await api()).export_run_ollama(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    exportRunAxolotl: async (outputDir) => {
+      try { return await (await api()).export_run_axolotl(outputDir); } catch(e) { return { success: false, error: String(e) }; }
     },
 
     onBeforeQuit: (callback) => { /* no-op in pywebview */ },

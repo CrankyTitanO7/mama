@@ -1659,6 +1659,26 @@ class MamaApi:
             logger.error('train_start failed: %s', e)
             return {'success': False, 'error': str(e)}
 
+    def train_config_save(self, output_dir: str, config_json: str) -> dict:
+        """Persist a mama training config as training_config.json in an output folder.
+
+        Used so the confirmation screen / export page can point at a real
+        config before training has ever been launched.
+        """
+        try:
+            out = Path(output_dir)
+            if not output_dir:
+                return {'success': False, 'error': 'output_dir is required'}
+            out.mkdir(parents=True, exist_ok=True)
+            cfg = json.loads(config_json)
+            cfg_path = out / 'training_config.json'
+            cfg_path.write_text(json.dumps(cfg, indent=2), 'utf-8')
+            logger.info('Saved training config to %s', cfg_path)
+            return {'success': True, 'path': str(cfg_path)}
+        except Exception as e:
+            logger.error('train_config_save failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
     def train_axolotl_write_config(self, output_dir: str, config_json: str) -> dict:
         """Generate a standalone Axolotl YAML config into an output directory.
 
@@ -2578,6 +2598,37 @@ SYSTEM \"\"\"You are a model trained with mama. Respond to the user's queries.
             }
         except Exception as e:
             logger.error('export_run_ollama failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def export_run_axolotl(self, output_dir: str) -> dict:
+        """Export an Axolotl YAML config from the training config in an output folder."""
+        try:
+            out = Path(output_dir)
+            if not out.exists():
+                return {'success': False, 'error': 'Output directory does not exist'}
+
+            cfg_path = out / 'training_config.json'
+            has_config = cfg_path.exists()
+            if has_config:
+                cfg = json.loads(cfg_path.read_text('utf-8'))
+            else:
+                # No config yet: still produce a usable YAML from placeholder
+                # settings so the user can drop them into a real output folder.
+                cfg = {
+                    'model_name_or_path': 'HuggingFaceTB/SmolLM2-135M-Instruct',
+                    'dataset_path': 'trl-lib/Capybara',
+                    'output_dir': str(out),
+                    'text_column': 'text',
+                    'use_lora': True,
+                    'use_qlora': False,
+                }
+
+            result = self.train_axolotl_write_config(str(out), json.dumps(cfg))
+            if result.get('success'):
+                result['has_config'] = has_config
+            return result
+        except Exception as e:
+            logger.error('export_run_axolotl failed: %s', e)
             return {'success': False, 'error': str(e)}
 
     # ═══════════════════════════════════════════════════════════════════════

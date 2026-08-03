@@ -2966,6 +2966,61 @@ body.embed-fullscreen-active {
     margin-top: auto;
 }
 
+/* Step 4 - confirmation screen */
+.ft-config-summary-stage {
+    margin-bottom: 24px;
+}
+
+.ft-confirm-card {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    max-width: 720px;
+}
+
+.ft-confirm-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--page-text);
+}
+
+.ft-confirm-ok {
+    font-size: 12px;
+    font-weight: 600;
+    color: #81c784;
+    background: rgba(76, 175, 80, 0.15);
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.ft-confirm-row {
+    display: flex;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 13px;
+}
+
+.ft-confirm-row:last-child {
+    border-bottom: none;
+}
+
+.ft-confirm-key {
+    flex: 0 0 160px;
+    color: var(--body-color);
+}
+
+.ft-confirm-value {
+    flex: 1;
+    color: var(--page-text);
+    word-break: break-word;
+}
+
 .ft-field {
     margin-bottom: 16px;
 }

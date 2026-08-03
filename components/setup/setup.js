@@ -88,7 +88,7 @@
         <div id="setup-actions">
           <button id="setup-back"   class="setup-btn setup-btn-secondary">← Back</button>
           <button id="setup-next"   class="setup-btn setup-btn-primary">Next →</button>
-          <button id="setup-skip"   class="setup-btn setup-btn-secondary">Skip →→→</button>
+          <button id="setup-skip"   class="setup-btn setup-btn-secondary">Skip for now</button>
           <button id="setup-finish" class="setup-btn setup-btn-success" style="display:none">✓ Finish</button>
         </div>
       `;
@@ -100,25 +100,13 @@
       // 6. Load settings and wire up navigation
       await window.__setupSettings.loadSettings();
 
-      // If the difficulty step module is missing (e.g. failed to load), default to hard mode
-      const hasDifficultyStep = (window.__setupSteps || []).some(st => st.id === 'difficulty');
-      if (!hasDifficultyStep) {
-        window.__setupState.difficulty = 'hard';
+      // If the config step module is missing (e.g. failed to load), default to easy mode
+      const hasConfigStep = (window.__setupSteps || []).some(st => st.id === 'config');
+      if (!hasConfigStep) {
+        window.__setupState.difficulty = 'easy';
       }
 
-      // Override next button to inject reading modules after difficulty selection
-      document.getElementById('setup-next')?.addEventListener('click', async () => {
-        const s = window.__setupState;
-        const steps = window.__setupSteps || [];
-        const currentStep = steps[s.currentStep];
-
-        // If we're on the difficulty step, load reading modules before proceeding
-        if (currentStep && currentStep.id === 'difficulty') {
-          await loadReadingModules(s.difficulty);
-        }
-
-        await window.__setupRender.nextStep();
-      });
+      document.getElementById('setup-next')?.addEventListener('click', () => window.__setupRender.nextStep());
       document.getElementById('setup-back')?.addEventListener('click', () => window.__setupRender.prevStep());
       document.getElementById('setup-finish')?.addEventListener('click', () => window.__setupSettings.collectAndSave());
       document.getElementById('setup-skip')?.addEventListener('click', async () => {
@@ -142,6 +130,8 @@
   });
 
   // ── Utility: dynamically load a script and wait for it to execute ──────
+  // Exposed so step modules (e.g. the auto-setup loading screen) can lazy-load
+  // the reading modules at runtime.
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[src="${src}"]`);
@@ -154,56 +144,6 @@
       document.head.appendChild(script);
     });
   }
-
-  // ── Load reading modules based on difficulty ──────────────────────────
-  // Called after the user selects a difficulty and clicks "Next".
-  // Each reading module pushes itself to window.__setupSteps.
-  // After loading, we re-sort steps to insert reading modules after "welcome".
-  async function loadReadingModules(difficulty) {
-    const readingScripts = [];
-
-    if (difficulty === 'easy') {
-      readingScripts.push(
-        '../components/setup/modules/reading/reading-ai.js',
-        '../components/setup/modules/reading/reading-ml.js',
-        '../components/setup/modules/reading/reading-python.js',
-        '../components/setup/modules/reading/reading-dependencies.js'
-      );
-    } else if (difficulty === 'medium') {
-      readingScripts.push(
-        '../components/setup/modules/reading/reading-why-python.js',
-        '../components/setup/modules/reading/reading-how-python.js'
-      );
-    }
-    // hard mode: no reading modules
-
-    if (readingScripts.length === 0) return;
-
-    // Load all reading module scripts
-    for (const src of readingScripts) {
-      await loadScript(src);
-    }
-
-    // Re-sort steps: keep difficulty + welcome at the front, then reading modules,
-    // then the rest of the original steps (excluding difficulty which is already first)
-    const steps = window.__setupSteps || [];
-    const readingIds = readingScripts.map(s => {
-      // Extract the filename without extension to derive the step id
-      const match = s.match(/reading\/(.+)\.js$/);
-      return match ? match[1] : null;
-    }).filter(Boolean);
-
-    // Build ordered list: difficulty, welcome, reading modules, then everything else
-    const nonReadingSteps = steps.filter(st => !readingIds.includes(st.id) && st.id !== 'difficulty' && st.id !== 'welcome');
-    const welcomeStep = steps.find(st => st.id === 'welcome');
-    const readingSteps = readingIds.map(id => steps.find(st => st.id === id)).filter(Boolean);
-
-    window.__setupSteps = [
-      steps.find(st => st.id === 'difficulty'), // already first
-      ...(welcomeStep ? [welcomeStep] : []),
-      ...readingSteps,
-      ...nonReadingSteps
-    ].filter(Boolean);
-  }
+  window.__setupLoadScript = loadScript;
 
 })();

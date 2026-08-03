@@ -888,6 +888,142 @@ a:hover {
 }
 
 /* ============================================
+   Setup: Get Started (combined config screen)
+   ============================================ */
+.setup-config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 8px 0;
+}
+
+@media (max-width: 640px) {
+    .setup-config-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================
+   Setup: summary card (Set Up This Project?)
+   ============================================ */
+.setup-summary-card {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 8px 16px;
+    margin: 16px 0;
+}
+
+.setup-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 9px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--widget-border) 60%, transparent);
+    font-size: 14px;
+}
+
+.setup-summary-row:last-child {
+    border-bottom: none;
+}
+
+.setup-summary-row span {
+    color: var(--body-color);
+}
+
+.setup-summary-row strong {
+    color: var(--page-text);
+    text-align: right;
+    word-break: break-all;
+}
+
+/* ============================================
+   Setup: Auto-setup loading screen
+   ============================================ */
+.auto-checklist {
+    list-style: none;
+    margin: 12px 0 16px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.auto-checklist li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.auto-phase-icon {
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.auto-phase-label {
+    color: var(--page-text);
+    font-weight: 500;
+}
+
+.auto-phase-detail {
+    color: var(--body-color);
+    font-size: 13px;
+    font-style: italic;
+    overflow-wrap: break-word;
+}
+
+.auto-checklist li[data-state="busy"] {
+    border-color: var(--highlight-color);
+}
+
+.auto-checklist li[data-state="error"] {
+    border-color: #f44336;
+}
+
+.auto-checklist li[data-state="ok"] .auto-phase-label {
+    color: var(--success-color, #4caf50);
+}
+
+.auto-reading-wrap {
+    margin: 8px 0 16px;
+}
+
+.auto-reading-header {
+    font-size: 12px;
+    color: var(--body-color);
+    font-style: italic;
+    margin-bottom: 8px;
+}
+
+.auto-reading {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.auto-terminal-hard {
+    height: 560px;
+}
+
+.auto-terminal-hidden {
+    height: 320px;
+}
+
+.auto-success-card {
+    margin-top: 4px;
+}
+
+/* ============================================
    Topbar
    ============================================ */
 .topbar {

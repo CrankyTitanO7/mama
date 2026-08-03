@@ -181,6 +181,13 @@
       const hw   = () => sc['hardware settings']    = sc['hardware settings']    || {};
 
       switch (step.id) {
+        case 'config':
+          Object.assign(sc['aesthetic settings'], {
+            appearance:       data.appearance,
+            'scaling factor': data['scaling factor'] ?? 1,
+          });
+          sc['general settings'].language = data.language ?? 'eng';
+          break;
         case 'language':     sc['general settings'].language = data; break;
         case 'appearance':   Object.assign(sc['aesthetic settings'], data); break;
         case 'os-detect':    Object.assign(si(), { 'OS full': data['OS full'], 'OS pretty': data['OS pretty'], 'OS kernel': data['OS kernel'], 'Architecture': data['Architecture'] }); break;
@@ -281,6 +288,28 @@
         s.currentStep--;
         await window.__setupRender.renderStep();
       }
+    },
+
+    // Jump from the "Set Up This Project?" step into the hands-free auto
+    // installer. The auto step is inserted right after the confirm step so
+    // the Back button lands on the confirm screen.
+    async startAutoSetup() {
+      const steps = window.__setupSteps || [];
+      const s     = window.__setupState;
+      const autoStep = window.__autoStep;
+      if (!autoStep) {
+        console.error('Auto-setup step is not loaded.');
+        return;
+      }
+      let idx = steps.findIndex(st => st.id === 'auto');
+      if (idx === -1) {
+        const confirmIdx = steps.findIndex(st => st.id === 'confirm');
+        const insertAt = (confirmIdx === -1 ? s.currentStep : confirmIdx) + 1;
+        steps.splice(insertAt, 0, autoStep);
+        idx = steps.indexOf(autoStep);
+      }
+      s.currentStep = idx;
+      await window.__setupRender.renderStep();
     },
   };
 

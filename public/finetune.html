@@ -149,8 +149,18 @@
                 <option value="unsloth">Unsloth - fast (CUDA / Apple Silicon)</option>
                 <option value="trl" selected>Built-in (TRL) - cross-platform</option>
                 <option value="axolotl">Axolotl - power (Linux + CUDA)</option>
+                <option value="custom">Custom Script - run your own .py</option>
               </select>
               <span class="ft-hint" id="ft-backend-hint">Built-in backend works everywhere (CPU / MPS / CUDA)</span>
+            </div>
+
+            <div class="ft-field" id="ft-custom-script-field" style="display:none;grid-column:1/-1">
+              <label>Custom Training Script</label>
+              <div class="ft-file-picker">
+                <input type="text" id="ft-custom-script" class="ft-input" placeholder="Path to your Python training script">
+                <button id="ft-custom-script-browse" class="settings-btn settings-btn-secondary">Browse</button>
+              </div>
+              <span class="ft-hint">Runs <code>python &lt;script&gt; --config training_config.json</code>. Your script reads the config from <code>--config</code>; JSON IPC lines are shown live in the Training Monitor.</span>
             </div>
 
             <div class="ft-field">
@@ -275,6 +285,7 @@
             <div class="ft-field ft-field-row">
               <button id="ft-gen-yaml" class="settings-btn settings-btn-secondary">Generate Axolotl YAML</button>
               <button id="ft-gen-unsloth" class="settings-btn settings-btn-secondary">Generate Unsloth Script</button>
+              <button id="ft-gen-run-unsloth" class="settings-btn settings-btn-success">Generate &amp; Run Unsloth Script</button>
               <button id="ft-import-unsloth" class="settings-btn settings-btn-secondary">Import Unsloth Script</button>
               <span class="ft-hint" id="ft-gen-yaml-status"></span>
             </div>

@@ -12,6 +12,7 @@ import re
 import subprocess
 import shutil
 import platform
+import signal
 import threading
 import logging
 import time
@@ -1641,6 +1642,8 @@ class MamaApi:
             return self._train_start_axolotl(cfg, config_path, python)
         if backend in ('unsleth', 'unsl', 'us'):
             return self._train_start_unsloth(cfg, config_path, python)
+        if backend in ('custom', 'cs', 'script'):
+            return self._train_start_custom(cfg, config_path, python)
 
         # ── Step 1: Install dependencies (no torch/tf) ─────────────────
         self._enqueue_emit('_trainingProgressCallback', {
@@ -1909,6 +1912,117 @@ class MamaApi:
             return {'success': True, 'config_path': str(config_path), 'backend': 'unsloth'}
         except Exception as e:
             logger.error('_train_start_unsloth failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def _watch_training_control_files(proc: subprocess.Popen, output_dir: str):
+        """Watch .pause / .cancel marker files and signal the process group.
+
+        Mirrors the control-file behaviour of train_unsloth.py: cancel sends
+        SIGTERM (then SIGKILL) to the whole group, pause SIGSTOPs it and
+        resume SIGCONTs it. Used for user-supplied scripts so the Training
+        Monitor's Pause / Resume / Cancel buttons work with the Custom
+        backend too.
+        """
+        pause_file = Path(output_dir) / '.pause'
+        cancel_file = Path(output_dir) / '.cancel'
+        paused = False
+        while proc.poll() is None:
+            try:
+                if cancel_file.exists():
+                    pgid = os.getpgid(proc.pid)
+                    os.killpg(pgid, signal.SIGTERM)
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(pgid, signal.SIGKILL)
+                    return
+                if pause_file.exists() and not paused:
+                    paused = True
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGSTOP)
+                    except (ProcessLookupError, PermissionError, OSError):
+                        pass
+                elif not pause_file.exists() and paused:
+                    paused = False
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGCONT)
+                    except (ProcessLookupError, PermissionError, OSError):
+                        pass
+            except (ProcessLookupError, PermissionError, OSError):
+                return
+            time.sleep(1)
+
+    def _train_start_custom(self, cfg: dict, config_path, python: str) -> dict:
+        """Run a user-supplied Python training script (the Custom backend).
+
+        Spawns `python <script> --config <config_path>` inside its own
+        process group and streams stdout/stderr over the same IPC protocol
+        as the other backends (JSON lines like {"type": "metric"/"status"/
+        "progress"/"error"} are forwarded as-is; anything else becomes a
+        log entry). The script reads the mama training config from the path
+        given by --config. Pause / Resume / Cancel markers in the output
+        directory are applied to the whole process group.
+        """
+        script_path = str(cfg.get('custom_script') or '').strip()
+        if not script_path:
+            return {'success': False,
+                    'error': 'custom_script is required when training_backend is "custom"'}
+        if not Path(script_path).exists():
+            return {'success': False, 'error': f'Custom script not found: {script_path}'}
+        output_dir = str(cfg.get('output_dir') or '')
+
+        try:
+            proc = subprocess.Popen(
+                [python, script_path, '--config', str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                start_new_session=True,
+                env={**os.environ},
+            )
+            self._training_process = proc
+
+            def read_stream(stream, stream_type):
+                for line in iter(stream.readline, ''):
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            data['_stream'] = stream_type
+                            self._enqueue_emit('_trainingProgressCallback', data)
+                        except json.JSONDecodeError:
+                            self._enqueue_emit('_trainingProgressCallback', {
+                                'type': stream_type,
+                                'text': line,
+                                '_stream': stream_type,
+                            })
+                stream.close()
+
+            stdout_thread = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
+            stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+
+            def wait_thread():
+                proc.wait()
+                stdout_thread.join(timeout=5)
+                stderr_thread.join(timeout=5)
+                self._enqueue_emit('_trainingProgressCallback', {'type': 'done', 'code': proc.returncode or 0})
+                self._training_process = None
+
+            self._training_thread = threading.Thread(target=wait_thread, daemon=True)
+            self._training_thread.start()
+
+            if output_dir:
+                threading.Thread(
+                    target=self._watch_training_control_files,
+                    args=(proc, output_dir), daemon=True).start()
+
+            return {'success': True, 'config_path': str(config_path), 'backend': 'custom',
+                    'script': script_path}
+        except Exception as e:
+            logger.error('_train_start_custom failed: %s', e)
             return {'success': False, 'error': str(e)}
 
     def train_unsloth_check(self) -> dict:

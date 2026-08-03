@@ -479,6 +479,10 @@ const TrainingMonitor = (() => {
       badge.style.display = '';
       badge.classList.add('badge-unsloth');
       badge.classList.remove('badge-axolotl');
+    } else if (String(backend).toLowerCase().startsWith('cus')) {
+      badge.textContent = 'Backend: Custom script';
+      badge.style.display = '';
+      badge.classList.remove('badge-axolotl', 'badge-unsloth');
     } else {
       badge.textContent = 'Backend: Built-in (TRL)';
       badge.style.display = '';

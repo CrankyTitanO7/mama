@@ -232,7 +232,8 @@ def main():
                 'On Debian/Ubuntu, install the WebKit2GTK runtime and its '
                 'GObject introspection bindings, e.g.:\n'
                 '  sudo apt install libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1\n'
-                'On Fedora: sudo dnf install webkit2gtk4.1' % exc,
+                'On Fedora: sudo dnf install webkit2gtk4.1\n'
+                'On Arch/EndeavourOS: sudo pacman -S webkit2gtk-4.1' % exc,
                 file=sys.stderr,
             )
         sys.exit(1)

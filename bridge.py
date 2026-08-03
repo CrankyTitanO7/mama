@@ -1564,6 +1564,11 @@ class MamaApi:
         if not python:
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
 
+        # ── Backend routing ───────────────────────────────────────────
+        backend = str(cfg.get('training_backend') or 'trl').lower()
+        if backend in ('axolotl', 'axol', 'axoly'):
+            return self._train_start_axolotl(cfg, config_path, python)
+
         # ── Step 1: Install dependencies (no torch/tf) ─────────────────
         self._enqueue_emit('_trainingProgressCallback', {
             'type': 'install_status', 'stage': 'install',
@@ -1652,6 +1657,105 @@ class MamaApi:
             return {'success': True, 'config_path': str(config_path)}
         except Exception as e:
             logger.error('train_start failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def train_axolotl_write_config(self, output_dir: str, config_json: str) -> dict:
+        """Generate a standalone Axolotl YAML config into an output directory.
+
+        Lets the user inspect/preview the exact YAML that an Axolotl run would
+        use without launching training. Returns the YAML text and its path.
+        """
+        try:
+            cfg = json.loads(config_json)
+            output_dir = output_dir or cfg.get('output_dir')
+            if not output_dir:
+                return {'success': False, 'error': 'output_dir is required'}
+            script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train_axolotl.py')
+            python = self._get_training_python()
+            if not python:
+                return {'success': False, 'error': 'Python 3 not found'}
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            cfg_path = output_path / 'training_config.json'
+            cfg_path.write_text(json.dumps(cfg, indent=2), 'utf-8')
+
+            result = self._run_script(
+                script, ['--config', str(cfg_path), '--gen-config'],
+                timeout=60_000, python_exe=python
+            )
+            if result['code'] != 0:
+                return {'success': False, 'error': result.get('stderr') or 'Failed to build Axolotl config'}
+            yaml_text = ''
+            for line in reversed(result['stdout'].strip().split('\n')):
+                if line.startswith('{'):
+                    try:
+                        data = json.loads(line)
+                        if data.get('type') == 'axolotl_config':
+                            yaml_text = data.get('yaml', '')
+                            break
+                    except Exception:
+                        pass
+            yaml_path = output_path / 'config.yaml'
+            if not yaml_text:
+                yaml_text = yaml_path.read_text('utf-8') if yaml_path.exists() else ''
+            return {'success': True, 'path': str(yaml_path), 'yaml': yaml_text}
+        except Exception as e:
+            logger.error('train_axolotl_write_config failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def _train_start_axolotl(self, cfg: dict, config_path, python: str) -> dict:
+        """Spawn the Axolotl (power) backend runner.
+
+        Unlike the built-in TRL backend there is no separate dependency
+        install step: train_axolotl.py installs axolotl (if missing) itself
+        and assumes PyTorch (CUDA) was installed by the Setup wizard.
+        """
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train_axolotl.py')
+
+        try:
+            proc = subprocess.Popen(
+                [python, script, '--config', str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env={**os.environ},
+            )
+            self._training_process = proc
+
+            def read_stream(stream, stream_type):
+                for line in iter(stream.readline, ''):
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            data['_stream'] = stream_type
+                            self._enqueue_emit('_trainingProgressCallback', data)
+                        except json.JSONDecodeError:
+                            self._enqueue_emit('_trainingProgressCallback', {
+                                'type': stream_type,
+                                'text': line,
+                                '_stream': stream_type,
+                            })
+                stream.close()
+
+            stdout_thread = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
+            stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+
+            def wait_thread():
+                proc.wait()
+                stdout_thread.join(timeout=5)
+                stderr_thread.join(timeout=5)
+                self._enqueue_emit('_trainingProgressCallback', {'type': 'done', 'code': proc.returncode or 0})
+                self._training_process = None
+
+            self._training_thread = threading.Thread(target=wait_thread, daemon=True)
+            self._training_thread.start()
+
+            return {'success': True, 'config_path': str(config_path), 'backend': 'axolotl'}
+        except Exception as e:
+            logger.error('_train_start_axolotl failed: %s', e)
             return {'success': False, 'error': str(e)}
 
     def train_pause(self, output_dir: str) -> dict:
@@ -2274,6 +2378,41 @@ class MamaApi:
         if not python:
             return {'success': False, 'error': 'Python 3 not found'}
         result = self._run_script(script, ['--platform-check'], timeout=60_000, python_exe=python)
+        if result['code'] == 0 and result['stdout']:
+            for line in reversed(result['stdout'].strip().split('\n')):
+                if line.startswith('{'):
+                    try:
+                        data = json.loads(line)
+                        if data.get('type') == 'platform_check':
+                            return {'success': True, **data}
+                    except Exception:
+                        pass
+        return {'success': False, 'error': result.get('stderr', 'Unknown error')}
+
+    def train_axolotl_check(self) -> dict:
+        """Check whether the Axolotl (power) backend can be used.
+
+        The Axolotl backend targets Linux + CUDA. On other platforms verdict
+        comes back unsupported so the UI can select the built-in TRL backend
+        instead. A real CUDA/torch probe is delegated to train_axolotl.py's
+        --platform-check mode.
+        """
+        if sys.platform.startswith('darwin') or sys.platform == 'win32':
+            return {
+                'success': True,
+                'backend': 'axolotl',
+                'supported': False,
+                'device': 'mps' if sys.platform.startswith('darwin') else 'cpu',
+                'cuda_available': False,
+                'axolotl_installed': None,
+                'reason': 'Axolotl requires Linux + CUDA; use the built-in TRL backend on this OS.',
+            }
+
+        script = str(self._base_dir / 'components' / 'backend' / 'training' / 'train_axolotl.py')
+        python = self._get_training_python()
+        if not python:
+            return {'success': False, 'error': 'Python 3 not found'}
+        result = self._run_script(script, ['--platform-check'], timeout=120_000, python_exe=python)
         if result['code'] == 0 and result['stdout']:
             for line in reversed(result['stdout'].strip().split('\n')):
                 if line.startswith('{'):

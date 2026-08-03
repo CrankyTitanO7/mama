@@ -3394,6 +3394,20 @@ body.embed-fullscreen-active {
     white-space: nowrap;
 }
 
+.train-backend-badge {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--widget-border);
+    color: var(--body-color);
+    white-space: nowrap;
+}
+
+.train-backend-badge.badge-axolotl {
+    border-color: #b8860b;
+    color: #e6b800;
+}
+
 .train-status-banner {
     padding: 12px 16px;
     border-radius: 8px;

@@ -38,6 +38,7 @@ const TrainingMonitor = (() => {
         if (cfg.output_dir) {
           await loadOutputFolder(cfg.output_dir);
         }
+        setBackendLabel(cfg);
         trainingActive = true;
         updateControlButtons();
         updateStatus('Checking and installing dependencies...', 'loading');
@@ -462,6 +463,23 @@ const TrainingMonitor = (() => {
     if (el) el.textContent = text;
   }
 
+  // ── Backend badge ─────────────────────────────────────────────
+
+  function setBackendLabel(cfg) {
+    const badge = document.getElementById('train-backend-badge');
+    if (!badge) return;
+    const backend = cfg?.training_backend || 'trl';
+    if (String(backend).toLowerCase().startsWith('axo')) {
+      badge.textContent = 'Backend: Axolotl';
+      badge.style.display = '';
+      badge.classList.add('badge-axolotl');
+    } else {
+      badge.textContent = 'Backend: Built-in (TRL)';
+      badge.style.display = '';
+      badge.classList.remove('badge-axolotl');
+    }
+  }
+
   // ── Output folder selection ─────────────────────────────────────
 
   async function selectOutputFolder() {
@@ -486,6 +504,10 @@ const TrainingMonitor = (() => {
     hasConfig = !!status.has_config;
     if (status.has_config) {
       document.getElementById('train-total-steps').textContent = '?';
+      try {
+        const cfgRes = await window.electron.trainReadConfig(folderPath);
+        if (cfgRes.success && cfgRes.config) setBackendLabel(cfgRes.config);
+      } catch (e) {}
     }
 
     // Check for checkpoints and past metrics

@@ -203,6 +203,12 @@ SHIM_SCRIPT = """
     trainPlatformCheck: async () => {
       try { return await (await api()).train_platform_check(); } catch(e) { return { success: false, error: String(e) }; }
     },
+    axolotlCheck: async () => {
+      try { return await (await api()).train_axolotl_check(); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    trainAxolotlWriteConfig: async (outputDir, configJson) => {
+      try { return await (await api()).train_axolotl_write_config(outputDir || '', configJson || ''); } catch(e) { return { success: false, error: String(e) }; }
+    },
     onTrainingProgress: (callback) => { electron._handlers['_trainingProgressCallback'] = callback; },
     offTrainingProgress: () => { delete electron._handlers['_trainingProgressCallback']; },
 

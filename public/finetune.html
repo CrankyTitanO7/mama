@@ -144,6 +144,15 @@
 
           <div class="ft-config-grid">
             <div class="ft-field">
+              <label>Training Backend</label>
+              <select id="ft-backend" class="ft-select">
+                <option value="trl" selected>Built-in (TRL) - cross-platform</option>
+                <option value="axolotl">Axolotl - power (Linux + CUDA)</option>
+              </select>
+              <span class="ft-hint" id="ft-backend-hint">Built-in backend works everywhere (CPU / MPS / CUDA)</span>
+            </div>
+
+            <div class="ft-field">
               <label>Training Method</label>
               <select id="ft-method" class="ft-select">
                 <option value="lora" selected>LoRA (recommended)</option>
@@ -262,6 +271,10 @@
           <!-- Config preview -->
           <div class="ft-section">
             <h3>Config Preview</h3>
+            <div class="ft-field ft-field-row">
+              <button id="ft-gen-yaml" class="settings-btn settings-btn-secondary">Generate Axolotl YAML</button>
+              <span class="ft-hint" id="ft-gen-yaml-status"></span>
+            </div>
             <pre id="ft-config-preview" class="ft-config-preview">{
   "model_name_or_path": "...",
   "dataset_path": "...",

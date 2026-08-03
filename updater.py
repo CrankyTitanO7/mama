@@ -500,10 +500,8 @@ def _acquire_apply_lock() -> Path:
         except FileExistsError:
             try:
                 owner = int(lock.read_text('utf-8').strip())
-                os.kill(owner, 0)
-                return None  # owner is alive — it is applying
-            except ProcessLookupError:
-                pass
+                if _process_alive(owner):
+                    return None  # owner is alive — it is applying
             except (ValueError, OSError):
                 pass
             try:
@@ -515,10 +513,33 @@ def _acquire_apply_lock() -> Path:
     return None
 
 
+def _win_pid_alive(pid: int) -> bool:
+    """Windows liveness check. os.kill(pid, 0) is unreliable on Windows: it can
+    raise OSError [WinError 6] for recently-exited processes and even raise
+    SystemError (uncaught by callers) in some CPython versions, so use the
+    Win32 API instead: OpenProcess + GetExitCodeProcess (STILL_ACTIVE == 259)."""
+    try:
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))
+        if not handle:
+            return ctypes.windll.kernel32.GetLastError() == 5  # access denied → alive
+        try:
+            exit_code = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return True  # cannot tell → assume alive
+            return exit_code.value == 259  # STILL_ACTIVE
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        return True  # cannot tell → assume alive
+
+
 def _process_alive(pid: int) -> bool:
     if not pid:
         return False
     try:
+        if sys.platform == 'win32':
+            return _win_pid_alive(pid)
         os.kill(pid, 0)
         return True
     except (ProcessLookupError, AttributeError):

@@ -112,6 +112,43 @@ def clean_subprocess_env():
     return env
 
 
+# Backend "modules" the user can install/uninstall from the topbar dropdown.
+# Each module lists the exact pip steps (shown and run by the UI). On WSL the
+# steps are executed inside the default WSL distro; native Windows has no
+# supported modules, macOS only unsloth.
+MODULES = [
+    {
+        'key': 'axolotl',
+        'name': 'Axolotl',
+        'description': 'Axolotl fine-tuning framework (needs Linux or WSL + CUDA)',
+        'import_name': 'axolotl',
+        'platforms': ('linux', 'wsl'),
+        'unsupported_reason': 'Axolotl only runs on Linux or WSL with an NVIDIA CUDA GPU.',
+        'install_steps': ('pip install axolotl',),
+        'uninstall_steps': ('pip uninstall -y axolotl',),
+    },
+    {
+        'key': 'unsloth',
+        'name': 'Unsloth',
+        'description': 'Unsloth — fast LoRA/QLoRA fine-tuning',
+        'import_name': 'unsloth',
+        'platforms': ('linux', 'macos', 'wsl'),
+        'unsupported_reason': 'Unsloth does not support native Windows; use WSL, Linux, or macOS.',
+        # install steps are platform specific, see _module_install_steps
+        'install_steps': ('pip install unsloth',),
+        'uninstall_steps': ('pip uninstall -y unsloth',),
+    },
+]
+
+MODULES_BY_KEY = {m['key']: m for m in MODULES}
+
+# Official macOS install requires building from source via the github repo.
+UNSLOTH_MACOS_INSTALL_STEPS = (
+    'pip install --upgrade --force-reinstall --no-cache-dir '
+    '"unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"',
+)
+
+
 class MamaApi:
     """Python backend exposed to the frontend via pywebview JS bridge."""
 
@@ -1324,6 +1361,40 @@ class MamaApi:
             logger.error('Folder picker failed: %s', e)
         return None
 
+    def project_pick_file(self, patterns: str = '') -> Optional[str]:
+        """Open a native file picker dialog (optionally filtered by extension)."""
+        try:
+            if sys.platform == 'darwin':
+                cmd = 'return POSIX path of (choose file with prompt "Choose File")'
+                if patterns:
+                    ext = patterns.split(',')[0].strip().lstrip('.')
+                    cmd = (
+                        'return POSIX path of '
+                        f'(choose file with prompt "Choose File" '
+                        f'of type {{"{ext}"}})'
+                    )
+                result = subprocess.run(
+                    ['osascript', '-e', cmd],
+                    capture_output=True, text=True, timeout=120
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            else:
+                if not self._window:
+                    return None
+                import webview
+                result = self._window.create_file_dialog(
+                    webview.OPEN_DIALOG,
+                    file_types=(patterns,)
+                ) if patterns else self._window.create_file_dialog(
+                    webview.OPEN_DIALOG
+                )
+                if result and len(result) > 0:
+                    return result[0]
+        except Exception as e:
+            logger.error('File picker failed: %s', e)
+        return None
+
     def project_open_folder(self, folder_path: str) -> Optional[dict]:
         """Open a project folder: update recents, then return folder listing."""
         try:
@@ -1568,6 +1639,8 @@ class MamaApi:
         backend = str(cfg.get('training_backend') or 'trl').lower()
         if backend in ('axolotl', 'axol', 'axoly'):
             return self._train_start_axolotl(cfg, config_path, python)
+        if backend in ('unsleth', 'unsl', 'us'):
+            return self._train_start_unsloth(cfg, config_path, python)
 
         # ── Step 1: Install dependencies (no torch/tf) ─────────────────
         self._enqueue_emit('_trainingProgressCallback', {
@@ -1776,6 +1849,191 @@ class MamaApi:
             return {'success': True, 'config_path': str(config_path), 'backend': 'axolotl'}
         except Exception as e:
             logger.error('_train_start_axolotl failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    # ── Unsloth backend ────────────────────────────────────────────────────────
+
+    def _train_unsloth_script(self) -> str:
+        return str(self._base_dir / 'components' / 'backend' / 'training' / 'train_unsloth.py')
+
+    def _train_start_unsloth(self, cfg: dict, config_path, python: str) -> dict:
+        """Spawn the Unsloth (fast) backend runner.
+
+        train_unsloth.py installs unsloth itself (if missing) and renders a
+        standalone train_unsloth.py in the output dir, then runs it — the same
+        artifact the Export page produces, so freeze-frame export/import of a
+        run reproduces the identical training program.
+        """
+        script = self._train_unsloth_script()
+        try:
+            proc = subprocess.Popen(
+                [python, script, '--config', str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env={**os.environ},
+            )
+            self._training_process = proc
+
+            def read_stream(stream, stream_type):
+                for line in iter(stream.readline, ''):
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            data['_stream'] = stream_type
+                            self._enqueue_emit('_trainingProgressCallback', data)
+                        except json.JSONDecodeError:
+                            self._enqueue_emit('_trainingProgressCallback', {
+                                'type': stream_type,
+                                'text': line,
+                                '_stream': stream_type,
+                            })
+                stream.close()
+
+            stdout_thread = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
+            stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+
+            def wait_thread():
+                proc.wait()
+                stdout_thread.join(timeout=5)
+                stderr_thread.join(timeout=5)
+                self._enqueue_emit('_trainingProgressCallback', {'type': 'done', 'code': proc.returncode or 0})
+                self._training_process = None
+
+            self._training_thread = threading.Thread(target=wait_thread, daemon=True)
+            self._training_thread.start()
+
+            return {'success': True, 'config_path': str(config_path), 'backend': 'unsloth'}
+        except Exception as e:
+            logger.error('_train_start_unsloth failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def train_unsloth_check(self) -> dict:
+        """Check whether the Unsloth backend can be used on this system.
+
+        Unlike Axolotl, Unsloth supports both CUDA (Linux) and Apple Silicon
+        MPS (macOS). Windows requires WSL. A real torch/device probe is
+        delegated to train_unsloth.py's --mode platform-check.
+        """
+        if sys.platform == 'win32' and not os.environ.get('WSL_DISTRO_NAME'):
+            return {
+                'success': True,
+                'backend': 'us',
+                'supported': False,
+                'device': 'cpu',
+                'cuda_available': False,
+                'mps_available': False,
+                'unsloth_installed': None,
+                'reason': 'Unsloth does not support native Windows; use WSL, Linux, or macOS.',
+            }
+        script = self._train_unsloth_script()
+        python = self._get_training_python()
+        if not python:
+            return {'success': False, 'error': 'Python 3 not found'}
+        result = self._run_script(script, ['--mode', 'platform-check'],
+                                  timeout=120_000, python_exe=python)
+        if result['code'] == 0 and result['stdout']:
+            for line in reversed(result['stdout'].strip().split('\n')):
+                if line.startswith('{'):
+                    try:
+                        data = json.loads(line)
+                        if data.get('type') == 'platform_check':
+                            return {'success': True, **data}
+                    except Exception:
+                        pass
+        return {'success': False, 'error': result.get('stderr', 'Unknown error')}
+
+    def train_unsloth_write_config(self, output_dir: str, config_json: str) -> dict:
+        """Generate a standalone Unsloth script into an output directory.
+
+        Lets the user preview/inspect the exact train_unsloth.py that an
+        Unsloth run would use without launching training. Returns the script
+        text and its path.
+        """
+        try:
+            cfg = json.loads(config_json)
+            output_dir = output_dir or cfg.get('output_dir')
+            if not output_dir:
+                return {'success': False, 'error': 'output_dir is required'}
+            script = self._train_unsloth_script()
+            python = self._get_training_python()
+            if not python:
+                return {'success': False, 'error': 'Python 3 not found'}
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+
+            # Tracing script generation through train_unsloth.py keeps the
+            # on-disk artifact identical to the one produced at run time.
+            cfg_path = output_path / 'training_config.json'
+            cfg_path.write_text(json.dumps(cfg, indent=2), 'utf-8')
+            result = self._run_script(
+                script, ['--mode', 'gen-script', '--config', str(cfg_path),
+                         '--output-dir', str(output_path)],
+                timeout=60_000, python_exe=python,
+            )
+            if result['code'] != 0:
+                return {'success': False, 'error': result.get('stderr') or 'Failed to generate Unsloth script'}
+            script_text = ''
+            for line in reversed(result['stdout'].strip().split('\n')):
+                if line.startswith('{'):
+                    try:
+                        data = json.loads(line)
+                        if data.get('type') == 'unsloth_script':
+                            script_text = data.get('script', '')
+                            break
+                    except Exception:
+                        pass
+            script_path = output_path / 'train_unsloth.py'
+            if not script_text or not script_path.exists():
+                return {'success': False, 'error': 'Failed to generate train_unsloth.py'}
+            return {'success': True, 'path': str(script_path), 'script': script_text}
+        except Exception as e:
+            logger.error('train_unsloth_write_config failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def unsloth_import(self, script_path: str, output_dir: str) -> dict:
+        """Import an existing Unsloth script back into a mama training config.
+
+        Reads train_unsloth.py (or any unsloth-style .py), extracts a mama
+        training_config.json, and writes it to output_dir. If output_dir is
+        omitted, the script's own output_dir is used.
+        """
+        try:
+            src = Path(script_path)
+            if not src.exists():
+                return {'success': False, 'error': f'Script not found: {script_path}'}
+            script = self._train_unsloth_script()
+            python = self._get_training_python()
+            if not python:
+                return {'success': False, 'error': 'Python 3 not found'}
+            result = self._run_script(
+                script, ['--mode', 'import', '--script', str(src),
+                         '--output-dir', output_dir or '.'],
+                timeout=60_000, python_exe=python,
+            )
+            if result['code'] != 0:
+                return {'success': False, 'error': result.get('stderr') or 'Failed to import Unsloth script'}
+            cfg = None
+            cfg_path = ''
+            for line in reversed(result['stdout'].strip().split('\n')):
+                if line.startswith('{'):
+                    try:
+                        data = json.loads(line)
+                        if data.get('type') == 'unsloth_import':
+                            cfg = data.get('config')
+                            cfg_path = data.get('path', '')
+                            break
+                    except Exception:
+                        pass
+            if not cfg:
+                return {'success': False, 'error': 'No usable config found in script'}
+            return {'success': True, 'config': cfg, 'path': cfg_path,
+                    'script': str(src)}
+        except Exception as e:
+            logger.error('unsloth_import failed: %s', e)
             return {'success': False, 'error': str(e)}
 
     def train_pause(self, output_dir: str) -> dict:
@@ -2445,6 +2703,201 @@ class MamaApi:
         return {'success': False, 'error': result.get('stderr', 'Unknown error')}
 
     # ═══════════════════════════════════════════════════════════════════════
+    # Modules (axolotl / unsloth)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _module_platform(self) -> str:
+        """Current platform key: linux | macos | wsl | native_windows | other."""
+        if sys.platform.startswith('linux'):
+            return 'linux'
+        if sys.platform == 'darwin':
+            return 'macos'
+        if sys.platform == 'win32':
+            if os.environ.get('WSL_DISTRO_NAME'):
+                return 'wsl'
+            try:
+                check = subprocess.run(
+                    ['wsl', '--status'], capture_output=True, text=True, timeout=10)
+                if check.returncode == 0:
+                    return 'wsl'
+            except Exception:
+                pass
+            return 'native_windows'
+        return 'other'
+
+    def _module_install_steps(self, module: dict, platform: str) -> list:
+        if module['key'] == 'unsloth' and platform == 'macos':
+            return list(UNSLOTH_MACOS_INSTALL_STEPS)
+        return list(module['install_steps'])
+
+    def _module_steps(self, module: dict, action: str, platform: str) -> list:
+        if action == 'uninstall':
+            return list(module['uninstall_steps'])
+        return self._module_install_steps(module, platform)
+
+    def _module_python(self, platform: str) -> Optional[str]:
+        """The interpreter the module steps run under (None for WSL)."""
+        if platform in ('linux', 'macos'):
+            return self._get_training_python() or self._get_python()
+        return None
+
+    def _module_step_args(self, step: str, platform: str) -> Optional[list]:
+        """Turn a 'pip install ...' step into a concrete argv for this platform."""
+        if platform == 'wsl':
+            # Run inside the default WSL distro. Prefer python3 -m pip so we
+            # don't depend on the bare `pip` shim being installed there.
+            inner = step
+            if inner.startswith('pip '):
+                inner = 'python3 -m pip' + inner[len('pip'):]
+            return ['wsl', '-e', 'sh', '-lc', inner]
+        python = self._module_python(platform)
+        if not python:
+            return None
+        import shlex
+        parts = shlex.split(step)
+        if parts and parts[0] == 'pip':
+            return [python, '-m', 'pip'] + parts[1:]
+        return [python] + parts
+
+    def _module_installed(self, module: dict, platform: str) -> bool:
+        try:
+            if platform == 'wsl':
+                cmd = ['wsl', '-e', 'python3', '-c',
+                       f'import {module["import_name"]}; print("ok")']
+            else:
+                python = self._module_python(platform)
+                if not python:
+                    return False
+                cmd = [python, '-c',
+                       f'import {module["import_name"]}; print("ok")']
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=60,
+                env=clean_subprocess_env())
+            return result.returncode == 0
+        except Exception as e:
+            logger.debug('module installed check failed for %s: %s',
+                         module['key'], e)
+            return False
+
+    def _run_module_step(self, module_key: str, args: list) -> int:
+        """Run one module step, streaming its output to the frontend."""
+        try:
+            proc = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                env=clean_subprocess_env(),
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+            )
+            for line in iter(proc.stdout.readline, ''):
+                if line and line.strip():
+                    self._emit_module_progress(module_key, {'type': 'log', 'text': line.rstrip()})
+            proc.wait(timeout=20 * 60)
+            return proc.returncode or 0
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            self._emit_module_progress(module_key, {'type': 'error', 'text': 'Step timed out (20 min).'})
+            return 1
+        except Exception as e:
+            logger.error('run_module_step error: %s', e)
+            self._emit_module_progress(module_key, {'type': 'error', 'text': str(e)})
+            return 1
+
+    def _handle_module_action(self, key: str, action: str) -> dict:
+        module = MODULES_BY_KEY.get(key or '')
+        if not module:
+            return {'success': False, 'error': f'Unknown module: {key}'}
+        platform = self._module_platform()
+        if platform not in module['platforms']:
+            self._emit_module_progress(module['key'], {'type': 'error', 'text': module['unsupported_reason']})
+            return {'success': False, 'error': module['unsupported_reason']}
+
+        steps = self._module_steps(module, action, platform)
+        label = 'Install' if action == 'install' else 'Uninstall'
+        self._emit_module_progress(module['key'], {'type': 'meta', 'text': f'{label}ing {module["name"]}...'})
+
+        for i, step in enumerate(steps, 1):
+            self._emit_module_progress(module['key'], {'type': 'meta', 'text': f'Step {i}/{len(steps)}: {step}'})
+            args = self._module_step_args(step, platform)
+            if args is None:
+                self._emit_module_progress(module['key'], {'type': 'error', 'text': 'Python 3 not found on PATH.'})
+                return {'success': False, 'error': 'Python 3 not found on PATH.'}
+            code = self._run_module_step(module['key'], args)
+            if code != 0:
+                self._emit_module_progress(module['key'], {
+                    'type': 'done', 'success': False,
+                    'error': f'{label} failed at step {i}/{len(steps)}.',
+                })
+                return {'success': False, 'error': f'Step {i} failed (exit {code})'}
+            self._emit_module_progress(module['key'], {'type': 'step', 'current': i, 'total': len(steps)})
+
+        self._emit_module_progress(module['key'], {'type': 'done', 'success': True})
+        return {'success': True}
+
+    def modules_get(self) -> dict:
+        """Return module list with platform support + installed status."""
+        platform = self._module_platform()
+        modules = []
+        for module in MODULES:
+            supported = platform in module['platforms']
+            modules.append({
+                'key': module['key'],
+                'name': module['name'],
+                'description': module['description'],
+                'platforms': list(module['platforms']),
+                'platform': platform,
+                'supported': supported,
+                'unsupported_reason': module['unsupported_reason'] if not supported else '',
+                'installed': self._module_installed(module, platform) if supported else False,
+                'install_steps': self._module_steps(module, 'install', platform) if supported else [],
+                'uninstall_steps': list(module['uninstall_steps']) if supported else [],
+            })
+        return {'success': True, 'modules': modules, 'platform': platform}
+
+    def modules_install(self, key: str, project_folder: str = '') -> dict:
+        """Install a module (streams progress to the frontend)."""
+        return self._handle_module_action(key, 'install')
+
+    def modules_uninstall(self, key: str, project_folder: str = '') -> dict:
+        """Uninstall a module (streams progress to the frontend)."""
+        return self._handle_module_action(key, 'uninstall')
+
+    def modules_run_step(self, key: str, action: str, index: int) -> dict:
+        """Run a single install/uninstall step of a module."""
+        module = MODULES_BY_KEY.get(key or '')
+        if not module:
+            return {'success': False, 'error': f'Unknown module: {key}'}
+        platform = self._module_platform()
+        if platform not in module['platforms']:
+            self._emit_module_progress(module['key'], {'type': 'error', 'text': module['unsupported_reason']})
+            return {'success': False, 'error': module['unsupported_reason']}
+        try:
+            idx = int(index or 0)
+        except (TypeError, ValueError):
+            idx = 0
+        steps = self._module_steps(module, action, platform)
+        if not (0 <= idx < len(steps)):
+            return {'success': False, 'error': 'Invalid step index'}
+        step = steps[idx]
+        self._emit_module_progress(module['key'], {'type': 'meta', 'text': f'Running: {step}'})
+        args = self._module_step_args(step, platform)
+        if args is None:
+            self._emit_module_progress(module['key'], {'type': 'error', 'text': 'Python 3 not found on PATH.'})
+            return {'success': False, 'error': 'Python 3 not found on PATH.'}
+        code = self._run_module_step(module['key'], args)
+        self._emit_module_progress(module['key'], {
+            'type': 'done', 'success': code == 0,
+            'error': '' if code == 0 else f'Step failed (exit {code})',
+        })
+        return {'success': code == 0}
+
+    def _emit_module_progress(self, module_key: str, chunk: dict):
+        payload = {'module': module_key, **chunk}
+        self._enqueue_emit('_modulesProgressCallback', payload)
+
+    # ═══════════════════════════════════════════════════════════════════════
     # Export
     # ═══════════════════════════════════════════════════════════════════════
 
@@ -2629,6 +3082,38 @@ SYSTEM \"\"\"You are a model trained with mama. Respond to the user's queries.
             return result
         except Exception as e:
             logger.error('export_run_axolotl failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def export_run_unsloth(self, output_dir: str) -> dict:
+        """Export a standalone Unsloth script from the training config in an output folder."""
+        try:
+            out = Path(output_dir)
+            if not out.exists():
+                return {'success': False, 'error': 'Output directory does not exist'}
+
+            cfg_path = out / 'training_config.json'
+            has_config = cfg_path.exists()
+            if has_config:
+                cfg = json.loads(cfg_path.read_text('utf-8'))
+            else:
+                # No config yet: still produce a usable script from placeholder
+                # settings so the user can drop them into a real output folder.
+                cfg = {
+                    'training_backend': 'unsloth',
+                    'model_name_or_path': 'unsloth/SmolLM2-135M-Instruct-bnb-4bit',
+                    'dataset_path': 'trl-lib/Capybara',
+                    'output_dir': str(out),
+                    'text_column': 'text',
+                    'use_lora': True,
+                    'use_qlora': False,
+                }
+
+            result = self.train_unsloth_write_config(str(out), json.dumps(cfg))
+            if result.get('success'):
+                result['has_config'] = has_config
+            return result
+        except Exception as e:
+            logger.error('export_run_unsloth failed: %s', e)
             return {'success': False, 'error': str(e)}
 
     # ═══════════════════════════════════════════════════════════════════════

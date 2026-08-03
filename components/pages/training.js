@@ -473,10 +473,16 @@ const TrainingMonitor = (() => {
       badge.textContent = 'Backend: Axolotl';
       badge.style.display = '';
       badge.classList.add('badge-axolotl');
+      badge.classList.remove('badge-unsloth');
+    } else if (String(backend).toLowerCase().startsWith('uns')) {
+      badge.textContent = 'Backend: Unsloth';
+      badge.style.display = '';
+      badge.classList.add('badge-unsloth');
+      badge.classList.remove('badge-axolotl');
     } else {
       badge.textContent = 'Backend: Built-in (TRL)';
       badge.style.display = '';
-      badge.classList.remove('badge-axolotl');
+      badge.classList.remove('badge-axolotl', 'badge-unsloth');
     }
   }
 

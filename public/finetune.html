@@ -146,6 +146,7 @@
             <div class="ft-field">
               <label>Training Backend</label>
               <select id="ft-backend" class="ft-select">
+                <option value="unsloth">Unsloth - fast (CUDA / Apple Silicon)</option>
                 <option value="trl" selected>Built-in (TRL) - cross-platform</option>
                 <option value="axolotl">Axolotl - power (Linux + CUDA)</option>
               </select>
@@ -273,6 +274,8 @@
             <h3>Config Preview</h3>
             <div class="ft-field ft-field-row">
               <button id="ft-gen-yaml" class="settings-btn settings-btn-secondary">Generate Axolotl YAML</button>
+              <button id="ft-gen-unsloth" class="settings-btn settings-btn-secondary">Generate Unsloth Script</button>
+              <button id="ft-import-unsloth" class="settings-btn settings-btn-secondary">Import Unsloth Script</button>
               <span class="ft-hint" id="ft-gen-yaml-status"></span>
             </div>
             <pre id="ft-config-preview" class="ft-config-preview">{

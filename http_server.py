@@ -119,6 +119,14 @@ SHIM_SCRIPT = """
     onInstallProgress: (callback) => { electron._handlers['_installProgressCallback'] = callback; },
     offInstallProgress: () => { delete electron._handlers['_installProgressCallback']; },
 
+    // ═══════════ Modules (axolotl / unsloth) ═══════════
+    modulesGet: async () => { try { return await (await api()).modules_get(); } catch(e) { return { success: false, error: String(e) }; } },
+    modulesInstall: async (key, projectFolder) => { try { return await (await api()).modules_install(key || '', projectFolder || ''); } catch(e) { return { success: false, error: String(e) }; } },
+    modulesUninstall: async (key, projectFolder) => { try { return await (await api()).modules_uninstall(key || '', projectFolder || ''); } catch(e) { return { success: false, error: String(e) }; } },
+    modulesRunStep: async (key, action, index) => { try { return await (await api()).modules_run_step(key || '', action || '', Number(index || 0)); } catch(e) { return { success: false, error: String(e) }; } },
+    onModuleProgress: (callback) => { electron._handlers['_modulesProgressCallback'] = callback; },
+    offModuleProgress: () => { delete electron._handlers['_modulesProgressCallback']; },
+
     // ═══════════ Tests ═══════════
     runImportTest: async (framework, projectFolder) => {
       try { return wrapResult(await (await api()).run_import_test(framework, projectFolder || null)); } catch(e) { return wrapError(e); }
@@ -145,6 +153,7 @@ SHIM_SCRIPT = """
     projectRecentsRead:  async () => { try { return await (await api()).project_recents_read(); } catch(e) { return null; } },
     projectRecentsWrite: async (data) => { try { return await (await api()).project_recents_write(data); } catch(e) { return null; } },
     projectPickFolder:   async () => { try { return await (await api()).project_pick_folder(); } catch(e) { return null; } },
+    projectPickFile:     async (patterns) => { try { return await (await api()).project_pick_file(patterns || ''); } catch(e) { return null; } },
     projectOpenFolder:   async (folderPath) => { try { return await (await api()).project_open_folder(folderPath); } catch(e) { return null; } },
     projectListFolder:   async (folderPath) => { try { return await (await api()).project_list_folder(folderPath); } catch(e) { return null; } },
     projectRevealFolder: async (folderPath) => { try { return await (await api()).project_reveal_folder(folderPath); } catch(e) { return false; } },
@@ -205,6 +214,15 @@ SHIM_SCRIPT = """
     },
     axolotlCheck: async () => {
       try { return await (await api()).train_axolotl_check(); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    unslothCheck: async () => {
+      try { return await (await api()).train_unsloth_check(); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    trainUnslothWriteConfig: async (outputDir, configJson) => {
+      try { return await (await api()).train_unsloth_write_config(outputDir || '', configJson || ''); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    unslothImport: async (scriptPath, outputDir) => {
+      try { return await (await api()).unsloth_import(scriptPath || '', outputDir || ''); } catch(e) { return { success: false, error: String(e) }; }
     },
     trainAxolotlWriteConfig: async (outputDir, configJson) => {
       try { return await (await api()).train_axolotl_write_config(outputDir || '', configJson || ''); } catch(e) { return { success: false, error: String(e) }; }
@@ -278,6 +296,9 @@ SHIM_SCRIPT = """
     },
     exportRunAxolotl: async (outputDir) => {
       try { return await (await api()).export_run_axolotl(outputDir); } catch(e) { return { success: false, error: String(e) }; }
+    },
+    exportRunUnsloth: async (outputDir) => {
+      try { return await (await api()).export_run_unsloth(outputDir); } catch(e) { return { success: false, error: String(e) }; }
     },
 
     onBeforeQuit: (callback) => { /* no-op in pywebview */ },

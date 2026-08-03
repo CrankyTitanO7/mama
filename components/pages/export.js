@@ -19,6 +19,8 @@ const ExportPage = (() => {
     document.getElementById('export-btn-js')?.addEventListener('click', () => exportTo('js'));
     document.getElementById('export-btn-ollama')?.addEventListener('click', () => exportTo('ollama'));
     document.getElementById('export-btn-axolotl')?.addEventListener('click', () => exportTo('axolotl'));
+    document.getElementById('export-btn-unsloth')?.addEventListener('click', () => exportTo('unsloth'));
+    document.getElementById('export-btn-unsloth-import')?.addEventListener('click', importUnsloth);
 
     tryAutoDetect();
   }
@@ -75,7 +77,25 @@ const ExportPage = (() => {
               </div>
               <button type="button" id="export-btn-axolotl" class="settings-btn settings-btn-primary" disabled>Export</button>
             </div>
+
+            <div class="export-card" id="export-card-unsloth">
+              <div class="export-card-icon">🐼</div>
+              <div class="export-card-body">
+                <h4>Unsloth Script</h4>
+                <p>Generate a standalone Unsloth script (<code>train_unsloth.py</code>) from <code>training_config.json</code> for the fast CUDA / Apple Silicon backend.</p>
+              </div>
+              <button type="button" id="export-btn-unsloth" class="settings-btn settings-btn-primary" disabled>Export</button>
+            </div>
           </div>
+        </div>
+
+        <div class="export-import-section">
+          <h3>Import from Unsloth</h3>
+          <p>Bring an existing Unsloth training script back into mama. A <code>training_config.json</code> is written to the selected output folder so you can edit or re-export it.</p>
+          <div class="export-folder-row">
+            <button type="button" id="export-btn-unsloth-import" class="settings-btn settings-btn-secondary">Choose Unsloth Script (.py)</button>
+          </div>
+          <div id="export-import-result" class="export-result" style="display:none"></div>
         </div>
 
         <div id="export-status" class="export-status" style="display:none"></div>
@@ -89,10 +109,12 @@ const ExportPage = (() => {
     document.getElementById('export-btn-js')?.addEventListener('click', () => exportTo('js'));
     document.getElementById('export-btn-ollama')?.addEventListener('click', () => exportTo('ollama'));
     document.getElementById('export-btn-axolotl')?.addEventListener('click', () => exportTo('axolotl'));
+    document.getElementById('export-btn-unsloth')?.addEventListener('click', () => exportTo('unsloth'));
+    document.getElementById('export-btn-unsloth-import')?.addEventListener('click', importUnsloth);
   }
 
   function updateButtons(enabled) {
-    ['colab', 'js', 'ollama', 'axolotl'].forEach(type => {
+    ['colab', 'js', 'ollama', 'axolotl', 'unsloth'].forEach(type => {
       const btn = document.getElementById(`export-btn-${type}`);
       if (btn) btn.disabled = !enabled;
     });
@@ -185,14 +207,17 @@ const ExportPage = (() => {
         case 'axolotl':
           result = await window.electron.exportRunAxolotl(currentOutputDir);
           break;
+        case 'unsloth':
+          result = await window.electron.exportRunUnsloth(currentOutputDir);
+          break;
       }
 
       if (result.success) {
         const notes = [];
-        if ((type === 'colab' || type === 'axolotl') && result.has_config === false) {
+        if ((type === 'colab' || type === 'axolotl' || type === 'unsloth') && result.has_config === false) {
           notes.push('No training_config.json found. The export includes default placeholder settings — edit them before running.');
         }
-        if (type !== 'colab' && result.has_model === false) {
+        if (type !== 'colab' && type !== 'unsloth' && result.has_model === false) {
           notes.push('No trained model found in this folder. The template has been copied but you will need to provide a model manually.');
         }
         if (result.converted === false) {
@@ -232,16 +257,17 @@ const ExportPage = (() => {
     const el = document.getElementById('export-result');
     if (!el) return;
 
-    const labels = { colab: 'Google Colab', js: 'JavaScript', ollama: 'Ollama', axolotl: 'Axolotl YAML' };
+    const labels = { colab: 'Google Colab', js: 'JavaScript', ollama: 'Ollama', axolotl: 'Axolotl YAML', unsloth: 'Unsloth Script' };
     const label = labels[type] || type;
     const path = result.path || '';
     const command = result.ollama_command || '';
+    const scriptText = result.script || '';
 
     const notes = [];
-    if ((type === 'colab' || type === 'axolotl') && result.has_config === false) {
+    if ((type === 'colab' || type === 'axolotl' || type === 'unsloth') && result.has_config === false) {
       notes.push('No training_config.json was found. The export contains default placeholder settings — edit them before running.');
     }
-    if (type !== 'colab' && result.has_model === false) {
+    if (type !== 'colab' && result.has_model === false && type !== 'unsloth') {
       notes.push('No trained model was found in this folder. Edit the exported files to point to your model before using.');
     }
     if (result.converted === false) {
@@ -249,19 +275,24 @@ const ExportPage = (() => {
     }
 
     let extraHtml = '';
-    const yamlText = result.yaml || '';
-    if (yamlText) {
-      extraHtml += '<p class="export-ollama-cmd">Generated Axolotl config:</p>';
-      extraHtml += `<pre class="export-ollama-command">${escapeHtml(yamlText)}</pre>`;
-    } else if (notes.length) {
-      extraHtml += '<div class="export-notes">' + notes.map(n => '<p>' + escapeHtml(n) + '</p>').join('') + '</div>';
+    if (scriptText) {
+      extraHtml += '<p class="export-ollama-cmd">Generated Unsloth script (run with <code>python train_unsloth.py</code>):</p>';
+      extraHtml += `<pre class="export-ollama-command">${escapeHtml(scriptText.slice(0, 4000))}</pre>`;
+    } else {
+      const yamlText = result.yaml || '';
+      if (yamlText) {
+        extraHtml += '<p class="export-ollama-cmd">Generated Axolotl config:</p>';
+        extraHtml += `<pre class="export-ollama-command">${escapeHtml(yamlText)}</pre>`;
+      } else if (notes.length) {
+        extraHtml += '<div class="export-notes">' + notes.map(n => '<p>' + escapeHtml(n) + '</p>').join('') + '</div>';
+      }
     }
     if (command) {
       extraHtml += `<p class="export-ollama-cmd">Run this command to create the Ollama model:</p>
                     <pre class="export-ollama-command">${escapeHtml(command)}</pre>`;
     }
 
-    const copyTarget = command || yamlText || path;
+    const copyTarget = scriptText || command || yamlText || path;
     el.innerHTML = `
       <h4>${label} Export — Complete</h4>
       <p>Exported to: <code>${escapeHtml(path)}</code></p>
@@ -269,9 +300,58 @@ const ExportPage = (() => {
       <button type="button" class="settings-btn settings-btn-secondary" onclick="
         navigator.clipboard.writeText(${JSON.stringify(copyTarget)});
         this.textContent = 'Copied!';
-        setTimeout(() => this.textContent = 'Copy ${command ? 'Command' : yamlText ? 'YAML' : 'Path'}', 2000);
+        setTimeout(() => this.textContent = 'Copy ${command ? 'Command' : scriptText ? 'Script' : yamlText ? 'YAML' : 'Path'}', 2000);
       ">Copy Path</button>
     `;
+    el.style.display = 'block';
+  }
+
+  async function importUnsloth() {
+    const resultEl = document.getElementById('export-import-result');
+    if (resultEl) resultEl.style.display = 'none';
+    try {
+      const file = await window.electron.projectPickFile('.py');
+      if (!file) return;
+
+      let outDir = currentOutputDir;
+      if (!outDir) {
+        outDir = await window.electron.projectPickFolder();
+        if (!outDir) {
+          showImportResult('Choose an output folder for the imported config, or select a training output folder above first.', 'warning');
+          return;
+        }
+      }
+
+      const result = await window.electron.unslothImport(file, outDir);
+      if (result.success) {
+        const cfg = result.config || {};
+        const keys = ['model_name_or_path', 'dataset_path', 'max_seq_length', 'learning_rate',
+          'per_device_train_batch_size', 'lora_r', 'lora_alpha', 'num_train_epochs'];
+        const rows = keys.filter(k => cfg[k] !== undefined && cfg[k] !== null)
+          .map(k => `<div class="ft-confirm-row"><span class="ft-confirm-key">${escapeHtml(k)}</span><span class="ft-confirm-value">${escapeHtml(String(cfg[k]))}</span></div>`)
+          .join('');
+        showImportResult(`
+          <h4>Unsloth Import — Complete</h4>
+          <p>Imported <code>${escapeHtml(result.script || file)}</code> into <code>${escapeHtml(result.path || outDir)}</code>.</p>
+          <p>The training_config.json now reflects the script — open the Fine-Tune page and pick backend "Unsloth" to edit it, or re-export to any target.</p>
+          ${rows ? '<div class="export-notes">' + rows + '</div>' : ''}
+        `, 'done');
+      } else {
+        showImportResult('Import failed: ' + escapeHtml(result.error || 'Unknown error'), 'error');
+      }
+    } catch (e) {
+      showImportResult('Import error: ' + escapeHtml(e.message), 'error');
+    }
+  }
+
+  function showImportResult(html, type) {
+    const el = document.getElementById('export-import-result');
+    if (!el) return;
+    el.className = 'export-result';
+    if (type === 'error') el.classList.add('status-error');
+    else if (type === 'done') el.classList.add('status-done');
+    else if (type === 'warning') el.classList.add('status-warning');
+    el.innerHTML = html;
     el.style.display = 'block';
   }
 

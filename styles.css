@@ -2832,6 +2832,140 @@ body.embed-fullscreen-active {
     font-size: 15px;
 }
 
+/* Step 0 - start cards */
+.ft-start-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin: 16px 0 24px;
+}
+
+.ft-start-card {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+}
+
+.ft-start-card:hover {
+    border-color: var(--highlight-color);
+    transform: translateY(-2px);
+}
+
+.ft-start-card h3 {
+    margin: 0 0 8px;
+}
+
+.ft-start-card p {
+    font-size: 13px;
+    color: var(--body-color);
+    line-height: 1.6;
+    margin: 0 0 16px;
+}
+
+.ft-start-card-primary {
+    border-color: var(--highlight-color);
+}
+
+/* Example browser */
+.ft-example-category {
+    margin-bottom: 28px;
+}
+
+.ft-example-category h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+}
+
+.ft-example-desc {
+    margin: 0 0 12px;
+    color: var(--body-color);
+    font-size: 13px;
+}
+
+.ft-example-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.ft-example-card {
+    background: var(--widget-bg);
+    border: 1px solid var(--widget-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ft-example-card p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.ft-example-card code {
+    background: rgba(0, 0, 0, 0.25);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.ft-example-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ft-tier-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.ft-tier-easy {
+    background: rgba(76, 175, 80, 0.18);
+    color: #81c784;
+}
+
+.ft-tier-medium {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffd54f;
+}
+
+.ft-tier-hard {
+    background: rgba(244, 67, 54, 0.18);
+    color: #e57373;
+}
+
+.ft-tier-rec {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--highlight-color);
+}
+
+.ft-example-tier-hint {
+    font-size: 12px;
+    color: var(--body-color);
+    font-style: italic;
+}
+
+.ft-example-recommended {
+    border-color: var(--highlight-color);
+}
+
+.ft-example-use {
+    margin-top: auto;
+}
+
 .ft-field {
     margin-bottom: 16px;
 }

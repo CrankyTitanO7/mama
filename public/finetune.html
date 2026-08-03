@@ -23,14 +23,44 @@
 
       <!-- Tab navigation -->
       <div class="ft-tabs" id="ft-tabs">
-        <button class="ft-tab active" data-tab="model">1. Model</button>
+        <button class="ft-tab active" data-tab="start">0. Start</button>
+        <button class="ft-tab" data-tab="model">1. Model</button>
         <button class="ft-tab" data-tab="dataset">2. Dataset</button>
         <button class="ft-tab" data-tab="config">3. Configure</button>
         <button class="ft-tab" data-tab="train">4. Train</button>
       </div>
 
+      <!-- Tab: Step 0 - Start -->
+      <div class="ft-tab-content active" id="ft-tab-start">
+        <div class="ft-section">
+          <h2>How do you want to start?</h2>
+          <p>Pick a ready-made example tuned for your hardware, or configure everything from scratch.</p>
+
+          <div class="ft-start-options">
+            <div class="ft-start-card ft-start-card-primary" id="ft-start-card-example">
+              <h3>Work from an example</h3>
+              <p>Browse 12 curated projects (Text-to-SQL, ticket classification, jargon simplification, brand-voice copywriting) in Easy, Medium and Hard hardware tiers. All models &amp; datasets come from Hugging Face Hub.</p>
+              <button class="settings-btn settings-btn-success" id="ft-start-example-btn">Browse Examples</button>
+            </div>
+            <div class="ft-start-card" id="ft-start-card-manual">
+              <h3>Configure manually</h3>
+              <p>Start from step 1 and pick your own model, dataset and hyperparameters. Same as the existing flow. You can still adjust everything later.</p>
+              <button class="settings-btn settings-btn-primary" id="ft-start-manual-btn">Configure Manually</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Example browser -->
+        <div class="ft-section" id="ft-examples" style="display:none">
+          <div class="ft-hardware-info">
+            <span id="ft-example-hw-hint">Detecting your hardware to recommend a tier…</span>
+          </div>
+          <div id="ft-examples-list"></div>
+        </div>
+      </div>
+
       <!-- Tab: Model Browser -->
-      <div class="ft-tab-content active" id="ft-tab-model">
+      <div class="ft-tab-content" id="ft-tab-model">
         <div class="ft-section">
           <h2>Model Selection</h2>
           <p>Choose a base model to fine-tune. Models are downloaded from Hugging Face Hub and cached locally.</p>
@@ -39,7 +69,7 @@
             <div class="ft-field">
               <label>Model ID</label>
               <input type="text" id="ft-model-id" class="ft-input" placeholder="e.g. HuggingFaceTB/SmolLM2-135M-Instruct" value="HuggingFaceTB/SmolLM2-135M-Instruct">
-              <span class="ft-hint">Hugging Face model identifier or local path</span>
+              <span class="ft-hint">Hugging Face model identifier (Hub only)</span>
             </div>
             <div class="ft-field ft-field-row">
               <button id="ft-check-model" class="settings-btn settings-btn-primary">Check Compatibility</button>
@@ -68,31 +98,12 @@
       <div class="ft-tab-content" id="ft-tab-dataset">
         <div class="ft-section">
           <h2>Dataset Selection</h2>
-          <p>Load a dataset from Hugging Face Hub or a local file (JSONL, CSV, Parquet).</p>
-
-          <div class="ft-field">
-            <label>Dataset Source</label>
-            <div class="ft-radio-group">
-              <label class="ft-radio">
-                <input type="radio" name="ds-source" value="hub" checked> Hugging Face Hub
-              </label>
-              <label class="ft-radio">
-                <input type="radio" name="ds-source" value="local"> Local File
-              </label>
-            </div>
-          </div>
+          <p>Load a dataset from Hugging Face Hub. All sources are Hugging Face only.</p>
 
           <div id="ft-ds-hub" class="ft-field">
             <label>Dataset ID</label>
             <input type="text" id="ft-ds-hub-id" class="ft-input" placeholder="e.g. trl-lib/Capybara" value="trl-lib/Capybara">
-          </div>
-
-          <div id="ft-ds-local" class="ft-field" style="display:none">
-            <label>File Path</label>
-            <div class="ft-file-picker">
-              <input type="text" id="ft-ds-path" class="ft-input" placeholder="/path/to/dataset.jsonl">
-              <button id="ft-ds-browse" class="settings-btn settings-btn-secondary">Browse</button>
-            </div>
+            <span class="ft-hint">Hugging Face dataset identifier (Hub only)</span>
           </div>
 
           <div class="ft-field">

@@ -5,11 +5,12 @@
 'use strict';
 
 const Finetune = (() => {
-  let currentTab = 'model';
+  let currentTab = 'start';
   let localModels = [];
   let selectedModel = '';
   let selectedDataset = '';
   let hwInfo = null;
+  let hwDevice = null; // 'cpu' | 'mps' | 'cuda'
 
   // ── Utils ─────────────────────────────────────────────────────────
 
@@ -30,6 +31,127 @@ const Finetune = (() => {
     if (params >= 1e6) return (params / 1e6).toFixed(1) + 'M';
     return Math.round(params).toLocaleString();
   }
+
+  // ── Example projects (mirrors docs/.dev/eg.md) ───────────────────────
+  // Four categories, each with one config per hardware tier. All model and
+  // dataset IDs are Hugging Face Hub sources only.
+
+  const HW_TIERS = {
+    easy: { label: 'Easy', hint: 'CPU / Apple Silicon 8 GB / GPU &lt; 6 GB' },
+    medium: { label: 'Medium', hint: 'Apple Silicon 16 GB+ / GPU 6–16 GB' },
+    hard: { label: 'Hard', hint: 'GPU 24 GB+' },
+  };
+
+  const EXAMPLES = [
+    {
+      id: 'text-to-sql',
+      title: 'Text-to-SQL Copilot',
+      desc: 'Convert natural language questions into executable database queries.',
+      dataset: 'b-mc2/sql-create-context',
+      textColumn: 'answer',
+      variants: {
+        easy: {
+          model: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+          method: 'lora', max_samples: 2000, lora_r: 8, lora_alpha: 16,
+          learning_rate: 3e-4, batch_size: 2, grad_acc: 8, max_seq: 512,
+          epochs: 3, warmup: 50, save_steps: 100, bf16: false,
+        },
+        medium: {
+          model: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+          method: 'lora', max_samples: 8000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 1024,
+          epochs: 2, warmup: 100, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'NousResearch/Llama-2-7b-chat-hf',
+          method: 'qlora', max_samples: 15000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 1, grad_acc: 8, max_seq: 2048,
+          epochs: 1, warmup: 100, save_steps: 500, bf16: false,
+        },
+      },
+    },
+    {
+      id: 'ticket-classifier',
+      title: 'Support Ticket Classifier',
+      desc: 'Categorize incoming emails by department and detect urgency.',
+      dataset: 'PolyAI/banking77',
+      textColumn: 'text',
+      variants: {
+        easy: {
+          model: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+          method: 'lora', max_samples: 2000, lora_r: 8, lora_alpha: 16,
+          learning_rate: 3e-4, batch_size: 2, grad_acc: 8, max_seq: 256,
+          epochs: 3, warmup: 50, save_steps: 500, bf16: false,
+        },
+        medium: {
+          model: 'google/gemma-2b-it',
+          method: 'lora', max_samples: 6000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 512,
+          epochs: 2, warmup: 100, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'mistralai/Mistral-7B-Instruct-v0.3',
+          method: 'qlora', max_samples: 10000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 1, grad_acc: 8, max_seq: 1024,
+          epochs: 1, warmup: 100, save_steps: 500, bf16: false,
+        },
+      },
+    },
+    {
+      id: 'jargon-simplifier',
+      title: 'Medical / Legal Jargon Simpler',
+      desc: 'Translate complex professional jargon into simple, layman terms.',
+      dataset: 'medalpaca/medical_meadow_wikidoc',
+      textColumn: 'output',
+      variants: {
+        easy: {
+          model: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+          method: 'lora', max_samples: 1000, lora_r: 8, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 8, max_seq: 512,
+          epochs: 2, warmup: 50, log_steps: 10, save_steps: 500, bf16: false,
+        },
+        medium: {
+          model: 'microsoft/Phi-3-mini-4k-instruct',
+          method: 'qlora', max_samples: 3000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 1024,
+          epochs: 1, warmup: 100, log_steps: 10, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'NousResearch/Llama-2-7b-chat-hf',
+          method: 'qlora', max_samples: 6000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 1, grad_acc: 8, max_seq: 2048,
+          epochs: 1, warmup: 100, log_steps: 10, save_steps: 500, bf16: false,
+        },
+      },
+    },
+    {
+      id: 'brand-voice',
+      title: 'Brand-Voice Copywriter',
+      desc: 'Write marketing copy and social posts in the exact tone of a brand.',
+      dataset: 'databricks/databricks-dolly-15k',
+      textColumn: 'output',
+      variants: {
+        easy: {
+          model: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+          method: 'lora', max_samples: 1000, lora_r: 8, lora_alpha: 16,
+          learning_rate: 3e-4, batch_size: 2, grad_acc: 8, max_seq: 512,
+          epochs: 3, warmup: 50, log_steps: 10, save_steps: 500, bf16: false,
+        },
+        medium: {
+          model: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+          method: 'lora', max_samples: 4000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 1024,
+          epochs: 2, warmup: 100, log_steps: 10, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'mistralai/Mistral-7B-Instruct-v0.3',
+          method: 'qlora', max_samples: 8000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 1, grad_acc: 8, max_seq: 2048,
+          epochs: 1, warmup: 100, log_steps: 10, save_steps: 500, bf16: false,
+        },
+      },
+    },
+  ];
 
   function show(id) {
     const el = document.getElementById(id);
@@ -314,32 +436,11 @@ const Finetune = (() => {
 
   // ── Dataset tab ────────────────────────────────────────────────
 
-  function initDatasetTabs() {
-    document.querySelectorAll('input[name="ds-source"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-        const isHub = radio.value === 'hub';
-        document.getElementById('ft-ds-hub').style.display = isHub ? '' : 'none';
-        document.getElementById('ft-ds-local').style.display = isHub ? 'none' : '';
-      });
-    });
-  }
-
   async function loadDatasetPreview() {
-    const radio = document.querySelector('input[name="ds-source"]:checked');
-    if (!radio) return;
-    const isHub = radio.value === 'hub';
-    let path;
-    if (isHub) {
-      const el = document.getElementById('ft-ds-hub-id');
-      if (!el) return;
-      path = el.value.trim();
-      if (!path) return;
-    } else {
-      const el = document.getElementById('ft-ds-path');
-      if (!el) return;
-      path = el.value.trim();
-      if (!path) return;
-    }
+    const el = document.getElementById('ft-ds-hub-id');
+    if (!el) return;
+    const path = el.value.trim();
+    if (!path) return;
 
     selectedDataset = path;
     const previewDiv = document.getElementById('ft-ds-preview');
@@ -380,9 +481,7 @@ const Finetune = (() => {
     }
 
     // Show progress bar inside table wrap (preserve info/table DOM ids)
-    const loadingStatus = isHub
-      ? 'Fetching dataset metadata from Hugging Face Hub...'
-      : 'Scanning local dataset files...';
+    const loadingStatus = 'Fetching dataset metadata from Hugging Face Hub...';
     tableWrap.innerHTML = `
       <div class="ft-ds-loading">
         <div class="ft-ds-progress-track">
@@ -398,7 +497,7 @@ const Finetune = (() => {
     const progressBarEl = tableWrap.querySelector('#ft-ds-progress-bar');
     let progressTimer;
 
-    if (isHub && window.electron.onDatasetPreviewProgress) {
+    if (window.electron.onDatasetPreviewProgress) {
       window.electron.onDatasetPreviewProgress((chunk) => {
         if (progressStatusEl && chunk.message) {
           progressStatusEl.textContent = chunk.message;
@@ -408,7 +507,7 @@ const Finetune = (() => {
           progressBarEl.style.width = '100%';
         }
       });
-    } else if (isHub) {
+    } else {
       const messages = [
         'Contacting Hugging Face datasets server...',
         'Fetching dataset info...',
@@ -495,14 +594,9 @@ const Finetune = (() => {
   // ── Save / restore dataset inputs ──────────────────────────────
 
   async function saveDatasetRecents() {
-    const radio = document.querySelector('input[name="ds-source"]:checked');
-    if (!radio) return;
-    const isHub = radio.value === 'hub';
     const data = {
       lastDataset: {
-        source: isHub ? 'hub' : 'local',
         hubId: document.getElementById('ft-ds-hub-id')?.value?.trim() || '',
-        localPath: document.getElementById('ft-ds-path')?.value?.trim() || '',
         textColumn: document.getElementById('ft-ds-column')?.value?.trim() || 'text',
         maxSamples: document.getElementById('ft-ds-max-samples')?.value?.trim() || '',
       },
@@ -520,20 +614,7 @@ const Finetune = (() => {
       const ds = recents?.lastDataset;
       if (!ds) return;
 
-      if (ds.source === 'local') {
-        const localRadio = document.querySelector('input[name="ds-source"][value="local"]');
-        if (localRadio) localRadio.checked = true;
-        document.getElementById('ft-ds-hub').style.display = 'none';
-        document.getElementById('ft-ds-local').style.display = '';
-        if (ds.localPath) document.getElementById('ft-ds-path').value = ds.localPath;
-      } else {
-        const hubRadio = document.querySelector('input[name="ds-source"][value="hub"]');
-        if (hubRadio) hubRadio.checked = true;
-        document.getElementById('ft-ds-hub').style.display = '';
-        document.getElementById('ft-ds-local').style.display = 'none';
-        if (ds.hubId) document.getElementById('ft-ds-hub-id').value = ds.hubId;
-      }
-
+      if (ds.hubId) document.getElementById('ft-ds-hub-id').value = ds.hubId;
       if (ds.textColumn) document.getElementById('ft-ds-column').value = ds.textColumn;
       if (ds.maxSamples) document.getElementById('ft-ds-max-samples').value = ds.maxSamples;
     } catch (e) {
@@ -595,23 +676,162 @@ const Finetune = (() => {
       document.getElementById('ft-hw-text').textContent = `Device: ${deviceLabel} | Mode: ${mode}`;
 
       if (isMPS) {
+        hwDevice = 'mps';
         document.getElementById('ft-method-hint').textContent = 'MPS does not support QLoRA. Using LoRA.';
         document.getElementById('ft-use-bf16').checked = false;
         document.getElementById('ft-use-bf16').disabled = true;
       } else if (!isCUDA) {
+        hwDevice = 'cpu';
         document.getElementById('ft-method-hint').textContent = 'CPU training is slow. Consider using a very small model and batch size.';
         document.getElementById('ft-use-bf16').checked = false;
         document.getElementById('ft-use-bf16').disabled = true;
+      } else {
+        hwDevice = 'cuda';
       }
     } catch (e) {
+      hwDevice = 'cpu';
       document.getElementById('ft-hw-text').textContent = 'Could not detect hardware. Defaulting to safe settings.';
     }
+  }
+
+  function recommendedTier() {
+    if (hwDevice === 'cuda') return 'hard';
+    if (hwDevice === 'mps') return 'medium';
+    return 'easy';
+  }
+
+  function renderExamples() {
+    const list = document.getElementById('ft-examples-list');
+    if (!list) return;
+    const recommended = recommendedTier();
+    const hwHint = document.getElementById('ft-example-hw-hint');
+
+    const deviceName = hwDevice === 'cuda' ? 'CUDA GPU' : hwDevice === 'mps' ? 'Apple Silicon' : 'CPU';
+    if (hwHint) {
+      hwHint.textContent = `Detected hardware: ${deviceName} — recommended tier: ${HW_TIERS[recommended].label}. You can still pick any tier.`;
+    }
+
+    list.innerHTML = EXAMPLES.map(ex => {
+      const cards = Object.keys(HW_TIERS).map(tier => {
+        const v = ex.variants[tier];
+        const tierInfo = HW_TIERS[tier];
+        const isRecommended = tier === recommended;
+        return `
+          <div class="ft-example-card ${isRecommended ? 'ft-example-recommended' : ''}" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">
+            <div class="ft-example-card-head">
+              <span class="ft-tier-badge ft-tier-${tier}">${tierInfo.label} Hardware</span>
+              ${isRecommended ? '<span class="ft-tier-rec">Recommended</span>' : ''}
+            </div>
+            <div class="ft-example-tier-hint">${tierInfo.hint}</div>
+            <p><strong>Model:</strong> <code>${escapeHtml(v.model)}</code></p>
+            <p><strong>Dataset:</strong> <code>${escapeHtml(ex.dataset)}</code></p>
+            <p><strong>Method:</strong> ${v.method.toUpperCase()} &middot; <strong>Seq len:</strong> ${v.max_seq} &middot; <strong>Samples:</strong> ${v.max_samples.toLocaleString()}</p>
+            <button class="settings-btn settings-btn-success ft-example-use" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">Use this example</button>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="ft-example-category">
+          <h3>${escapeHtml(ex.title)}</h3>
+          <p class="ft-example-desc">${escapeHtml(ex.desc)}</p>
+          <div class="ft-example-grid">${cards}</div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.ft-example-use').forEach(btn => {
+      btn.addEventListener('click', () => applyExample(btn.dataset.cat, btn.dataset.tier));
+    });
+  }
+
+  async function exampleOutputDir(catId, tier) {
+    try {
+      const recents = await window.electron.projectRecentsRead();
+      const openFolder = recents?.open;
+      if (openFolder) {
+        return openFolder.replace(/\/+$/, '') + '/outputs/' + catId + '-' + tier;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return '';
+  }
+
+  async function applyExample(catId, tier) {
+    const ex = EXAMPLES.find(e => e.id === catId);
+    if (!ex) return;
+    const v = ex.variants[tier];
+    if (!v) return;
+
+    // Model
+    const modelInput = document.getElementById('ft-model-id');
+    if (modelInput) modelInput.value = v.model;
+    selectedModel = '';
+    hide('ft-compat-result');
+
+    // Dataset
+    const dsInput = document.getElementById('ft-ds-hub-id');
+    if (dsInput) dsInput.value = ex.dataset;
+    selectedDataset = ex.dataset;
+    const colInput = document.getElementById('ft-ds-column');
+    if (colInput) colInput.value = ex.textColumn || 'text';
+    const maxInput = document.getElementById('ft-ds-max-samples');
+    if (maxInput) maxInput.value = v.max_samples || '';
+
+    // Output dir
+    const outInput = document.getElementById('ft-output-dir');
+    const outDir = await exampleOutputDir(catId, tier);
+    if (outInput && outDir) outInput.value = outDir;
+
+    // Hyperparameters
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val !== undefined) el.value = val;
+    };
+    set('ft-method', v.method);
+    set('ft-lora-r', v.lora_r);
+    set('ft-lora-alpha', v.lora_alpha);
+    set('ft-lora-dropout', v.lora_dropout !== undefined ? v.lora_dropout : 0.05);
+    set('ft-lr', v.learning_rate);
+    set('ft-batch-size', v.batch_size);
+    set('ft-grad-acc', v.grad_acc);
+    set('ft-max-seq', v.max_seq);
+    set('ft-epochs', v.epochs);
+    set('ft-max-steps', v.max_steps !== undefined ? v.max_steps : '');
+    set('ft-warmup', v.warmup);
+    set('ft-log-steps', v.log_steps !== undefined ? v.log_steps : 10);
+    set('ft-save-steps', v.save_steps);
+    set('ft-scheduler', v.scheduler || 'cosine');
+    const gradCheck = document.getElementById('ft-grad-checkpoint');
+    if (gradCheck) gradCheck.checked = v.grad_checkpoint !== undefined ? v.grad_checkpoint : true;
+    const flash = document.getElementById('ft-use-flash');
+    if (flash) flash.checked = !!v.flash;
+    const bf16 = document.getElementById('ft-use-bf16');
+    if (bf16 && !bf16.disabled) bf16.checked = !!v.bf16;
+    const resume = document.getElementById('ft-resume');
+    if (resume) resume.checked = true;
+
+    // Update method hint + preview, then go straight to training
+    const methodSel = document.getElementById('ft-method');
+    if (methodSel) {
+      methodSel.dispatchEvent(new Event('change'));
+    }
+    updateConfigPreview();
+
+    const cfg = buildConfig();
+    if (!cfg.output_dir) {
+      alert('Open a project folder first (File > Open Project) so the example can find an output directory.');
+      switchTab('config');
+      return;
+    }
+
+    sessionStorage.setItem('pendingTrainingConfig', JSON.stringify(cfg));
+    window.electron.navigateTo('public/training.html');
   }
 
   function buildConfig() {
     const method = document.getElementById('ft-method').value;
     const modelPath = document.getElementById('ft-model-id').value.trim();
-    const datasetPath = selectedDataset || document.getElementById('ft-ds-hub-id').value.trim() || document.getElementById('ft-ds-path').value.trim();
+    const datasetPath = selectedDataset || document.getElementById('ft-ds-hub-id').value.trim();
     const outputDir = document.getElementById('ft-output-dir').value.trim();
 
     const cfg = {
@@ -794,6 +1014,26 @@ const Finetune = (() => {
       tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
 
+    // Step 0 - Start
+    document.getElementById('ft-start-example-btn')?.addEventListener('click', () => {
+      show('ft-examples');
+      renderExamples();
+      document.getElementById('ft-examples')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('ft-start-manual-btn')?.addEventListener('click', () => {
+      switchTab('model');
+    });
+    document.getElementById('ft-start-card-example')?.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') {
+        document.getElementById('ft-start-example-btn')?.click();
+      }
+    });
+    document.getElementById('ft-start-card-manual')?.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') {
+        document.getElementById('ft-start-manual-btn')?.click();
+      }
+    });
+
     // Model tab
     document.getElementById('ft-check-model')?.addEventListener('click', checkModelCompatibility);
     document.getElementById('ft-download-model')?.addEventListener('click', downloadModel);
@@ -802,15 +1042,7 @@ const Finetune = (() => {
     });
 
     // Dataset tab
-    initDatasetTabs();
     document.getElementById('ft-ds-load')?.addEventListener('click', loadDatasetPreview);
-    document.getElementById('ft-ds-browse')?.addEventListener('click', async () => {
-      const folder = await window.electron.projectPickFolder();
-      if (folder) {
-        document.getElementById('ft-ds-path').value = folder;
-        saveDatasetRecents();
-      }
-    });
 
     // Config tab - auto-update preview
     document.querySelectorAll('#ft-tab-config input, #ft-tab-config select').forEach(el => {

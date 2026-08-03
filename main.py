@@ -11,11 +11,20 @@ import threading
 import logging
 from pathlib import Path
 
+import paths
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
+# BASE_DIR is the bundle's resource root (static files, scripts, templates).
+# In frozen builds it may be read-only (AppImage mount, .app bundle,
+# Program Files) so user data — settings, backups, themes, recents — lives
+# in a per-user data directory instead (see paths.py).
 BASE_DIR = Path(__file__).resolve().parent
-USER_SETTINGS_PATH = BASE_DIR / 'user' / 'settings.json'
-BACKUP_SETTINGS_PATH = BASE_DIR / 'user' / 'settings.json.bak'
-TEMPLATE_SETTINGS_PATH = BASE_DIR / 'user' / 'template' / 'settings.json'
+DATA_DIR = paths.app_data_dir()
+BUNDLE_DIR = paths.bundle_dir()
+
+USER_SETTINGS_PATH = DATA_DIR / 'user' / 'settings.json'
+BACKUP_SETTINGS_PATH = DATA_DIR / 'user' / 'settings.json.bak'
+TEMPLATE_SETTINGS_PATH = BUNDLE_DIR / 'user' / 'template' / 'settings.json'
 
 logging.basicConfig(level=logging.INFO, format='[mama] %(levelname)s %(message)s')
 logger = logging.getLogger('mama')
@@ -54,17 +63,18 @@ def _strip_json_comments(text: str) -> str:
 def load_settings():
     """Load settings from user/settings.json, restoring from backup or template if needed."""
     if not USER_SETTINGS_PATH.exists():
-        if BACKUP_SETTINGS_PATH.exists():
-            logger.info('settings.json missing, restoring from backup')
+        try:
             USER_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            raw = BACKUP_SETTINGS_PATH.read_text('utf-8')
-            USER_SETTINGS_PATH.write_text(raw, 'utf-8')
-        elif TEMPLATE_SETTINGS_PATH.exists():
-            logger.info('settings.json and backup missing, creating from template')
-            USER_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            raw = _strip_json_comments(TEMPLATE_SETTINGS_PATH.read_text('utf-8'))
-            USER_SETTINGS_PATH.write_text(raw, 'utf-8')
-        else:
+            if BACKUP_SETTINGS_PATH.exists():
+                logger.info('settings.json missing, restoring from backup')
+                raw = BACKUP_SETTINGS_PATH.read_text('utf-8')
+                USER_SETTINGS_PATH.write_text(raw, 'utf-8')
+            elif TEMPLATE_SETTINGS_PATH.exists():
+                logger.info('settings.json and backup missing, creating from template')
+                raw = _strip_json_comments(TEMPLATE_SETTINGS_PATH.read_text('utf-8'))
+                USER_SETTINGS_PATH.write_text(raw, 'utf-8')
+        except OSError as e:
+            logger.error('Could not seed settings file: %s', e)
             return None
     try:
         return json.loads(USER_SETTINGS_PATH.read_text('utf-8'))
@@ -79,6 +89,66 @@ def get_startup_page():
     if settings and settings.get('general settings', {}).get('setup', False):
         return 'public/setup.html'
     return 'public/index.html'
+
+
+def _prepare_windows_clr() -> None:
+    """Frozen Windows builds: make pythonnet loadable, fail with guidance.
+
+    Two things commonly break `import clr` in a frozen build:
+
+    1. Files extracted from a downloaded zip carry Windows' "Mark of the
+       Web" zone flag; the .NET runtime refuses to load such assemblies,
+       so clr_loader fails to resolve Python.Runtime.Loader.Initialize.
+    2. The machine's .NET Framework is too old (4.7.2+ is required).
+
+    Clearing the zone flag from the bundled .NET files and importing clr
+    early makes the real failure surface as a readable dialog instead of a
+    pywebview traceback.
+    """
+    if sys.platform != 'win32' or not getattr(sys, 'frozen', False):
+        return
+
+    def try_import_clr():
+        try:
+            import clr  # noqa: F401
+            return True
+        except Exception as e:
+            logger.error('pythonnet failed to initialize: %s', e)
+            return False
+
+    if try_import_clr():
+        return
+
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        for sub in ('pythonnet', 'clr_loader', 'webview'):
+            d = BUNDLE_DIR / sub
+            if d.is_dir():
+                for p in d.rglob('*'):
+                    if p.is_file():
+                        kernel32.DeleteFileW(str(p) + ':Zone.Identifier')
+    except Exception:
+        pass
+
+    if try_import_clr():
+        logger.info('pythonnet loaded after clearing Mark-of-the-Web flags')
+        return
+
+    try:
+        import ctypes
+        msg = (
+            'mama could not initialize its Windows GUI framework.\n\n'
+            'If you downloaded mama as a zip, unblock the extracted files:\n'
+            '  right-click the mama folder > Properties > Unblock\n'
+            '  (or in the folder run: Get-ChildItem -Recurse | Unblock-File)\n\n'
+            'If that does not help, install Microsoft .NET Framework 4.8:\n'
+            '  https://dotnet.microsoft.com/download/dotnet-framework/net48'
+        )
+        ctypes.windll.user32.MessageBoxW(0, msg, 'mama', 0x10)
+    except Exception:
+        pass
+    raise SystemExit(1)
 
 
 def main():
@@ -114,6 +184,9 @@ def main():
     if recover_pending():
         sys.exit(0)
 
+    # Windows frozen builds: unblock + preload pythonnet (clear error if it fails)
+    _prepare_windows_clr()
+
     import webview
     from http_server import start_http_server
     from bridge import MamaApi
@@ -146,7 +219,24 @@ def main():
 
     window.events.closed += api.on_quit
 
-    webview.start(debug=args.debug)
+    try:
+        webview.start(debug=args.debug)
+    except Exception as exc:
+        # A raw traceback tells users nothing useful when the GUI toolkit is
+        # missing, so log it and exit with a plain-language hint instead.
+        logger.exception('Failed to start the pywebview window')
+        if sys.platform.startswith('linux'):
+            print(
+                'mama could not open its window.\n'
+                'Reason: %s\n'
+                'On Debian/Ubuntu, install the WebKit2GTK runtime and its '
+                'GObject introspection bindings, e.g.:\n'
+                '  sudo apt install libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1\n'
+                'On Fedora: sudo dnf install webkit2gtk4.1\n'
+                'On Arch/EndeavourOS: sudo pacman -S webkit2gtk-4.1' % exc,
+                file=sys.stderr,
+            )
+        sys.exit(1)
 
 
 if __name__ == '__main__':

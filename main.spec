@@ -15,6 +15,8 @@ datas = [
     (os.path.join(base_dir, 'styles.css'), '.'),
 ]
 
+binaries = []
+
 # Bundle CA certificates: without them every HTTPS request from the packaged
 # app fails with SSLCertVerificationError (the updater cannot reach GitHub).
 # certifi's hook normally covers this, but we add the pem explicitly so it is
@@ -33,8 +35,29 @@ app_icon = os.path.join(icons_dir, 'icon.ico' if system == 'Windows' else 'icon.
 
 if system == 'Windows':
     platform_hiddenimports = ['webview.platforms.winforms']
+    # pythonnet/clr_loader must be bundled completely (runtime dir, .deps.json,
+    # native ClrLoader.dll for the netfx loader); the shipped hooks only pick
+    # up Python.Runtime.dll and may miss the rest, which makes `import clr`
+    # fail with "Failed to resolve Python.Runtime.Loader.Initialize".
+    try:
+        from PyInstaller.utils.hooks import collect_all
+        pn_datas, pn_binaries, pn_hidden = collect_all('pythonnet')
+        cl_datas, cl_binaries, cl_hidden = collect_all('clr_loader')
+        datas += pn_datas + cl_datas
+        binaries += pn_binaries + cl_binaries
+        platform_hiddenimports += pn_hidden + cl_hidden
+    except Exception as e:
+        print('WARNING: could not collect pythonnet/clr_loader files:', e, file=sys.stderr)
 elif system == 'Linux':
-    platform_hiddenimports = ['webview.platforms.gtk']
+    platform_hiddenimports = ['webview.platforms.gtk', 'gi']
+    # Note: we deliberately do NOT bundle the WebKit2/Soup gi typelibs or the
+    # webkit2gtk shared libraries. PyInstaller's gi runtime hook points
+    # GI_TYPELIB_PATH at the bundle, but the bundled Ubuntu-built webkit
+    # libraries cannot load on other distros (e.g. they link Ubuntu-only ICU
+    # sonames), which surfaces as "Could not locate symbol
+    # webkit_get_major_version". Instead the app must use the WebKit2GTK
+    # installed on the user's system (libwebkit2gtk-4.1-0 + gir1.2-webkit2-4.1
+    # on Debian/Ubuntu, webkit2gtk-4.1 on Arch).
 elif system == 'Darwin':
     platform_hiddenimports = ['webview.platforms.cocoa']
 else:

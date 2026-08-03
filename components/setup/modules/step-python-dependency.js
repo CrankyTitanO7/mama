@@ -20,13 +20,15 @@
       </div>
       <div id="py-dep-warn" class="setup-warn-msg" style="display:none">
         <p id="py-dep-warn-title" style="font-weight:bold; margin-top:0">❌ Python 3.10+ not found!</p>
-        <p id="py-dep-warn-reason">mama requires Python 3.10 or higher — PyTorch publishes no wheels for older versions. Please install it from:</p>
+        <p id="py-dep-warn-reason">mama requires Python 3.10 or higher — PyTorch publishes no wheels for older versions.</p>
+        <p>${window.__setupUtils.pythonInstallGuide()}</p>
+        <p style="margin-bottom:0">Or install another way:</p>
         <ul>
-          <li><strong>macOS:</strong> <code>brew install python</code> or download from <a href="https://www.python.org/downloads/" target="_blank">python.org</a></li>
+          <li><strong>macOS:</strong> <code>brew install python</code></li>
           <li><strong>Linux:</strong> <code>sudo apt install python3 python3-venv python3-pip</code> (Debian/Ubuntu) or <code>sudo dnf install python3</code> (Fedora)</li>
-          <li><strong>Windows:</strong> Download from <a href="https://www.python.org/downloads/" target="_blank">python.org</a> — ensure "Add Python to PATH" is checked</li>
+          <li><strong>Windows:</strong> Ensure "Add Python to PATH" is checked during install</li>
         </ul>
-        <p style="margin-bottom:0">After installing, click <strong>Re-check</strong> below.</p>
+        <p style="margin-bottom:0">Then click <strong>Re-check</strong> below.</p>
       </div>
       <div id="py-dep-rescan-wrap" style="display:none; margin-top:12px">
         <button id="py-dep-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-check</button>
@@ -75,9 +77,7 @@
             if (pythonVer) {
               out.innerHTML = `<div class="setup-warn-msg">⚠️ Python ${U.escapeHtml(pythonVer)} detected, but PyTorch requires 3.10+</div>`;
               const warnTitle  = document.getElementById('py-dep-warn-title');
-              const warnReason = document.getElementById('py-dep-warn-reason');
               if (warnTitle)  warnTitle.textContent  = `⚠️ Python ${U.escapeHtml(pythonVer)} is too old!`;
-              if (warnReason) warnReason.textContent = 'mama requires Python 3.10 or higher — PyTorch publishes no wheels for older versions. Please install a newer version from:';
             } else {
               out.innerHTML = '<div class="setup-error-msg">❌ Python 3 not found</div>';
             }

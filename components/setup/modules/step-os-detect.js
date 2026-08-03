@@ -12,8 +12,7 @@
       </div>
       <div id="os-py-missing" style="display:none" class="setup-warn-msg">
         <p style="font-weight:bold; margin-top:0">⚠️ Python not detected</p>
-        <p>Auto-detection requires Python 3.8+. Please install it, then click <strong>Re-scan</strong>, or fill in the details manually below.</p>
-        <p>Download from <a href="https://www.python.org/downloads/" target="_blank">python.org</a></p>
+        <p>Auto-detection requires Python 3.8+. ${window.__setupUtils.pythonInstallGuide()} Then click <strong>Re-scan</strong>, or fill in the details manually below.</p>
       </div>
       <div id="os-fields" style="display:none">
         <div class="setup-field">

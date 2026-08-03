@@ -14,9 +14,7 @@
         <button id="py-rescan-btn" class="setup-btn setup-btn-secondary">🔄 Re-scan</button>
       </div>
       <div id="py-warn" class="setup-warn-msg" style="display:none">
-        ⚠️ Python 3.10+ not found. mama requires Python 3.10 or higher — PyTorch
-        publishes no wheels for older versions.<br>
-        Install from <a href="https://www.python.org/downloads/" target="_blank"><strong>python.org</strong></a> then re-scan.
+        ⚠️ ${window.__setupUtils.pythonInstallGuide({ reason: 'Python 3.10+ was not found — mama requires 3.10 or higher, and PyTorch publishes no wheels for older versions.' })}
       </div>
     `,
     afterRender: () => {

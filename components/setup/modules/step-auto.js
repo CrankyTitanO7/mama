@@ -263,7 +263,7 @@
         const need = S.detected.pythonVersion
           ? `Python ${S.detected.pythonVersion} was found, but mama needs 3.10 or newer.`
           : 'Python 3 was not found on this machine.';
-        fail(`${need} Install Python 3.10+ from <a href="https://www.python.org/downloads/" target="_blank">python.org</a>, then retry.`);
+        fail(`${need} ${U.pythonInstallGuide()}`);
         return;
       }
       setPhase('python', 'ok', S.detected.pythonVersion);

@@ -85,6 +85,19 @@
       return major > minMajor || (major === minMajor && minor >= minMinor);
     },
 
+    // ── Solution-oriented error guidance ────────────────────────────
+    // Every "Python missing / too old" message should tell the user what to
+    // do next, not just what failed. `html` emits a clickable link;
+    // `plain` returns link-free text (for textContent / terminal output).
+    pythonInstallGuide({ html = true, reason = '' } = {}) {
+      const url = 'https://www.python.org/downloads/';
+      const problem = reason ? `${reason} ` : '';
+      const link = html
+        ? `run the Python installer after downloading it from <a href="${url}" target="_blank"><strong>python.org/downloads</strong></a>`
+        : 'run the Python installer after downloading it from python.org/downloads';
+      return `${problem}Fix: ${link}, then re-run this check.`;
+    },
+
     gpuVariant() {
       const s = window.__setupState;
       if (s.selectedMode === 'cpu') return 'cpu';

@@ -292,7 +292,9 @@
 
     // Jump from the "Set Up This Project?" step into the hands-free auto
     // installer. The auto step is inserted right after the confirm step so
-    // the Back button lands on the confirm screen.
+    // the Back button lands on the confirm screen. Once committed, every
+    // step-by-step module after the auto step is dropped — the only way to
+    // finish setup now is the hands-free installer.
     async startAutoSetup() {
       const steps = window.__setupSteps || [];
       const s     = window.__setupState;
@@ -308,6 +310,9 @@
         steps.splice(insertAt, 0, autoStep);
         idx = steps.indexOf(autoStep);
       }
+      // Commit: hide the step-by-step modules for the rest of this session
+      s.autoCommitted = true;
+      steps.splice(idx + 1);
       s.currentStep = idx;
       await window.__setupRender.renderStep();
     },

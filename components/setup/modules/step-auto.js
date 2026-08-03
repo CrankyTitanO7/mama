@@ -60,11 +60,17 @@
       `;
     },
     afterRender: () => {
-      // The auto step owns the UI — hide the wizard's Next / Skip buttons
+      // The auto step owns the UI — hide the wizard's Next / Skip / Back /
+      // Finish buttons; retry and back happen through the step's own
+      // controls, and a successful setup finishes with "Start Using mama".
       const nextBtn = document.getElementById('setup-next');
       const skipBtn = document.getElementById('setup-skip');
+      const backBtn = document.getElementById('setup-back');
+      const finishBtn = document.getElementById('setup-finish');
       if (nextBtn) nextBtn.style.display = 'none';
       if (skipBtn) skipBtn.style.display = 'none';
+      if (backBtn) backBtn.style.display = 'none';
+      if (finishBtn) finishBtn.style.display = 'none';
       runAutoSetup();
     }
   };

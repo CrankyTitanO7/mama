@@ -40,10 +40,22 @@
       `;
     },
     afterRender: () => {
+      const S = window.__setupState;
+      // Once the user has committed to the hands-free installer, the
+      // step-by-step modules are gone — only "Yes" is left on this screen.
+      const no = document.getElementById('confirm-no');
+      if (S.autoCommitted && no) {
+        no.style.display = 'none';
+        const actions = no.closest('.setup-actions-inline');
+        const note = document.createElement('p');
+        note.className = 'setup-note';
+        note.textContent = 'Hands-free setup was already chosen — you can only retry the auto installer from here.';
+        actions?.after(note);
+      }
       document.getElementById('confirm-yes')?.addEventListener('click', () => {
         window.__setupRender.startAutoSetup();
       });
-      document.getElementById('confirm-no')?.addEventListener('click', () => {
+      no?.addEventListener('click', () => {
         window.__setupRender.nextStep();
       });
     },

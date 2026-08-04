@@ -3221,6 +3221,67 @@ body.embed-fullscreen-active {
     border-color: var(--highlight-color);
 }
 
+/* Backend badge on example cards */
+.ft-backend-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.ft-backend-badge-trl {
+    background: rgba(0, 212, 255, 0.14);
+    color: #4dd0e1;
+    border-color: rgba(0, 212, 255, 0.4);
+}
+
+.ft-backend-badge-axolotl {
+    background: rgba(186, 104, 200, 0.16);
+    color: #ce93d8;
+    border-color: rgba(186, 104, 200, 0.4);
+}
+
+.ft-backend-badge-unsloth {
+    background: rgba(255, 179, 71, 0.16);
+    color: #ffcc80;
+    border-color: rgba(255, 179, 71, 0.4);
+}
+
+/* Highlight the card of the currently selected backend (step 0 selector) */
+.ft-example-backend-active {
+    border-width: 1px;
+    box-shadow: 0 0 0 3px var(--shadow-color);
+}
+
+.ft-example-backend-active.ft-example-backend-trl {
+    background: color-mix(in srgb, #00d4ff 8%, var(--widget-bg));
+    border-color: #00d4ff;
+}
+
+.ft-example-backend-active.ft-example-backend-axolotl {
+    background: color-mix(in srgb, #b866c8 10%, var(--widget-bg));
+    border-color: #b866c8;
+}
+
+.ft-example-backend-active.ft-example-backend-unsloth {
+    background: color-mix(in srgb, #f59e0b 10%, var(--widget-bg));
+    border-color: #f59e0b;
+}
+
+.ft-example-source {
+    font-size: 11px;
+    color: var(--highlight-color);
+    text-decoration: none;
+}
+
+.ft-example-source:hover {
+    text-decoration: underline;
+}
+
 .ft-example-use {
     margin-top: auto;
 }

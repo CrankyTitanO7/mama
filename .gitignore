@@ -26,13 +26,6 @@ venv/
 user/settings.json
 user/settings.json.bak
 *.log
-
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
 components/recents.json
 
 # Python cache files

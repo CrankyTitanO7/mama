@@ -111,13 +111,24 @@
       const s = window.__setupState;
       if (s.selectedMode === 'cpu') return 'https://download.pytorch.org/whl/cpu';
       if (s.detected.gpuManufacturer === 'nvidia' && s.detected.cudaVersion) {
-        const tag = 'cu' + s.detected.cudaVersion.replace('.', '');
-        return `https://download.pytorch.org/whl/${tag}`;
+        return `https://download.pytorch.org/whl/${window.__setupUtils.cudaWheelTag(s.detected.cudaVersion)}`;
       }
       if (s.detected.gpuManufacturer === 'amd' && s.detected.rocmVersion) {
         return `https://download.pytorch.org/whl/rocm${s.detected.rocmVersion}`;
       }
       return 'https://download.pytorch.org/whl/cpu';
+    },
+
+    // Map a detected CUDA version (e.g. "13.3") to the newest wheel tag
+    // PyTorch actually publishes. There is no CUDA 13.3 wheel, so any
+    // version newer than 13.2 is clamped down to the newest available tag.
+    cudaWheelTag(version) {
+      const m = /^(\d+)\.(\d+)/.exec(version || '');
+      if (!m) return 'cu132';
+      let major = parseInt(m[1], 10);
+      let minor = parseInt(m[2], 10);
+      if (major > 13 || (major === 13 && minor > 2)) { major = 13; minor = 2; }
+      return `cu${major}${minor}`;
     },
 
     gpuVariantLabel() {

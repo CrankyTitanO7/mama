@@ -19,7 +19,9 @@ Notes:
     - For TF + ROCm, tensorflow-rocm is a community build maintained by AMD;
       version availability may lag behind upstream tensorflow.
     - PyTorch CUDA wheels: https://pytorch.org/get-started/locally/
-    - If CUDA version is unknown, defaults to the latest stable CUDA 13.x wheel.
+    - If CUDA version is unknown or newer than the newest published wheel
+      (e.g. driver-reported CUDA 13.3), the latest available CUDA wheel
+      (cu132) is used.
 """
 
 import sys
@@ -27,8 +29,12 @@ import subprocess
 
 
 # Latest stable CUDA/ROCm tags to fall back to when version detection failed.
-DEFAULT_CUDA_TAG = "cu130"   # PyTorch 2.13+ stable (CUDA 13.0)
+DEFAULT_CUDA_TAG = "cu132"   # Latest PyTorch CUDA wheel (CUDA 13.2)
 DEFAULT_ROCM_TAG = "rocm7.2"
+
+# Newest CUDA major.minor PyTorch publishes wheels for. Drivers/toolkits can
+# report newer versions (e.g. CUDA 13.3) that have no matching PyTorch wheel.
+MAX_CUDA = (13, 2)
 
 
 def cuda_tag(version_str):
@@ -36,6 +42,8 @@ def cuda_tag(version_str):
     Convert a CUDA version string to a PyTorch wheel tag.
     "12.6" → "cu126", "13.0" → "cu130", "13.2" → "cu132"
     Falls back to DEFAULT_CUDA_TAG if version_str is empty / unparseable.
+    Versions newer than the newest published wheel (13.2) are clamped down,
+    so e.g. CUDA 13.3 resolves to "cu132" instead of a nonexistent "cu133".
     """
     if not version_str:
         return DEFAULT_CUDA_TAG
@@ -44,9 +52,11 @@ def cuda_tag(version_str):
     try:
         major = int(parts[0])
         minor = int(parts[1]) if len(parts) > 1 else 0
-        return f"cu{major}{minor}"
     except (ValueError, IndexError):
         return DEFAULT_CUDA_TAG
+    if (major, minor) > MAX_CUDA:
+        major, minor = MAX_CUDA
+    return f"cu{major}{minor}"
 
 
 def rocm_tag(version_str):

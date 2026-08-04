@@ -1435,6 +1435,26 @@ const Finetune = (() => {
     }
   }
 
+  async function saveConfigJson() {
+    const cfg = buildConfig();
+    const status = document.getElementById('ft-save-config-json-status');
+    if (!cfg.output_dir) {
+      if (status) status.textContent = 'Set an output directory first (Step 3), then save.';
+      return;
+    }
+    if (status) status.textContent = 'Saving...';
+    try {
+      const result = await window.electron.trainConfigSave(cfg.output_dir, JSON.stringify(cfg));
+      if (result.success) {
+        if (status) status.textContent = 'Saved config to ' + result.path;
+      } else {
+        if (status) status.textContent = 'Failed: ' + (result.error || 'Unknown error');
+      }
+    } catch (e) {
+      if (status) status.textContent = 'Failed: ' + e.message;
+    }
+  }
+
   async function startTraining() {
     const cfg = buildConfig();
 
@@ -1656,6 +1676,7 @@ const Finetune = (() => {
     document.getElementById('ft-export-axolotl-colab')?.addEventListener('click', () => {
       window.electron.navigateTo('public/export.html');
     });
+    document.getElementById('ft-save-config-json')?.addEventListener('click', saveConfigJson);
     document.getElementById('ft-go-training')?.addEventListener('click', () => {
       window.electron.navigateTo('public/training.html');
     });

@@ -161,6 +161,7 @@ SHIM_SCRIPT = """
     projectImportTemplate: async (templateKey) => { try { return await (await api()).project_import_template(templateKey); } catch(e) { return { success: false, error: String(e) }; } },
 
     projectJsonRead:   async (folderPath) => { try { return await (await api()).project_json_read(folderPath); } catch(e) { return null; } },
+    projectJsonReadFile: async (filePath) => { try { return await (await api()).project_json_read_file(filePath); } catch(e) { return { success: false, error: String(e) }; } },
     projectJsonWrite:  async (folderPath, data) => { try { return await (await api()).project_json_write(folderPath, data); } catch(e) { return { success: false, error: String(e) }; } },
 
     // ═══════════ Project Init ═══════════

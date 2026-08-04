@@ -1366,14 +1366,25 @@ class MamaApi:
         """Open a native file picker dialog (optionally filtered by extension)."""
         try:
             if sys.platform == 'darwin':
+                # macOS 'choose file ... of type' expects UTIs, not extensions.
+                # An unrecognized UTI makes the dialog show no selectable files
+                # (folders only). Only filter when the UTI is reliably registered;
+                # otherwise fall back to an unfiltered dialog.
+                _macos_utis = {
+                    'json': 'public.json',
+                    'txt': 'public.plain-text',
+                    'csv': 'public.comma-separated-values-text',
+                }
                 cmd = 'return POSIX path of (choose file with prompt "Choose File")'
                 if patterns:
                     ext = patterns.split(',')[0].strip().lstrip('.')
-                    cmd = (
-                        'return POSIX path of '
-                        f'(choose file with prompt "Choose File" '
-                        f'of type {{"{ext}"}})'
-                    )
+                    uti = _macos_utis.get(ext.lower())
+                    if uti:
+                        cmd = (
+                            'return POSIX path of '
+                            f'(choose file with prompt "Choose File" '
+                            f'of type {{"{uti}"}})'
+                        )
                 result = subprocess.run(
                     ['osascript', '-e', cmd],
                     capture_output=True, text=True, timeout=120
@@ -1384,12 +1395,14 @@ class MamaApi:
                 if not self._window:
                     return None
                 import webview
-                result = self._window.create_file_dialog(
-                    webview.OPEN_DIALOG,
-                    file_types=(patterns,)
-                ) if patterns else self._window.create_file_dialog(
-                    webview.OPEN_DIALOG
-                )
+                if patterns:
+                    exts = ['.' + p.strip().lstrip('.') for p in patterns.split(',') if p.strip()]
+                    result = self._window.create_file_dialog(
+                        webview.OPEN_DIALOG,
+                        file_types=[('Allowed files', exts)]
+                    )
+                else:
+                    result = self._window.create_file_dialog(webview.OPEN_DIALOG)
                 if result and len(result) > 0:
                     return result[0]
         except Exception as e:
@@ -1517,6 +1530,19 @@ class MamaApi:
         except Exception as e:
             logger.error('project_json_read failed: %s', e)
             return None
+
+    def project_json_read_file(self, file_path: str) -> dict:
+        """Read and parse an arbitrary JSON file (e.g. a training config)."""
+        try:
+            if not file_path:
+                return {'success': False, 'error': 'No file path provided.'}
+            path = Path(file_path)
+            if not path.exists():
+                return {'success': False, 'error': 'File not found.'}
+            return {'success': True, 'data': json.loads(path.read_text('utf-8'))}
+        except Exception as e:
+            logger.error('project_json_read_file failed: %s', e)
+            return {'success': False, 'error': str(e)}
 
     def project_json_write(self, folder_path: str, data: dict) -> dict:
         """Write project.json to a folder. Returns {success: bool, error: str}."""

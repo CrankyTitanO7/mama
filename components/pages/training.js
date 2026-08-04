@@ -87,6 +87,7 @@ const TrainingMonitor = (() => {
 
     // Bind controls
     document.getElementById('train-select-folder')?.addEventListener('click', selectOutputFolder);
+    document.getElementById('train-select-config')?.addEventListener('click', selectConfigFile);
     document.getElementById('train-start-btn')?.addEventListener('click', startTrainingFromConfig);
     document.getElementById('train-pause-btn')?.addEventListener('click', pauseTraining);
     document.getElementById('train-resume-btn')?.addEventListener('click', resumeTraining);
@@ -498,6 +499,28 @@ const TrainingMonitor = (() => {
       if (folder) await loadOutputFolder(folder);
     } catch (e) {
       console.error('Folder selection failed:', e);
+    }
+  }
+
+  async function selectConfigFile() {
+    try {
+      const file = await window.electron.projectPickFile('.json');
+      if (!file) return;
+      const res = await window.electron.projectJsonReadFile(file);
+      if (!res.success) {
+        updateStatus('Failed to read config: ' + (res.error || 'Unknown error'), 'error');
+        return;
+      }
+      const cfg = res.data || {};
+      if (!cfg.output_dir && !cfg.model_name_or_path) {
+        updateStatus('This JSON is not a training config (missing output_dir / model_name_or_path).', 'error');
+        return;
+      }
+      const outputDir = cfg.output_dir || file.replace(/[\\/]training_config\.json$/, '');
+      await loadOutputFolder(outputDir);
+      appendLog('Loaded config: ' + file);
+    } catch (e) {
+      updateStatus('Error selecting config: ' + e.message, 'error');
     }
   }
 

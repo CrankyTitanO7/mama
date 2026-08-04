@@ -1,50 +1,202 @@
-# Mama
+# MAMA
 
-An AI development app that visually guides a user through training and running a model locally. This app prioritizes ease, efficiency, and control.
+> **Build, train, and run AI models locally—without fighting the command line.**
 
-author: Jaden Lee
+MAMA is a cross-platform desktop application that makes local AI development approachable. Instead of editing YAML files, memorizing command-line arguments, or spending hours configuring environments, MAMA guides you through the entire process with a visual interface.
 
-## install 
-you can do two main methods of install. 
-### running with python
-the app currently requires pip in order to install the necessary machine learning libraries so you can run your own training model. One method is to download the source code, then install (either in a venv or globally) pywebview, and then running the main.py script:
+Whether you're training your first language model or experimenting with advanced workflows, MAMA keeps the power of modern AI tooling while removing the friction.
+
+---
+
+## Why MAMA?
+
+Getting started with local AI training can be overwhelming.
+
+Most frameworks expect you to:
+
+* Learn dozens of configuration options
+* Edit YAML files by hand
+* Manage Python environments
+* Install CUDA, PyTorch, and backend dependencies
+* Debug cryptic errors before training even begins
+
+MAMA was built to change that.
+
+Instead of forcing users to learn tooling before learning AI, MAMA lets you focus on building models.
+
+---
+
+## Features
+
+### 🖥 Native Desktop Application
+
+Runs natively on Windows, macOS, and Linux.
+
+No browser tabs.
+No cloud accounts.
+No subscriptions.
+
+Your models stay on your computer.
+
+---
+
+### 🧠 Beginner-Friendly Training
+
+Create a project, choose a model, import a dataset, and start training through a guided interface.
+
+No YAML.
+No terminal required.
+
+---
+
+### ⚙️ Build System
+
+Save complete training configurations as reusable **Builds**.
+
+Instead of remembering dozens of hyperparameters, you can:
+
+* Create reusable workflows
+* Share builds with others
+* Reproduce experiments
+* Switch between different training setups instantly
+
+---
+
+### 🚀 Local-First
+
+MAMA is designed around local AI.
+
+Your datasets, checkpoints, and projects remain yours.
+
+---
+
+### 🔧 Automatic Environment Management
+
+MAMA handles many of the frustrating setup tasks automatically.
+
+Including:
+
+* Python environment detection
+* Dependency installation
+* GPU detection
+* Hardware compatibility
+* Platform-specific configuration
+
+Spend less time debugging installations and more time training.
+
+---
+
+### 📦 Project Management
+
+Organize everything in one place.
+
+Manage:
+
+* Models
+* Datasets
+* Projects
+* Training runs
+* Builds
+* Settings
+
+without digging through folders.
+
+---
+
+## Planned Features
+
+* Axolotl integration
+* Additional training backends
+* Build marketplace
+* One-click model downloads
+* Dataset utilities
+* Training visualizations
+* Plugin support
+* Advanced monitoring
+
+---
+
+# Screenshots
+
+> *(Replace this section with actual screenshots or GIFs.)*
+
+Suggested images:
+
+* Home screen
+* Create Project
+* Build editor
+* Dataset manager
+* Training monitor
+* Hardware detection
+* Finished model
+
+---
+
+# Installation
+
+### Windows
+
+Download the latest release and run the installer.
+
+### macOS
+
+Download the latest `.dmg`.
+
+### Linux
+
+Download the AppImage or install from source.
+
+---
+
+## Building from Source
+
 ```bash
-# for a specific release
-git clone -b 'v2.0' --single-branch --depth 1 https://github.com/CrankyTitanO7/mama.git
-# for the newest repository without history (may contain bugs)
-git clone --depth 1 https://github.com/CrankyTitanO7/mama.git
+git clone https://github.com/CrankyTitanO7/mama.git
+cd mama
 ```
 
-```bash
-pip install pywebview
-python main.py
-```
-This method is also easier to customize your app experience (ie generating your own theme files or writing your own setup modules)
+Follow the platform-specific setup instructions in the documentation.
 
-### download a release 
-github actions also auto-generates an executable app enclosed in a zip file using pyinstaller. You can run these, but python is marked as a dependency, and certain steps such as installing pytorch may fail without installing python
+---
 
-for mac users, it may take a moment to launch at first (when the .app is run for the first time, it has to copy everything to Library folder) but subsequent launches will be faster. Also, you may have to allow the app to run by going to Settings -> privacy + security -> allow app store apps and trusted developers -> allow mama to run. 
-Additionally, if you do not have command line tools installed, MacOS may prompt you to install them in order to use python.
+# Philosophy
 
-Windows users, 
-BEFORE YOU UNZIP THE FOLDER, right click the .zip, press properties, then press unblock.
-then you must bypass the windows firewall by entering the folder, then running the .exe, then press more info, then run anyway. 
+MAMA is built around a simple idea:
 
+> AI should be difficult because of the problems you're solving—not because of the tools you're forced to use.
 
-## complete uninstall
-### macos
-1) delete the app
-2) delete ~/Library/Caches/com.crankytitano7.mama
-3) delete ~/Library/Caches/mama
-### windows 
-1) delete the app
-2) delete C:\Users\USERNAME\AppData\Roaming\mama
-### linux
-1) delete the app
-2) your app cache data may be in ~/.config or ~/.local/share/
+Modern AI frameworks are incredibly powerful, but their learning curve often starts with configuration files, dependency conflicts, and command-line interfaces.
 
-## Acknowledgements
-- pytorch template from [pytorch-template](https://github.com/victoresque/pytorch-template.git) by @victoresque
+MAMA doesn't replace those tools.
 
-- tensorflow template from [Tensorflow-Project-Template](https://github.com/mgsalem/Tensorflow-Project-Template.git) by @mgsalem
+It makes them accessible.
+
+---
+
+# Who is MAMA for?
+
+✅ Students
+
+✅ Researchers
+
+✅ Hobbyists
+
+✅ Developers learning AI
+
+✅ Anyone who wants to train models locally without wrestling with configuration files
+
+---
+
+# Contributing
+
+Contributions are welcome.
+
+Whether you're fixing bugs, improving documentation, designing UI, or adding new training backends, we'd love your help.
+
+If you're looking for a place to start, check the Issues page for beginner-friendly tasks.
+
+---
+
+# License
+
+See the LICENSE file for details.

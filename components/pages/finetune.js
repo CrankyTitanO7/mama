@@ -36,8 +36,11 @@ const Finetune = (() => {
   }
 
   // ── Example projects (mirrors docs/.dev/eg.md) ───────────────────────
-  // Four categories, each with one config per hardware tier. All model and
-  // dataset IDs are Hugging Face Hub sources only.
+  // Each category ships with one config per hardware tier it supports. All
+  // model and dataset IDs are Hugging Face Hub sources only. `backend` tags
+  // which engine the recipe is curated for ('trl' = built-in / any backend,
+  // 'axolotl' = official Axolotl examples, 'unsloth' = official Unsloth
+  // tutorials/notebooks). `source` links to the official docs / repo.
 
   const HW_TIERS = {
     easy: { label: 'Easy', hint: 'CPU / Apple Silicon 8 GB / GPU &lt; 6 GB' },
@@ -46,10 +49,12 @@ const Finetune = (() => {
   };
 
   const EXAMPLES = [
+    // ── Built-in (TRL) — mama-curated, runs on any backend ────────────────
     {
       id: 'text-to-sql',
       title: 'Text-to-SQL Copilot',
       desc: 'Convert natural language questions into executable database queries.',
+      backend: 'trl',
       dataset: 'b-mc2/sql-create-context',
       textColumn: 'answer',
       variants: {
@@ -77,6 +82,7 @@ const Finetune = (() => {
       id: 'ticket-classifier',
       title: 'Support Ticket Classifier',
       desc: 'Categorize incoming emails by department and detect urgency.',
+      backend: 'trl',
       dataset: 'PolyAI/banking77',
       textColumn: 'text',
       variants: {
@@ -104,6 +110,7 @@ const Finetune = (() => {
       id: 'jargon-simplifier',
       title: 'Medical / Legal Jargon Simpler',
       desc: 'Translate complex professional jargon into simple, layman terms.',
+      backend: 'trl',
       dataset: 'medalpaca/medical_meadow_wikidoc',
       textColumn: 'output',
       variants: {
@@ -131,6 +138,7 @@ const Finetune = (() => {
       id: 'brand-voice',
       title: 'Brand-Voice Copywriter',
       desc: 'Write marketing copy and social posts in the exact tone of a brand.',
+      backend: 'trl',
       dataset: 'databricks/databricks-dolly-15k',
       textColumn: 'output',
       variants: {
@@ -151,6 +159,148 @@ const Finetune = (() => {
           method: 'qlora', max_samples: 8000, lora_r: 16, lora_alpha: 32,
           learning_rate: 2e-4, batch_size: 1, grad_acc: 8, max_seq: 2048,
           epochs: 1, warmup: 100, log_steps: 10, save_steps: 500, bf16: false,
+        },
+      },
+    },
+
+    // ── Official Axolotl examples (axolotl-ai-cloud/axolotl `examples/`) ──
+    {
+      id: 'axolotl-llama32',
+      title: 'Axolotl Starter - Llama 3.2 1B LoRA',
+      desc: "Official Axolotl quickstart: LoRA on Llama 3.2 1B with a GPT-4 instruction set (examples/llama-3/lora-1b.yml).",
+      backend: 'axolotl',
+      source: 'https://github.com/axolotl-ai-cloud/axolotl/blob/main/examples/llama-3/lora-1b.yml',
+      dataset: 'teknium/GPT4-LLM-Cleaned',
+      textColumn: 'output',
+      variants: {
+        easy: {
+          model: 'NousResearch/Llama-3.2-1B',
+          method: 'lora', max_samples: 2000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 2, max_seq: 2048,
+          epochs: 1, warmup: 50, save_steps: 100, bf16: false,
+        },
+        medium: {
+          model: 'NousResearch/Llama-3.2-1B',
+          method: 'lora', max_samples: 10000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 2, max_seq: 2048,
+          epochs: 1, warmup: 50, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'NousResearch/Llama-3.2-1B',
+          method: 'lora', max_samples: 20000, lora_r: 16, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 2, max_seq: 2048,
+          epochs: 1, warmup: 100, save_steps: 500, bf16: false,
+        },
+      },
+    },
+    {
+      id: 'axolotl-mistral',
+      title: 'Axolotl Power - Mistral 7B QLoRA',
+      desc: "Official Axolotl QLoRA recipe on Mistral 7B with 4-bit loading (examples/mistral/qlora.yml).",
+      backend: 'axolotl',
+      source: 'https://github.com/axolotl-ai-cloud/axolotl/blob/main/examples/mistral/qlora.yml',
+      dataset: 'mhenrichsen/alpaca_2k_test',
+      textColumn: 'output',
+      variants: {
+        medium: {
+          model: 'mistralai/Mistral-7B-v0.1',
+          method: 'qlora', max_samples: 1000, lora_r: 32, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 4096,
+          epochs: 1, warmup: 50, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'mistralai/Mistral-7B-v0.1',
+          method: 'qlora', max_samples: 2000, lora_r: 32, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 8192,
+          epochs: 1, warmup: 100, save_steps: 500, flash: true, bf16: true,
+        },
+      },
+    },
+    {
+      id: 'axolotl-qwen3',
+      title: 'Axolotl Big - Qwen3 32B QLoRA',
+      desc: "Official Axolotl recipe for large-scale QLoRA on Qwen3 32B with the FineTome-100k set (examples/qwen3/32b-qlora.yaml).",
+      backend: 'axolotl',
+      source: 'https://github.com/axolotl-ai-cloud/axolotl/blob/main/examples/qwen3/32b-qlora.yaml',
+      dataset: 'mlabonne/FineTome-100k',
+      textColumn: 'conversations',
+      variants: {
+        hard: {
+          model: 'Qwen/Qwen3-32B',
+          method: 'qlora', max_samples: 8000, lora_r: 32, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 1, grad_acc: 8, max_seq: 8192,
+          epochs: 1, warmup: 100, save_steps: 500, flash: true, bf16: true,
+        },
+      },
+    },
+
+    // ── Official Unsloth examples (unslothai/notebooks + docs tutorials) ──
+    {
+      id: 'unsloth-llama31',
+      title: 'Unsloth - Llama 3.1 8B Chat',
+      desc: "Unsloth's flagship conversational fine-tune: Llama 3.1 8B in 4-bit on the Alpaca GPT-4 set, 2x faster with ~70% less VRAM.",
+      backend: 'unsloth',
+      source: 'https://unsloth.ai/docs/get-started/fine-tuning-llms-guide',
+      dataset: 'vicgalle/alpaca-gpt4',
+      textColumn: 'output',
+      variants: {
+        medium: {
+          model: 'unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit',
+          method: 'qlora', max_samples: 5000, lora_r: 16, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 2048,
+          epochs: 1, warmup: 50, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit',
+          method: 'qlora', max_samples: 20000, lora_r: 32, lora_alpha: 32,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 2048,
+          epochs: 1, warmup: 100, save_steps: 500, flash: true, bf16: true,
+        },
+      },
+    },
+    {
+      id: 'unsloth-llama32',
+      title: 'Unsloth - Llama 3.2 3B Instruct',
+      desc: "Unsloth's beginner-friendly notebook: fine-tune Llama 3.2 3B into an instruct chatbot on a small Alpaca set in 4-bit.",
+      backend: 'unsloth',
+      source: 'https://github.com/unslothai/notebooks/blob/main/nb/Llama-3.2_%283B%29-Conversational.ipynb',
+      dataset: 'yahma/alpaca-cleaned',
+      textColumn: 'output',
+      variants: {
+        easy: {
+          model: 'unsloth/Llama-3.2-3B-Instruct',
+          method: 'qlora', max_samples: 2000, lora_r: 16, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 2048,
+          epochs: 1, warmup: 50, save_steps: 500, bf16: false,
+        },
+        medium: {
+          model: 'unsloth/Llama-3.2-3B-Instruct',
+          method: 'qlora', max_samples: 10000, lora_r: 16, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 2048,
+          epochs: 1, warmup: 100, save_steps: 500, bf16: false,
+        },
+      },
+    },
+    {
+      id: 'unsloth-gemma2',
+      title: 'Unsloth - Gemma 2 9B Chat',
+      desc: "Unsloth's Gemma 2 recipe: 4-bit QLoRA on Google's Gemma 2 9B (Alpaca set) on a single GPU.",
+      backend: 'unsloth',
+      source: 'https://github.com/unslothai/notebooks/blob/main/nb/AMD-Gemma2_%289B%29-Alpaca.ipynb',
+      dataset: 'vicgalle/alpaca-gpt4',
+      textColumn: 'output',
+      variants: {
+        medium: {
+          model: 'unsloth/gemma-2-9b-bnb-4bit',
+          method: 'qlora', max_samples: 5000, lora_r: 16, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 2048,
+          epochs: 1, warmup: 50, save_steps: 500, bf16: false,
+        },
+        hard: {
+          model: 'unsloth/gemma-2-9b-bnb-4bit',
+          method: 'qlora', max_samples: 15000, lora_r: 16, lora_alpha: 16,
+          learning_rate: 2e-4, batch_size: 2, grad_acc: 4, max_seq: 2048,
+          epochs: 1, warmup: 100, save_steps: 500, flash: true, bf16: true,
         },
       },
     },
@@ -827,32 +977,43 @@ const Finetune = (() => {
     return 'easy';
   }
 
+  const BACKEND_LABELS = {
+    trl: 'Built-in',
+    axolotl: 'Axolotl',
+    unsloth: 'Unsloth',
+  };
+
   function renderExamples() {
     const list = document.getElementById('ft-examples-list');
     if (!list) return;
     const recommended = recommendedTier();
     const hwHint = document.getElementById('ft-example-hw-hint');
+    const selectedBackend = document.getElementById('ft-backend-step0')?.value;
 
     const deviceName = hwDevice === 'cuda' ? 'CUDA GPU' : hwDevice === 'mps' ? 'Apple Silicon' : 'CPU';
     if (hwHint) {
-      hwHint.textContent = `Detected hardware: ${deviceName} — recommended tier: ${HW_TIERS[recommended].label}. You can still pick any tier.`;
+      hwHint.textContent = `Detected hardware: ${deviceName} — recommended tier: ${HW_TIERS[recommended].label}. You can still pick any tier. Cards highlighted for the selected backend (${BACKEND_LABELS[selectedBackend] || 'Custom Script'}) match your engine.`;
     }
 
     list.innerHTML = EXAMPLES.map(ex => {
-      const cards = Object.keys(HW_TIERS).map(tier => {
+      const cards = Object.keys(HW_TIERS)
+        .filter(tier => ex.variants[tier])
+        .map(tier => {
         const v = ex.variants[tier];
         const tierInfo = HW_TIERS[tier];
         const isRecommended = tier === recommended;
+        const isBackendMatch = ex.backend === selectedBackend;
         return `
-          <div class="ft-example-card ${isRecommended ? 'ft-example-recommended' : ''}" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">
+          <div class="ft-example-card ft-example-backend-${escapeHtml(ex.backend)} ${isRecommended ? 'ft-example-recommended' : ''} ${isBackendMatch ? 'ft-example-backend-active' : ''}" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">
             <div class="ft-example-card-head">
               <span class="ft-tier-badge ft-tier-${tier}">${tierInfo.label} Hardware</span>
-              ${isRecommended ? '<span class="ft-tier-rec">Recommended</span>' : ''}
+              <span class="ft-backend-badge ft-backend-badge-${escapeHtml(ex.backend)}">${escapeHtml(BACKEND_LABELS[ex.backend] || ex.backend)}</span>
             </div>
-            <div class="ft-example-tier-hint">${tierInfo.hint}</div>
+            <div class="ft-example-tier-hint">${tierInfo.hint}${isRecommended ? ' &middot; matches your hardware' : ''}</div>
             <p><strong>Model:</strong> <code>${escapeHtml(v.model)}</code></p>
             <p><strong>Dataset:</strong> <code>${escapeHtml(ex.dataset)}</code></p>
             <p><strong>Method:</strong> ${v.method.toUpperCase()} &middot; <strong>Seq len:</strong> ${v.max_seq} &middot; <strong>Samples:</strong> ${v.max_samples.toLocaleString()}</p>
+            ${ex.source ? `<a class="ft-example-source" href="${escapeHtml(ex.source)}" target="_blank" rel="noopener">Official ${escapeHtml(BACKEND_LABELS[ex.backend]) || ''} example &nearr;</a>` : ''}
             <button class="settings-btn settings-btn-success ft-example-use" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">Use this example</button>
           </div>`;
       }).join('');
@@ -942,6 +1103,21 @@ const Finetune = (() => {
     if (methodSel) {
       methodSel.dispatchEvent(new Event('change'));
     }
+
+    // Examples curated for a specific backend (Axolotl / Unsloth) switch the
+    // engine selectors to match, so the generated config runs on the right
+    // backend. Generic 'trl' examples leave the choice to the user.
+    if (ex.backend && ex.backend !== 'trl') {
+      const b0 = document.getElementById('ft-backend-step0');
+      const b3 = document.getElementById('ft-backend');
+      if (b0) b0.value = ex.backend;
+      if (b3) b3.value = ex.backend;
+      updateBackendHint();
+      updateCustomScriptField();
+      updateStep0BackendHint();
+      renderExamples();
+    }
+
     updateConfigPreview();
 
     const cfg = buildConfig();
@@ -1383,12 +1559,14 @@ const Finetune = (() => {
       updateCustomScriptField();
       syncBackendSelectors('ft-backend', 'ft-backend-step0');
       updateStep0BackendHint();
+      renderExamples();
     });
     document.getElementById('ft-backend-step0')?.addEventListener('change', () => {
       syncBackendSelectors('ft-backend-step0', 'ft-backend');
       updateBackendHint();
       updateCustomScriptField();
       updateStep0BackendHint();
+      renderExamples();
     });
     document.getElementById('ft-custom-script-browse')?.addEventListener('click', async () => {
       const file = await window.electron.projectPickFile('.py');

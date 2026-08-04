@@ -734,6 +734,7 @@ const Finetune = (() => {
       axolotlAvailable = false;
       if (hint) hint.textContent = 'Could not verify the Axolotl backend. Using built-in TRL by default.';
     }
+    updateStep0BackendHint();
   }
 
   // ── Unsloth backend availability ─────────────────────────────
@@ -759,6 +760,7 @@ const Finetune = (() => {
       unslothAvailable = false;
       if (hint) hint.textContent = 'Could not verify the Unsloth backend. Using built-in TRL by default.';
     }
+    updateStep0BackendHint();
   }
 
   function updateBackendHint() {
@@ -792,6 +794,31 @@ const Finetune = (() => {
     const backend = document.getElementById('ft-backend')?.value;
     const field = document.getElementById('ft-custom-script-field');
     if (field) field.style.display = backend === 'custom' ? '' : 'none';
+  }
+
+  function syncBackendSelectors(fromId, toId) {
+    const from = document.getElementById(fromId);
+    const to = document.getElementById(toId);
+    if (from && to && from.value !== to.value) to.value = from.value;
+  }
+
+  function updateStep0BackendHint() {
+    const backend = document.getElementById('ft-backend-step0')?.value;
+    const hint = document.getElementById('ft-backend-step0-hint');
+    if (!hint) return;
+    if (backend === 'axolotl') {
+      hint.textContent = axolotlAvailable === false
+        ? 'Not available on this machine (needs Linux + CUDA). Training will fail at launch — use the built-in (TRL) backend instead.'
+        : 'Power backend with the full feature set (LoRA, QLoRA, full FT). Requires Linux with an NVIDIA CUDA GPU.';
+    } else if (backend === 'unsloth') {
+      hint.textContent = unslothAvailable === false
+        ? 'Not available here (needs CUDA or Apple Silicon). Training will fail at launch — use the built-in (TRL) backend instead.'
+        : 'Fast backend for CUDA GPUs and Apple Silicon. Good default when available.';
+    } else if (backend === 'custom') {
+      hint.textContent = 'Run your own Python training script instead of a built-in backend — you pick the .py file in Step 3.';
+    } else {
+      hint.textContent = 'Built-in backend works everywhere (CPU / MPS / CUDA). Good default for beginners.';
+    }
   }
 
   function recommendedTier() {
@@ -1279,7 +1306,7 @@ const Finetune = (() => {
           }
         });
 
-        if (!right.children.length && control) {
+        if (control) {
           const id = control.id;
           if (id && easyExplanations[id]) {
             const p = document.createElement('p');
@@ -1354,6 +1381,14 @@ const Finetune = (() => {
     document.getElementById('ft-backend')?.addEventListener('change', () => {
       updateBackendHint();
       updateCustomScriptField();
+      syncBackendSelectors('ft-backend', 'ft-backend-step0');
+      updateStep0BackendHint();
+    });
+    document.getElementById('ft-backend-step0')?.addEventListener('change', () => {
+      syncBackendSelectors('ft-backend-step0', 'ft-backend');
+      updateBackendHint();
+      updateCustomScriptField();
+      updateStep0BackendHint();
     });
     document.getElementById('ft-custom-script-browse')?.addEventListener('click', async () => {
       const file = await window.electron.projectPickFile('.py');
@@ -1393,6 +1428,7 @@ const Finetune = (() => {
 
     updateConfigPreview();
     updateCustomScriptField();
+    updateStep0BackendHint();
   }
 
   if (document.readyState === 'loading') {

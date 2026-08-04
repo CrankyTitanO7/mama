@@ -33,6 +33,21 @@
       <!-- Tab: Step 0 - Start -->
       <div class="ft-tab-content active" id="ft-tab-start">
         <div class="ft-section">
+          <h2>Training Backend</h2>
+          <p>Pick the engine that will run your fine-tune first — it applies to examples and manual setup alike, and can be changed later in Step 3.</p>
+
+          <div class="ft-field">
+            <select id="ft-backend-step0" class="ft-select">
+              <option value="unsloth">Unsloth - fast (CUDA / Apple Silicon)</option>
+              <option value="trl" selected>Built-in (TRL) - cross-platform</option>
+              <option value="axolotl">Axolotl - power (Linux + CUDA)</option>
+              <option value="custom">Custom Script - run your own .py</option>
+            </select>
+            <span class="ft-hint" id="ft-backend-step0-hint">Built-in backend works everywhere (CPU / MPS / CUDA).</span>
+          </div>
+        </div>
+
+        <div class="ft-section">
           <h2>How do you want to start?</h2>
           <p>Pick a ready-made example tuned for your hardware, or configure everything from scratch.</p>
 

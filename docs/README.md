@@ -49,6 +49,18 @@ No terminal required.
 
 ---
 
+### flexibility
+
+supports multiple backends, including Axolotl AI and Unsloth AI
+
+Supports MacOS and Windows, with Linux support on the way
+
+easy development for developers
+
+ultra-modularized code
+
+--- 
+
 ### ⚙️ Build System
 
 Save complete training configurations as reusable **Builds**.
@@ -56,7 +68,7 @@ Save complete training configurations as reusable **Builds**.
 Instead of remembering dozens of hyperparameters, you can:
 
 * Create reusable workflows
-* Share builds with others
+* Share configurations with others
 * Reproduce experiments
 * Switch between different training setups instantly
 
@@ -105,22 +117,19 @@ without digging through folders.
 
 ## Planned Features
 
-* Axolotl integration
-* Additional training backends
 * Build marketplace
 * One-click model downloads
-* Dataset utilities
-* Training visualizations
-* Plugin support
+* Dataset utilities (custom dataset editor)
+* Online plugin support
 * Advanced monitoring
 
 ---
 
 # Screenshots
 
-> *(Replace this section with actual screenshots or GIFs.)*
+> screenshots coming soon
 
-Suggested images:
+future images:
 
 * Home screen
 * Create Project
@@ -153,9 +162,14 @@ Download the AppImage or install from source.
 ```bash
 git clone https://github.com/CrankyTitanO7/mama.git
 cd mama
+pip install pywebview
+python main.py
 ```
-
-Follow the platform-specific setup instructions in the documentation.
+or to build an executable:
+```bash
+pip install pyinstaller pywebview
+pyinstaller main.spec
+```
 
 ---
 
@@ -170,6 +184,10 @@ Modern AI frameworks are incredibly powerful, but their learning curve often sta
 MAMA doesn't replace those tools.
 
 It makes them accessible.
+
+## open source forever
+
+published under an open source license (thumbs up emoji)
 
 ---
 
@@ -187,6 +205,11 @@ It makes them accessible.
 
 ---
 
+# why is it called mama
+
+mama is easy to pronounce in every language.
+
+---
 # Contributing
 
 Contributions are welcome.

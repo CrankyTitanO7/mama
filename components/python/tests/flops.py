@@ -121,7 +121,7 @@ def _import_torch():
         return torch
     except ImportError:
         print("ERROR: PyTorch is not installed.", flush=True)
-        print("HINT: Install it with: pip install torch torchvision torchaudio", flush=True)
+        print("HINT: Install it with: pip install torch torchvision", flush=True)
         print("      Or visit https://pytorch.org/get-started/locally/", flush=True)
         sys.exit(1)
 

@@ -79,7 +79,7 @@ async function runCommand(action) {
                 outputElement.textContent += '\n\npip failed to install dependencies.';
                 outputElement.textContent += '\nTry an isolated virtual environment first:\n';
                 outputElement.textContent += 'python3 -m venv .venv\nsource .venv/bin/activate\npython3 -m pip install -U pip\n';
-                outputElement.textContent += 'python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu\n';
+                outputElement.textContent += 'python3 -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu\n';
             }
         }
         
@@ -119,7 +119,7 @@ function buildPackageManagerSuggestions(platform, stderrText) {
         return [
             '- Homebrew Python: brew install python',
             '- Use isolated env: python3 -m venv .venv && source .venv/bin/activate',
-            '- Install deps in venv: python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu'
+            '- Install deps in venv: python3 -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu'
         ].join('\n');
     }
 

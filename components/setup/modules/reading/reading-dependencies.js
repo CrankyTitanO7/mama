@@ -12,7 +12,7 @@
         <h3>Key Dependencies mama Uses</h3>
         <ul>
           <li><strong>PyTorch</strong> or <strong>TensorFlow</strong> — The AI framework that does the heavy lifting for training and running models.</li>
-          <li><strong>torchvision</strong> / <strong>torchaudio</strong> — PyTorch add-ons for image and audio processing.</li>
+          <li><strong>torchvision</strong> — PyTorch add-on for image processing.</li>
           <li><strong>NumPy</strong> — A fundamental library for numerical computations (used behind the scenes).</li>
         </ul>
 

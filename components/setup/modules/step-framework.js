@@ -50,7 +50,7 @@
           <label class="setup-radio-label">
             <input type="radio" name="framework" value="torch" ${preSelected === 'torch' ? 'checked' : ''}>
             <span class="setup-radio-title">PyTorch</span>
-            <span class="setup-radio-desc">torch, torchvision, torchaudio<br>${torchDesc}</span>
+            <span class="setup-radio-desc">torch, torchvision<br>${torchDesc}</span>
           </label>
           <label class="setup-radio-label">
             <input type="radio" name="framework" value="tf" ${preSelected === 'tf' ? 'checked' : ''}>

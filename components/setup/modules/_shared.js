@@ -153,7 +153,7 @@
       }
 
       // PyTorch
-      return `pip install torch torchvision torchaudio --index-url ${window.__setupUtils.torchIndexURL()}`;
+      return `pip install torch torchvision --index-url ${window.__setupUtils.torchIndexURL()}`;
     },
 
     // Cached wrapper around runPythonDetect — returns {code, stdout, stderr}.

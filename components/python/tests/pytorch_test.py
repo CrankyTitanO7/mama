@@ -28,6 +28,6 @@ try:
     
 except ImportError:
     print("⚠️  PyTorch not installed, running in demo mode")
-    print("Install PyTorch with: pip install torch torchvision torchaudio")
+    print("Install PyTorch with: pip install torch torchvision")
 
 print("\n✅ Script execution completed")

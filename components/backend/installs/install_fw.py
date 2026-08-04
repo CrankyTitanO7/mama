@@ -80,7 +80,7 @@ def build_command(fw, gpu_variant, accel_version):
     pip = [sys.executable, "-m", "pip", "install"]
 
     if fw == "torch":
-        packages = ["torch", "torchvision", "torchaudio"]
+        packages = ["torch", "torchvision"]
         if gpu_variant == "cuda":
             tag       = cuda_tag(accel_version)
             index_url = f"https://download.pytorch.org/whl/{tag}"

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation — MAMA</title>
+    <meta name="description" content="The user manual, power user guide, and developer's guide for MAMA — a cross-platform desktop studio for local AI training.">
+    <link rel="icon" type="image/png" href="images/favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Instrument+Serif:ital@0;1&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <nav class="nav" id="top">
+        <div class="nav-inner">
+            <a class="brand" href="index.html">
+                <img class="brand-tile" src="images/brand.png" alt="MAMA logo">
+                <span class="brand-word">MAMA</span>
+                <span class="brand-dot"></span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html"><span class="idx">00</span>Home</a></li>
+                <li><a href="index.html#features"><span class="idx">01</span>Features</a></li>
+                <li><a href="index.html#screens"><span class="idx">02</span>Screens</a></li>
+                <li><a href="index.html#philosophy"><span class="idx">03</span>Philosophy</a></li>
+                <li><a href="gallery.html"><span class="idx">04</span>Gallery</a></li>
+                <li><a href="docs.html"><span class="idx">05</span>Docs</a></li>
+            </ul>
+            <div class="nav-right">
+                <a class="btn btn-ghost btn-sm" href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">GitHub ⇱</a>
+                <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <header class="page-header">
+        <div class="container">
+            <p class="eyebrow">the manual<span class="cursor"></span></p>
+            <h1 class="page-title">The <span class="serif-italic">documentation.</span></h1>
+            <p class="page-sub">Three guides, one app: the user manual, the power user appendix, and the developer's guide.</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="docs-layout container">
+            <aside class="docs-sidebar" id="docsNav">
+                <p class="os-label">CONTENTS</p>
+                <ul class="doc-nav">
+                    <li><a href="#part-1"><span class="idx">I</span>User manual</a>
+                        <ul>
+                            <li><a href="#pages">Available pages</a></li>
+                            <li><a href="#first-project">Baby's first project</a></li>
+                            <li><a href="#themes">Themes</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#part-2"><span class="idx">II</span>Power user guide</a>
+                        <ul>
+                            <li><a href="#user-folder">The user folder</a></li>
+                            <li><a href="#framework-install">Framework installation &amp; verification</a></li>
+                            <li><a href="#setup-wizard">Setup wizard architecture</a></li>
+                            <li><a href="#custom-theming">Custom theming</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="#part-3"><span class="idx">III</span>Developer's guide</a>
+                        <ul>
+                            <li><a href="#fw-deep-dive">Framework pipeline (deep dive)</a></li>
+                            <li><a href="#theme-system">Theme system</a></li>
+                            <li><a href="#setup-deep-dive">Setup wizard (deep dive)</a></li>
+                            <li><a href="#docs-system">Documentation system</a></li>
+                            <li><a href="#auto-updater">Auto-updater</a></li>
+                        </ul>
+                    </li>
+                </ul>
+                <p class="os-label">IN-APP</p>
+                <ul class="doc-nav doc-nav-flat">
+                    <li><a href="#settings">Settings &amp; config</a></li>
+                    <li><a href="#settings-themes">Settings themes</a></li>
+                </ul>
+            </aside>
+
+            <article class="doc-content">
+
+                <section class="doc-section" id="part-1">
+                    <p class="doc-part">Part I — User manual</p>
+                    <h2>How to use MAMA</h2>
+
+                    <h3 id="pages">Available pages</h3>
+                    <h4>Homepage <em>(click the logo, top left)</em></h4>
+                    <p>An overview of current projects and a computer resource overview, plus other quality-of-life widgets as needed.</p>
+
+                    <h4>Setup menu</h4>
+                    <p>Run the setup wizard again. It auto-scans your system to determine prerequisites.</p>
+
+                    <h4 id="settings">Settings</h4>
+                    <p>Change several settings about the app. It can also be edited directly in the app files at <code>user/settings.json</code> — it was intentionally designed to be flexible, portable, and easy to access.</p>
+                    <p>Several settings are optional and not needed for core functions, but they are used in several of the app's tests. For example, several installers require the OS field to be filled out, as they determine the system OS via the settings JSON file, and not through other means.</p>
+
+                    <h4>Multimodel design</h4>
+                    <p>An easy GUI for designing multi-model systems.</p>
+
+                    <h4>Database explorer</h4>
+                    <p>A quality-of-life feature that lets you browse a web database (such as Hugging Face) to easily transfer information from outside sources.</p>
+
+                    <h4>Export model</h4>
+                    <p>A page that walks you through exporting a model for any use case. Future aspirations include instant app/website generation (from template, not LLM), Ollama (or other client) exports, and more.</p>
+
+                    <h3 id="first-project">Baby's first project</h3>
+                    <ol class="doc-ol">
+                        <li>Make a directory</li>
+                        <li>Open the directory with MAMA</li>
+                        <li>Design a multimodel interface, and save it to the directory</li>
+                        <li>Click <strong>begin training</strong></li>
+                        <li>Export the model</li>
+                    </ol>
+
+                    <h3 id="themes">Themes</h3>
+                    <p>The app uses a file-based theme system. Themes are JSON files placed in <code>user/themes/</code>. Each file adds an option to the appearance dropdown in settings.</p>
+
+                    <h4>Built-in themes</h4>
+                    <p>The app ships with no built-in theme visible in the dropdown. The only hardcoded palette is a dark fallback that activates automatically when <code>user/themes/</code> is empty. If the folder has any valid JSON themes, the fallback is replaced.</p>
+
+                    <h4 id="settings-themes">Adding a theme</h4>
+                    <p>Create a new <code>.json</code> file in <code>user/themes/</code> with this structure:</p>
+<pre class="code-block">{
+  "name": "my-theme",
+  "title": "My Theme",
+  "variables": {
+    "--page-bg": "#ffffff",
+    "--page-text": "#000000"
+  }
+}</pre>
+                    <ul class="doc-ul">
+                        <li><strong>name</strong> — a short identifier (no spaces recommended). Used internally and stored in settings.</li>
+                        <li><strong>title</strong> — what appears in the dropdown menu.</li>
+                        <li><strong>variables</strong> — CSS custom properties that change the app colours.</li>
+                    </ul>
+                    <p>Once saved, open <strong>Settings → Appearance</strong> and your theme will appear in the dropdown. No restart needed — just navigate to settings or reload the page.</p>
+
+                    <h4>Example themes</h4>
+                    <p>The repo includes three example themes in <code>user/themes/</code>:</p>
+                    <ul class="doc-ul">
+                        <li><code>light.json</code> — light mode</li>
+                        <li><code>dark.json</code> — dark mode</li>
+                        <li><code>dark-green.json</code> — dark mode with green accents</li>
+                    </ul>
+                    <p>You can enable or disable any theme by adding or removing its <code>.json</code> file.</p>
+
+                    <h4>Fallback</h4>
+                    <p>If you remove all <code>.json</code> files from <code>user/themes/</code>, the dropdown will show only <strong>System</strong> and <strong>Fallback</strong>. The fallback is a default dark palette built into the app.</p>
+                </section>
+
+                <section class="doc-section" id="part-2">
+                    <p class="doc-part">Part II — Power user guide</p>
+                    <h2>The power user's manual</h2>
+                    <p class="doc-lead">A supplement to the regular user manual, aimed at those past the beginner stage. For in-depth explanations of each component, refer to the developer's guide.</p>
+
+                    <h3 id="user-folder">The user folder</h3>
+                    <p>The user folder, located at <code>mama/user</code>, holds most of everything the user will need. Most files live here, including those for custom editing.</p>
+
+                    <h3 id="framework-install">Framework installation &amp; verification</h3>
+                    <h4>Installation (<code>install_fw.py</code>)</h4>
+                    <p>Handles the installation of <strong>PyTorch</strong> and <strong>TensorFlow</strong> via <code>pip</code>.</p>
+                    <ul class="doc-ul">
+                        <li><strong>Variants:</strong> Supports <code>cuda</code> (NVIDIA), <code>rocm</code> (AMD), and <code>cpu</code> (standard).</li>
+                        <li><strong>Logic:</strong> Dynamically builds the installation command based on the requested framework and hardware variant.</li>
+                        <li><strong>Execution:</strong> Uses <code>subprocess.run</code> to execute the installation, streaming output for real-time monitoring.</li>
+                    </ul>
+
+                    <h4>Verification (<code>import_test.py</code>)</h4>
+                    <p>Verifies the installation and hardware acceleration.</p>
+                    <ul class="doc-ul">
+                        <li><strong>PyTorch:</strong> Checks for CUDA/ROCm availability and prints GPU details (model, VRAM, version).</li>
+                        <li><strong>TensorFlow:</strong> Checks for available physical GPU devices.</li>
+                        <li><strong>Error handling:</strong> Returns exit code <code>0</code> on success or <code>1</code> on <code>ImportError</code>, allowing the pipeline to detect installation failures.</li>
+                    </ul>
+
+                    <div class="doc-table-wrap">
+                        <table class="doc-table">
+                            <thead>
+                                <tr><th>Feature</th><th>PyTorch</th><th>TensorFlow</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Install</td><td><code>pip install torch</code></td><td><code>pip install tensorflow</code></td></tr>
+                                <tr><td>Verification</td><td><code>import torch</code></td><td><code>import tensorflow</code></td></tr>
+                                <tr><td>Hardware check</td><td>CUDA / ROCm / CPU</td><td>Physical GPU devices</td></tr>
+                                <tr><td>Diagnostics</td><td>GPU model &amp; VRAM</td><td>Device list</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 id="setup-wizard">Setup wizard — modular architecture</h3>
+                    <p>The setup wizard (<code>components/setup/setup.js</code>) has been refactored from a single monolithic script into a modular system. Each step of the wizard lives in its own file under <code>components/setup/modules/</code>, and the order is controlled by <code>components/setup/setup.json</code>.</p>
+
+                    <h4>How it works</h4>
+                    <ol class="doc-ol">
+                        <li><code>setup.json</code> defines two things: <code>steps</code> — an array of step definitions, each with an <code>id</code>, <code>title</code>, and <code>script</code> path; and <code>setup_order</code> — an ordered array of step IDs that determines the wizard's navigation sequence.</li>
+                        <li><code>setup.js</code> (the parent loader) fetches <code>setup.json</code>, loads <code>_shared.js</code>, then loads each step module. After all modules are loaded, it reorders <code>window.__setupSteps</code> to match <code>setup_order</code>.</li>
+                        <li><code>modules/_shared.js</code> provides shared state (<code>window.__setupState</code>), utilities (<code>window.__setupUtils</code>), settings management (<code>window.__setupSettings</code>), and rendering/navigation (<code>window.__setupRender</code>).</li>
+                        <li>Each step module (e.g., <code>step-welcome.js</code>, <code>step-framework.js</code>) is an IIFE that pushes a step object with <code>{ id, title, render, afterRender?, collect? }</code> to <code>window.__setupSteps</code>.</li>
+                    </ol>
+
+                    <h4>Reordering steps</h4>
+                    <p>To change the wizard's step order, edit the <code>setup_order</code> array in <code>setup.json</code>. No JavaScript changes are needed. For example, to move "Language" after "Appearance":</p>
+<pre class="code-block">"setup_order": [
+  "welcome",
+  "appearance",
+  "language",
+  ...
+]</pre>
+
+                    <h4>Adding a new step</h4>
+                    <ol class="doc-ol">
+                        <li>Create a new file in <code>components/setup/modules/step-your-step.js</code>.</li>
+                        <li>Add its definition to the <code>steps</code> array in <code>setup.json</code>.</li>
+                        <li>Add its ID to <code>setup_order</code> at the desired position.</li>
+                    </ol>
+
+                    <h3 id="custom-theming">Custom theming</h3>
+                    <p>Themes are set as CSS variables. Each theme is represented as a <code>.json</code> file in <code>user/themes</code>. Each JSON should automatically be added as an entry; duplicates will be ignored.</p>
+                    <p>The values of said themes can be any CSS-accepted color value, in quotations.</p>
+                </section>
+
+                <section class="doc-section" id="part-3">
+                    <p class="doc-part">Part III — Developer's guide</p>
+                    <h2>The developer's guide</h2>
+                    <p class="doc-lead">The complete guide on every working part of this application, including intended usage.</p>
+
+                    <h3 id="fw-deep-dive">Framework installation &amp; verification — deep dive</h3>
+                    <h4>Overview</h4>
+                    <p>This module provides the logic for automatically installing deep learning frameworks (<strong>PyTorch</strong> and <strong>TensorFlow</strong>) and verifying their installation and hardware acceleration. It is designed to be called by a parent process and provides streamed output for real-time monitoring.</p>
+
+                    <h4>1. Installation phase (<code>install_fw.py</code>)</h4>
+                    <p>The installation script handles the mapping between user requirements and the specific <code>pip</code> commands needed.</p>
+                    <ol class="doc-ol">
+                        <li><strong>Input parsing:</strong> Accepts <code>framework</code> (torch/tf), <code>gpu_variant</code> (cuda/rocm/cpu), and an optional <code>accel_version</code>.</li>
+                        <li><strong>Command construction:</strong> The <code>build_command()</code> function determines the correct installation string:
+                            <ul class="doc-ul">
+                                <li><strong>PyTorch:</strong> Maps requirements to <code>torch</code> installation strings, including specific wheels for CUDA or ROCm.</li>
+                                <li><strong>TensorFlow:</strong> Maps requirements to <code>tensorflow</code> or <code>tensorflow-gpu</code> packages.</li>
+                                <li><strong>CPU fallback:</strong> Installs the CPU-only versions of the frameworks.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Execution:</strong> Executes the command using <code>subprocess.run()</code>. stdout and stderr are inherited, allowing the calling process to capture installation progress in real-time.</li>
+                    </ol>
+
+                    <h4>2. Verification phase (<code>import_test.py</code>)</h4>
+                    <p>After installation, this script ensures the framework is functional and the system hardware is correctly recognized.</p>
+                    <ul class="doc-ul">
+                        <li><strong>PyTorch verification:</strong> Attempts <code>import torch</code>; NVIDIA path checks <code>torch.cuda.is_available()</code> and prints CUDA version, GPU count, and per-GPU properties (model name, VRAM); AMD path checks <code>torch.version.hip</code> and prints ROCm version; CPU path falls back to "CPU only" status.</li>
+                        <li><strong>TensorFlow verification:</strong> Attempts <code>import tensorflow as tf</code>; GPU detection uses <code>tf.config.list_physical_devices("GPU")</code> to list all available hardware.</li>
+                        <li><strong>Exit status:</strong> <code>0</code> success · <code>1</code> <code>ImportError</code> or critical failure · <code>2</code> invalid arguments.</li>
+                    </ul>
+
+                    <div class="doc-table-wrap">
+                        <table class="doc-table">
+                            <thead>
+                                <tr><th>Feature</th><th>PyTorch path</th><th>TensorFlow path</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Install command</td><td><code>pip install torch</code> (+ variant)</td><td><code>pip install tensorflow</code> (+ variant)</td></tr>
+                                <tr><td>Verification</td><td><code>import torch</code></td><td><code>import tensorflow as tf</code></td></tr>
+                                <tr><td>Hardware check</td><td><code>torch.cuda</code> / <code>torch.version.hip</code></td><td><code>tf.config.list_physical_devices</code></td></tr>
+                                <tr><td>Diagnostics</td><td>GPU model, VRAM, CUDA/HIP version</td><td>List of physical GPU devices</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 id="theme-system">Theme system</h3>
+                    <h4>Architecture</h4>
+                    <p>Themes are stored as JSON files in <code>user/themes/</code>. Each file represents one theme and must contain three fields:</p>
+<pre class="code-block">{
+  "name": "theme-id",
+  "title": "Display Name",
+  "variables": {
+    "--highlight-color": "#00d4ff",
+    "--main-color": "#1a1a2e"
+  }
+}</pre>
+                    <ul class="doc-ul">
+                        <li><strong>name</strong> — unique identifier used as the internal key and stored in settings.</li>
+                        <li><strong>title</strong> — human-readable label shown in the appearance dropdown.</li>
+                        <li><strong>variables</strong> — a flat map of CSS custom properties to values. Each key must start with <code>--</code>.</li>
+                    </ul>
+
+                    <h4>Theme loading flow</h4>
+                    <ol class="doc-ol">
+                        <li><strong>Startup</strong> — <code>components/styling/theme.js</code> calls <code>window.electron.themesRead()</code> (IPC) on initialization.</li>
+                        <li><strong>Backend</strong> — <code>components/styling/theme-loader.js</code> reads all <code>.json</code> files from <code>user/themes/</code>, validates structure (<code>name</code>, <code>title</code>, <code>variables</code>), and returns the array.</li>
+                        <li><strong>Renderer</strong> — <code>theme.js</code> merges each theme's variables into a <code>palettes</code> lookup by <code>name</code>.</li>
+                        <li><strong>Settings</strong> — both the settings page (<code>components/setup/settings.js</code>) and setup wizard (<code>components/setup/setup.js</code>) call <code>themesRead()</code> to populate the appearance dropdown.</li>
+                    </ol>
+
+                    <h4>Fallback behaviour</h4>
+                    <p>When <code>user/themes/</code> is empty or contains no valid <code>.json</code> files, the app falls back to a hidden built-in dark palette. This fallback is <strong>never listed</strong> in the dropdown — instead a single "Fallback" option appears. The fallback is hardcoded in <code>theme.js</code> as <code>fallbackPalette</code>.</p>
+
+                    <h4>File locations</h4>
+                    <div class="doc-table-wrap">
+                        <table class="doc-table">
+                            <thead>
+                                <tr><th>File</th><th>Purpose</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>user/themes/*.json</code></td><td>User-provided theme files</td></tr>
+                                <tr><td><code>components/styling/theme-loader.js</code></td><td>Backend module that reads themes from disk</td></tr>
+                                <tr><td><code>components/styling/theme.js</code></td><td>Frontend theme manager — applies CSS variables, manages state</td></tr>
+                                <tr><td><code>components/backend/ipc/ipc-handlers.js</code></td><td>Registers <code>themes-read</code> IPC handler</td></tr>
+                                <tr><td><code>preload.js</code></td><td>Exposes <code>themesRead()</code> to renderer via contextBridge</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4>Variables reference</h4>
+                    <p>The complete set of CSS custom properties a theme can define — all optional; missing ones simply won't override the previous value:</p>
+                    <div class="chips doc-chips">
+                        <span class="chip"><code>--highlight-color</code></span>
+                        <span class="chip"><code>--main-color</code></span>
+                        <span class="chip"><code>--shadow-color</code></span>
+                        <span class="chip"><code>--heading-color</code></span>
+                        <span class="chip"><code>--body-color</code></span>
+                        <span class="chip"><code>--page-bg</code></span>
+                        <span class="chip"><code>--page-text</code></span>
+                        <span class="chip"><code>--page-muted</code></span>
+                        <span class="chip"><code>--panel-bg</code></span>
+                        <span class="chip"><code>--panel-border</code></span>
+                        <span class="chip"><code>--widget-bg</code></span>
+                        <span class="chip"><code>--widget-border</code></span>
+                        <span class="chip"><code>--topbar-bg</code></span>
+                        <span class="chip"><code>--topbar-border</code></span>
+                        <span class="chip"><code>--topbar-text</code></span>
+                        <span class="chip"><code>--topbar-muted</code></span>
+                        <span class="chip"><code>--topbar-active</code></span>
+                        <span class="chip"><code>--input-bg</code></span>
+                        <span class="chip"><code>--input-text</code></span>
+                        <span class="chip"><code>--input-border</code></span>
+                        <span class="chip"><code>--button-secondary-bg</code></span>
+                        <span class="chip"><code>--button-secondary-text</code></span>
+                    </div>
+
+                    <h4>Theme manager API</h4>
+                    <p>The <code>window.ThemeManager</code> object exposed by <code>theme.js</code> provides:</p>
+                    <div class="doc-table-wrap">
+                        <table class="doc-table">
+                            <thead>
+                                <tr><th>Method</th><th>Purpose</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>applyTheme(themeName, broadcast?)</code></td><td>Apply a theme by name</td></tr>
+                                <tr><td><code>getCustomThemeList()</code></td><td>Returns <code>[{name, title}]</code> of loaded themes</td></tr>
+                                <tr><td><code>isUsingFallback()</code></td><td>Returns true if no user themes exist</td></tr>
+                                <tr><td><code>getActiveTheme()</code></td><td>Returns the currently active theme name</td></tr>
+                                <tr><td><code>initializeTheme()</code></td><td>Re-initialize (loads themes from IPC, applies stored preference)</td></tr>
+                                <tr><td><code>getResolvedTheme(themeName)</code></td><td>Returns the resolved palette key</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 id="setup-deep-dive">Setup wizard — deep dive</h3>
+                    <h4>File layout</h4>
+<pre class="code-block">components/setup/
+├── setup.js              # Parent loader — fetches setup.json, loads modules, bootstraps
+├── setup.json            # Step definitions + setup_order array
+└── modules/
+    ├── _shared.js        # Shared state, utilities, settings, rendering
+    ├── step-welcome.js
+    ├── step-language.js
+    ├── step-appearance.js
+    ├── step-os-detect.js
+    ├── step-python-detect.js
+    ├── step-python-dependency.js
+    ├── step-gpu-detect.js
+    ├── step-compat-check.js
+    ├── step-framework.js
+    ├── step-fw-install.js
+    ├── step-fw-verify.js
+    ├── step-resources.js
+    ├── step-project-folder.js
+    ├── step-qol.js
+    ├── step-security.js
+    └── step-finish.js</pre>
+
+                    <h4>Bootstrap flow</h4>
+                    <ol class="doc-ol">
+                        <li><code>setup.js</code> listens for <code>DOMContentLoaded</code>, then:
+                            <ul class="doc-ul">
+                                <li>Fetches <code>setup.json</code> to get <code>steps</code> (definitions) and <code>setup_order</code> (ordering).</li>
+                                <li>Loads <code>_shared.js</code> via dynamic <code>&lt;script&gt;</code> injection.</li>
+                                <li>Loads each step module in the order listed in <code>steps</code>.</li>
+                                <li>Reorders <code>window.__setupSteps</code> to match <code>setup_order</code>.</li>
+                                <li>Builds the wizard DOM (<code>#setup-wizard</code> with header, content, progress dots, and action buttons).</li>
+                                <li>Calls <code>window.__setupSettings.loadSettings()</code> to hydrate the settings cache.</li>
+                                <li>Wires up navigation event listeners (next, back, skip, finish).</li>
+                                <li>Renders the first step.</li>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <h4>Shared module (<code>_shared.js</code>)</h4>
+                    <p>Exposes four global namespaces:</p>
+                    <div class="doc-table-wrap">
+                        <table class="doc-table">
+                            <thead>
+                                <tr><th>Namespace</th><th>Purpose</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>window.__setupState</code></td><td>All mutable state — <code>selectedFramework</code>, <code>selectedMode</code>, <code>installSucceeded</code>, <code>detected</code> (OS, Python, GPU, compat), <code>pythonDetectCache</code>, <code>selectedProjectFolder</code>, <code>currentStep</code>, <code>settingsCache</code></td></tr>
+                                <tr><td><code>window.__setupUtils</code></td><td>Pure utility functions — <code>escapeHtml</code>, <code>parseKV</code>, <code>boolVal</code>, <code>okIcon</code>, <code>warnIcon</code>, <code>gpuVariant</code>, <code>torchIndexURL</code>, <code>gpuVariantLabel</code>, <code>buildInstallCommand</code>, <code>getPythonDetectResult</code></td></tr>
+                                <tr><td><code>window.__setupSettings</code></td><td>Settings persistence — <code>loadSettings</code>, <code>defaultSettings</code>, <code>applyStepData</code>, <code>collectAndSave</code></td></tr>
+                                <tr><td><code>window.__setupRender</code></td><td>Rendering and navigation — <code>renderStep</code>, <code>nextStep</code>, <code>prevStep</code></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4>Step module contract</h4>
+                    <p>Each step module is an IIFE that pushes an object to <code>window.__setupSteps</code>:</p>
+<pre class="code-block">{
+  id: 'unique-step-id',           // matches the id in setup.json
+  title: 'Display Title',         // shown in progress dots
+  render(settingsCache) { ... },  // returns HTML string (synchronous)
+  afterRender() { ... },          // async — runs after DOM is injected
+  collect() { ... }               // returns data to persist into settings
+}</pre>
+                    <ul class="doc-ul">
+                        <li><strong><code>render()</code></strong> — must be synchronous. Returns the HTML for the step. Receives the current <code>settingsCache</code> as argument.</li>
+                        <li><strong><code>afterRender()</code></strong> — optional async hook. Runs after the HTML is in the DOM. Used for event binding, async detection, and dynamic UI updates.</li>
+                        <li><strong><code>collect()</code></strong> — optional. Called when the user navigates away from the step. Returns data that <code>applyStepData()</code> maps into the settings cache.</li>
+                    </ul>
+
+                    <h4>Step ordering</h4>
+                    <p>The <code>setup_order</code> array in <code>setup.json</code> is the single source of truth for navigation order. After all modules load, <code>setup.js</code> builds a lookup map by step ID and reassembles <code>window.__setupSteps</code> to follow <code>setup_order</code>. Steps not listed in <code>setup_order</code> are dropped. Steps listed but not found are silently skipped.</p>
+
+                    <h4>Adding / removing / skipping a step</h4>
+                    <ul class="doc-ul">
+                        <li><strong>Add:</strong> create <code>components/setup/modules/step-your-step.js</code> following the contract above, add an entry to <code>steps</code> in <code>setup.json</code>, then insert the step ID into <code>setup_order</code> at the desired position.</li>
+                        <li><strong>Remove:</strong> delete its entry from <code>steps</code> and remove its ID from <code>setup_order</code>.</li>
+                        <li><strong>Skip without deleting:</strong> just remove its ID from <code>setup_order</code> — the module still loads but won't appear in the wizard.</li>
+                    </ul>
+
+                    <h3 id="docs-system">Documentation system</h3>
+                    <p>The documentation system is quite simple. Add the relative path of any MD file to <code>docs/register.json</code> (it assumes the file is in the docs folder, but you can change the path).</p>
+<pre class="code-block">{
+  "display name" : "filename.md",
+  "file outside of docs folder" : "../path/to/file.md"
+}</pre>
+
+                    <h3 id="auto-updater">Auto-updater</h3>
+                    <p>MAMA can update itself from GitHub releases. The whole system lives in <code>updater.py</code>; the UI is <code>components/elements/updater.js</code> (banner on every page) plus an "Updates" panel on the settings page.</p>
+
+                    <h4>How it works</h4>
+                    <ol class="doc-ol">
+                        <li><strong>Check</strong> — <code>updater.check_for_update()</code> lists <code>api.github.com/repos/CrankyTitanO7/mama/releases</code> and picks the release with the highest version tag (stable over prerelease — <code>/releases/latest</code> can't be used because it returns the most recently <em>published</em> release, so a later-published lower tag would hide a higher one). It compares the tag against the bundled <code>components/version.json</code> and matches an asset: macOS → <code>mama-macos.dmg</code> (or <code>mama-macos-&lt;arch&gt;.dmg</code>/<code>.zip</code>), Windows → <code>mama-windows.zip</code>, Linux → <code>mama-linux.AppImage</code>. One plain archive not targeting another platform is used as a fallback.</li>
+                        <li><strong>Download</strong> — <code>updater.download_update()</code> streams the asset into <code>~/Library/Application Support/mama/updates</code> (per-OS equivalent elsewhere) and verifies its sha256 against the GitHub-provided asset digest.</li>
+                        <li><strong>Stage</strong> — <code>updater.stage_update()</code> unpacks the artifact (dmg → <code>hdiutil attach</code> + <code>ditto</code> out the <code>.app</code>; zip → extract + locate the app folder, handling the Windows <code>mama/</code> wrapper; AppImage → used as-is, made executable) into <code>updates/mama-&lt;tag&gt;/</code> and writes an <code>apply.json</code> marker. Staging is refused when running from source (unpackaged).</li>
+                        <li><strong>Apply</strong> — on quit, <code>bridge.py</code>'s <code>on_quit</code> spawns a detached <code>mama --apply-update &lt;marker&gt;</code> process. It waits for the old process to exit, swaps the old install for the staged one (whole bundle/folder, or single-file replacement for AppImages), copies user data (<code>user/</code>, <code>components/recents.json</code>) from the old install — locating the data dir in the new build even if the PyInstaller layout changed (<code>Contents/Resources</code> vs <code>_internal</code>) — deletes the backup, and relaunches the new build (<code>open</code> on macOS, direct exec elsewhere). An <code>applying.lock</code> prevents two processes swapping at once, and a marker left by a crashed session is applied on the next startup (<code>updater.recover_pending()</code> in <code>main.py</code>).</li>
+                    </ol>
+
+                    <h4>Frontend API (via the shim)</h4>
+                    <div class="doc-table-wrap">
+                        <table class="doc-table">
+                            <thead>
+                                <tr><th>Method</th><th>Purpose</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><code>electron.updateCheck()</code></td><td>Returns <code>{available, current_version, latest_version, notes, asset, error}</code></td></tr>
+                                <tr><td><code>electron.updateDownload()</code></td><td>Starts a background download; progress via <code>_updateProgressCallback</code></td></tr>
+                                <tr><td><code>electron.updateInstall()</code></td><td>Stages the download; emits <code>ready</code></td></tr>
+                                <tr><td><code>electron.appQuit()</code></td><td>Closes the window (triggers the quit hand-off)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4>Releasing a new version</h4>
+                    <p>The GitHub workflow <code>.github/workflows/build.yml</code> handles the whole release: push a tag and it builds on all three platforms, writes the version into <code>components/version.json</code> from the tag name, packages the artifacts (<code>mama-macos.dmg</code>, <code>mama-windows.zip</code>, <code>mama-linux.AppImage</code>) and uploads them to a GitHub release:</p>
+<pre class="code-block">git tag v0.2.0 &amp;&amp; git push origin v0.2.0</pre>
+                    <p>The build environment <strong>MUST have <code>certifi</code> installed</strong> (the workflow installs it, and <code>build_release.py</code> warns if it is missing): without it the packaged app contains no CA certificates and every HTTPS request fails from inside the app — the updater can't reach GitHub and reports a TLS error.</p>
+                    <p>The workflow uses the same artifact names the updater expects — a release created any other way must use those names, or the updater won't offer it. To build locally instead, <code>python build_release.py --version 0.2.0</code> bumps <code>components/version.json</code>, runs PyInstaller, zips the build into <code>dist/mama-&lt;os&gt;-&lt;arch&gt;.zip</code> and prints the sha256; then create a GitHub release and attach the zip.</p>
+                </section>
+
+            </article>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <span class="footer-word" aria-hidden="true">MAMA</span>
+        <div class="container footer-inner">
+            <a class="brand" href="index.html">
+                <img class="brand-tile" src="images/brand.png" alt="MAMA logo">
+                <span class="brand-word">MAMA</span>
+                <span class="brand-dot"></span>
+            </a>
+            <ul class="footer-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="gallery.html">Gallery</a></li>
+                <li><a href="docs.html">Docs</a></li>
+                <li><a href="index.html#philosophy">Philosophy</a></li>
+            </ul>
+            <p class="footer-note">
+                <a href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">github.com/CrankyTitanO7/mama</a>
+                <span>·</span> Beerware license (revision 42) · © 2026
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        const toggle = document.getElementById('navToggle');
+        const links = document.getElementById('navLinks');
+        toggle.addEventListener('click', () => {
+            const open = links.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open);
+        });
+        links.addEventListener('click', (e) => {
+            if (e.target.tagName === 'A') {
+                links.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    </script>
+</body>
+</html>

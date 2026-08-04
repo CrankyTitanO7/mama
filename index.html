@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAMA — local AI studio</title>
+    <meta name="description" content="MAMA is a cross-platform desktop studio for building, training, and running AI models locally — without fighting the command line.">
+    <meta property="og:title" content="MAMA — local AI studio">
+    <meta property="og:description" content="Build, train, and run AI models locally — without fighting the command line.">
+    <meta property="og:type" content="website">
+    <link rel="icon" type="image/png" href="images/favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Instrument+Serif:ital@0;1&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <nav class="nav" id="top">
+        <div class="nav-inner">
+            <a class="brand" href="#top">
+                <img class="brand-tile" src="images/brand.png" alt="MAMA logo">
+                <span class="brand-word">MAMA</span>
+                <span class="brand-dot"></span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#features"><span class="idx">01</span>Features</a></li>
+                <li><a href="#screens"><span class="idx">02</span>Screens</a></li>
+                <li><a href="#workflow"><span class="idx">03</span>Workflow</a></li>
+                <li><a href="#philosophy"><span class="idx">04</span>Philosophy</a></li>
+                <li><a href="#contribute"><span class="idx">05</span>Contribute</a></li>
+                <li><a href="docs.html"><span class="idx">06</span>Docs</a></li>
+            </ul>
+            <div class="nav-right">
+                <a class="btn btn-ghost btn-sm" href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">GitHub ⇱</a>
+                <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <span class="hero-word" aria-hidden="true">MAMA</span>
+        <div class="container hero-inner">
+            <p class="eyebrow">local-first AI studio<span class="cursor"></span></p>
+            <h1 class="hero-title">
+                Train &amp; run AI models
+                <span class="serif-italic">on your own machine.</span>
+            </h1>
+            <p class="hero-sub">
+                MAMA is a cross-platform desktop app that turns local AI development into a guided, visual workflow.
+                No YAML. No terminal. No cloud. Your models never leave your computer.
+            </p>
+            <div class="hero-actions">
+                <a class="btn btn-primary" href="https://github.com/CrankyTitanO7/mama/releases" target="_blank" rel="noopener">See releases</a>
+                <a class="btn btn-ghost" href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">Open GitHub</a>
+            </div>
+            <p class="hero-platforms">WINDOWS &nbsp;·&nbsp; MACOS &nbsp;·&nbsp; LINUX &nbsp;·&nbsp; FREE &amp; OPEN SOURCE</p>
+
+            <div class="shot-wrap">
+                <div class="shot-frame">
+                    <div class="shot-bar">
+                        <span></span><span></span><span></span>
+                        <em>mama — mission control</em>
+                    </div>
+                    <img src="images/splash.jpg" alt="MAMA mission control screen">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="marquee" aria-hidden="true">
+        <div class="marquee-track">
+            <span>LOCAL-FIRST</span><span class="tick">✦</span>
+            <span>NO YAML</span><span class="tick">✦</span>
+            <span>NO TERMINAL</span><span class="tick">✦</span>
+            <span>YOUR MODELS STAY ON YOUR MACHINE</span><span class="tick">✦</span>
+            <span>OPEN SOURCE</span><span class="tick">✦</span>
+            <span>BEERWARE LICENSE (REVISION 42)</span><span class="tick">✦</span>
+            <span>LOCAL-FIRST</span><span class="tick">✦</span>
+            <span>NO YAML</span><span class="tick">✦</span>
+            <span>NO TERMINAL</span><span class="tick">✦</span>
+            <span>YOUR MODELS STAY ON YOUR MACHINE</span><span class="tick">✦</span>
+            <span>OPEN SOURCE</span><span class="tick">✦</span>
+            <span>BEERWARE LICENSE (REVISION 42)</span><span class="tick">✦</span>
+        </div>
+    </div>
+
+    <main>
+        <section class="section" id="features">
+            <div class="container">
+                <p class="eyebrow">what you get</p>
+                <h2 class="section-title">Everything you need, <span class="serif-italic">nothing you don't.</span></h2>
+                <div class="grid">
+                    <article class="card reveal">
+                        <div class="card-top"><span class="idx">01</span><span class="glyph">◈</span></div>
+                        <h3>Native desktop studio</h3>
+                        <p>Runs natively on Windows, macOS, and Linux. No browser tabs, no accounts, no subscriptions — just an app that lives on your machine.</p>
+                        <span class="arrow">⇢</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="card-top"><span class="idx">02</span><span class="glyph">✦</span></div>
+                        <h3>Guided training</h3>
+                        <p>Create a project, pick a model, import a dataset, and start training through a visual interface a novice can master.</p>
+                        <span class="arrow">⇢</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="card-top"><span class="idx">03</span><span class="glyph">◇</span></div>
+                        <h3>Reusable builds</h3>
+                        <p>Save complete training configurations as Builds. Create workflows, share them, reproduce experiments, and switch setups instantly.</p>
+                        <span class="arrow">⇢</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="card-top"><span class="idx">04</span><span class="glyph">⌬</span></div>
+                        <h3>Auto environment setup</h3>
+                        <p>Python detection, dependency installation, GPU detection, hardware compatibility — all the boring stuff, handled for you.</p>
+                        <span class="arrow">⇢</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="card-top"><span class="idx">05</span><span class="glyph">❖</span></div>
+                        <h3>Project management</h3>
+                        <p>Models, datasets, projects, training runs, builds, and settings — organized in one place, not scattered across folders.</p>
+                        <span class="arrow">⇢</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="card-top"><span class="idx">06</span><span class="glyph">▣</span></div>
+                        <h3>Radically local-first</h3>
+                        <p>Your datasets, checkpoints, and projects remain yours. Know exactly what went into your model — and what it costs the planet.</p>
+                        <span class="arrow">⇢</span>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="section section-alt" id="screens">
+            <div class="container">
+                <p class="eyebrow">the app</p>
+                <h2 class="section-title">Coded by AI, <span class="serif-italic">designed by humans.</span></h2>
+                <p class="section-intro">
+                    The methodology is honest about it: all the abstract planning, thinking, and mapping —
+                    every component, workflow, page, and aesthetic — is done by a human, extensively designed
+                    before a line of code exists. The implementation itself is written by AI, then verified
+                    by the developer before each release.
+                </p>
+                <p class="art-line">Here are examples of our <em>(100% human-made)</em> art.</p>
+                <div class="screens-grid">
+                    <div class="screen-item reveal">
+                        <img src="images/launch.jpg" alt="MAMA launch screen">
+                        <span class="screen-label">Launch</span>
+                    </div>
+                    <div class="screen-item reveal">
+                        <img src="images/file_explorer.jpg" alt="MAMA file explorer screen">
+                        <span class="screen-label">File explorer</span>
+                    </div>
+                    <div class="screen-item reveal">
+                        <img src="images/export.jpg" alt="MAMA export screen">
+                        <span class="screen-label">Export</span>
+                    </div>
+                    <div class="screen-item reveal">
+                        <img src="images/inspect.jpg" alt="MAMA inspect screen">
+                        <span class="screen-label">Inspect</span>
+                    </div>
+                    <div class="screen-item reveal">
+                        <img src="images/loading.jpg" alt="MAMA loading screen">
+                        <span class="screen-label">Loading</span>
+                    </div>
+                    <div class="screen-item reveal">
+                        <img src="images/error.jpg" alt="MAMA error screen">
+                        <span class="screen-label">Error</span>
+                    </div>
+                </div>
+                <p class="gallery-link"><a href="gallery.html">View full gallery &rarr;</a></p>
+            </div>
+        </section>
+
+        <section class="section" id="workflow">
+            <div class="container">
+                <p class="eyebrow">the flow</p>
+                <h2 class="section-title">From idea to model, <span class="serif-italic">step by step.</span></h2>
+                <div class="steps">
+                    <div class="step reveal">
+                        <span class="step-num">1</span>
+                        <h3>Create a project</h3>
+                        <p>Name it, choose a model, and import a dataset from the visual interface.</p>
+                    </div>
+                    <div class="step reveal">
+                        <span class="step-num">2</span>
+                        <h3>Configure a build</h3>
+                        <p>Set your hyperparameters once, save them as a reusable build.</p>
+                    </div>
+                    <div class="step reveal">
+                        <span class="step-num">3</span>
+                        <h3>Train &amp; monitor</h3>
+                        <p>MAMA sets up the environment, finds your GPU, and runs the training.</p>
+                    </div>
+                    <div class="step reveal">
+                        <span class="step-num">4</span>
+                        <h3>Run your model</h3>
+                        <p>Use your finished model locally, fully aware of what went into it.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section section-alt" id="philosophy">
+            <div class="container">
+                <p class="eyebrow">why</p>
+                <h2 class="section-title">The <span class="serif-italic">philosophy.</span></h2>
+                <blockquote class="quote">
+                    "AI should be difficult because of the problems you're solving — not because of the tools you're forced to use."
+                </blockquote>
+                <div class="philosophy-grid">
+                    <article class="reveal">
+                        <h3>Agency</h3>
+                        <p>
+                            MAMA exists to give people agency over AI. If you have reasonable hardware, you can create and run
+                            any kind of model with no prior AI experience — training on data you curated yourself, with no
+                            corporate data-stealing and no hidden costs.
+                        </p>
+                    </article>
+                    <article class="reveal">
+                        <h3>Accountability</h3>
+                        <p>
+                            You know exactly how much energy, resources, and water go into running and training your models.
+                            Every component, workflow, page, and aesthetic was designed by a human — and every release is
+                            verified by the developer before it ships.
+                        </p>
+                    </article>
+                </div>
+
+                <div class="open-source reveal">
+                    <div class="os-left">
+                        <p class="os-label">OPEN SOURCE, BY DESIGN</p>
+                        <h3>Built in the open. <span class="serif-italic">Verified by hand.</span></h3>
+                        <p>
+                            MAMA is free and Beerware-licensed (revision 42). The entire source is public on GitHub, so anyone can read it,
+                            audit it, and run it — no telemetry, no accounts, no lock-in. This project leans heavily on
+                            AI-generated code, and its developer owns that fact openly, rather than hiding it.
+                        </p>
+                        <div class="chips">
+                            <span class="chip">Python</span>
+                            <span class="chip">PyWebView</span>
+                            <span class="chip">PyTorch</span>
+                            <span class="chip">TensorFlow</span>
+                            <span class="chip">Windows</span>
+                            <span class="chip">macOS</span>
+                            <span class="chip">Linux</span>
+                        </div>
+                    </div>
+                    <div class="os-right">
+                        <p class="os-label">STANDING ON THE SHOULDERS OF OTHERS</p>
+                        <ul class="credits">
+                            <li>
+                                <a href="https://github.com/victoresque/pytorch-template" target="_blank" rel="noopener">pytorch-template</a>
+                                <span>by @victoresque</span>
+                            </li>
+                            <li>
+                                <a href="https://github.com/mgsalem/Tensorflow-Project-Template" target="_blank" rel="noopener">Tensorflow-Project-Template</a>
+                                <span>by @mgsalem</span>
+                            </li>
+                        </ul>
+                        <p class="os-license">
+                            MAMA is released under the <a href="https://github.com/CrankyTitanO7/mama/blob/pywebview/LICENSE.md" target="_blank" rel="noopener">Beerware license (revision 42)</a>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="contribute">
+            <div class="container">
+                <p class="eyebrow">join in</p>
+                <h2 class="section-title">Make it <span class="serif-italic">yours.</span></h2>
+                <p class="contribute-text">
+                    Fixing bugs, improving docs, designing UI, adding training backends — all welcome.
+                    New here? The Issues page has beginner-friendly tasks waiting for you.
+                </p>
+                <div class="hero-actions">
+                    <a class="btn btn-primary" href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">Open the repository</a>
+                    <a class="btn btn-ghost" href="https://github.com/CrankyTitanO7/mama/issues" target="_blank" rel="noopener">issues</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <span class="footer-word" aria-hidden="true">MAMA</span>
+        <div class="container footer-inner">
+            <a class="brand" href="#top">
+                <img class="brand-tile" src="images/brand.png" alt="MAMA logo">
+                <span class="brand-word">MAMA</span>
+                <span class="brand-dot"></span>
+            </a>
+            <ul class="footer-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#screens">Screens</a></li>
+                <li><a href="#workflow">Workflow</a></li>
+                <li><a href="gallery.html">Gallery</a></li>
+                <li><a href="docs.html">Docs</a></li>
+                <li><a href="#philosophy">Philosophy</a></li>
+            </ul>
+            <p class="footer-note">
+                <a href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">github.com/CrankyTitanO7/mama</a>
+                <span>·</span> Beerware license (revision 42) · © 2026
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        const toggle = document.getElementById('navToggle');
+        const links = document.getElementById('navLinks');
+        toggle.addEventListener('click', () => {
+            const open = links.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open);
+        });
+        links.addEventListener('click', (e) => {
+            if (e.target.tagName === 'A') {
+                links.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        const revealEls = document.querySelectorAll('.reveal');
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('in');
+                    io.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.12 });
+        revealEls.forEach((el) => io.observe(el));
+    </script>
+</body>
+</html>

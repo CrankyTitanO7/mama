@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gallery — MAMA</title>
+    <meta name="description" content="Screenshots and visuals of MAMA — a cross-platform desktop studio for local AI training and running.">
+    <link rel="icon" type="image/png" href="images/favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Instrument+Serif:ital@0;1&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <nav class="nav" id="top">
+        <div class="nav-inner">
+            <a class="brand" href="index.html">
+                <img class="brand-tile" src="images/brand.png" alt="MAMA logo">
+                <span class="brand-word">MAMA</span>
+                <span class="brand-dot"></span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html"><span class="idx">00</span>Home</a></li>
+                <li><a href="index.html#features"><span class="idx">01</span>Features</a></li>
+                <li><a href="index.html#screens"><span class="idx">02</span>Screens</a></li>
+                <li><a href="index.html#workflow"><span class="idx">03</span>Workflow</a></li>
+                <li><a href="index.html#philosophy"><span class="idx">04</span>Philosophy</a></li>
+                <li><a href="docs.html"><span class="idx">05</span>Docs</a></li>
+            </ul>
+            <div class="nav-right">
+                <a class="btn btn-ghost btn-sm" href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">GitHub ⇱</a>
+                <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <header class="page-header">
+        <div class="container">
+            <p class="eyebrow">visuals<span class="cursor"></span></p>
+            <h1 class="page-title">The full <span class="serif-italic">gallery.</span></h1>
+            <p class="page-sub">Every screen, every state — uncut, unedited, exactly as MAMA looks on your machine.</p>
+        </div>
+    </header>
+
+    <main>
+        <section class="section gallery-section">
+            <div class="container">
+                <div class="gallery-grid">
+                    <div class="gallery-item gallery-wide reveal">
+                        <img src="images/screenshots/training.png" alt="MAMA training screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Training</span>
+                            <p>Watch your model learn — loss curves, metrics, and GPU stats.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/launch.jpg" alt="MAMA launch screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Launch</span>
+                            <p>Choose a project or start fresh.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/loading.jpg" alt="MAMA loading screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Loading</span>
+                            <p>Setting up dependencies and scanning hardware.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/file_explorer.jpg" alt="MAMA file explorer screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">File explorer</span>
+                            <p>Browse and manage your datasets, models, and projects.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/inspect.jpg" alt="MAMA inspect screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Inspect</span>
+                            <p>Peek inside model architecture and training state.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/error.jpg" alt="MAMA error screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Error</span>
+                            <p>Clear, human-readable errors when something goes wrong.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item gallery-wide reveal">
+                        <img src="images/screenshots/mainscreen.png" alt="MAMA main screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Main screen</span>
+                            <p>The hub — navigate to projects, models, datasets, and settings.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/screenshots/mission control.png" alt="MAMA mission control">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Mission control</span>
+                            <p>Monitor training progress and hardware usage in real time.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/splash.jpg" alt="MAMA splash screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Splash</span>
+                            <p>The first thing you see — MAMA booting up and detecting your environment.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/screenshots/fine tune 1.png" alt="MAMA fine-tuning screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Fine-tuning</span>
+                            <p>Configure and launch fine-tuning runs on your own data.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item gallery-wide reveal">
+                        <img src="images/screenshots/export.png" alt="MAMA export screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Export</span>
+                            <p>Package your trained model for deployment or sharing.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/screenshots/modules.png" alt="MAMA modules screen">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Modules</span>
+                            <p>Manage components and extensions for your workflow.</p>
+                        </div>
+                    </div>
+                    <div class="gallery-item reveal">
+                        <img src="images/screenshots/databse explorer.png" alt="MAMA database explorer">
+                        <div class="gallery-caption">
+                            <span class="gallery-label">Database explorer</span>
+                            <p>Browse and query your training data with ease.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <span class="footer-word" aria-hidden="true">MAMA</span>
+        <div class="container footer-inner">
+            <a class="brand" href="index.html">
+                <img class="brand-tile" src="images/brand.png" alt="MAMA logo">
+                <span class="brand-word">MAMA</span>
+                <span class="brand-dot"></span>
+            </a>
+            <ul class="footer-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="index.html#screens">Screens</a></li>
+                <li><a href="index.html#workflow">Workflow</a></li>
+            </ul>
+            <p class="footer-note">
+                <a href="https://github.com/CrankyTitanO7/mama" target="_blank" rel="noopener">github.com/CrankyTitanO7/mama</a>
+                <span>·</span> Beerware license (revision 42) · © 2026
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        const toggle = document.getElementById('navToggle');
+        const links = document.getElementById('navLinks');
+        toggle.addEventListener('click', () => {
+            const open = links.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open);
+        });
+        links.addEventListener('click', (e) => {
+            if (e.target.tagName === 'A') {
+                links.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        const revealEls = document.querySelectorAll('.reveal');
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('in');
+                    io.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.12 });
+        revealEls.forEach((el) => io.observe(el));
+    </script>
+</body>
+</html>

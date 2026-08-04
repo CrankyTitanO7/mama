@@ -3181,6 +3181,13 @@ body.embed-fullscreen-active {
     gap: 8px;
 }
 
+.ft-example-badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 .ft-tier-badge {
     font-size: 11px;
     font-weight: 700;
@@ -3217,11 +3224,12 @@ body.embed-fullscreen-active {
     font-style: italic;
 }
 
+/* Hardware-tier recommendation: cyan border only */
 .ft-example-recommended {
     border-color: var(--highlight-color);
 }
 
-/* Backend badge on example cards */
+/* Backend badge on example cards + sidebar nav */
 .ft-backend-badge {
     font-size: 10px;
     font-weight: 700;
@@ -3251,24 +3259,25 @@ body.embed-fullscreen-active {
     border-color: rgba(255, 179, 71, 0.4);
 }
 
-/* Highlight the card of the currently selected backend (step 0 selector) */
+/* Highlight card of the selected backend (step 0 selector).
+   Visually distinct from the "Recommended" hardware border: tinted
+   background + 4px left accent bar in the backend color. */
 .ft-example-backend-active {
-    border-width: 1px;
-    box-shadow: 0 0 0 3px var(--shadow-color);
+    border-left-width: 4px;
 }
 
 .ft-example-backend-active.ft-example-backend-trl {
-    background: color-mix(in srgb, #00d4ff 8%, var(--widget-bg));
+    background: color-mix(in srgb, #00d4ff 12%, var(--widget-bg));
     border-color: #00d4ff;
 }
 
 .ft-example-backend-active.ft-example-backend-axolotl {
-    background: color-mix(in srgb, #b866c8 10%, var(--widget-bg));
+    background: color-mix(in srgb, #b866c8 14%, var(--widget-bg));
     border-color: #b866c8;
 }
 
 .ft-example-backend-active.ft-example-backend-unsloth {
-    background: color-mix(in srgb, #f59e0b 10%, var(--widget-bg));
+    background: color-mix(in srgb, #f59e0b 14%, var(--widget-bg));
     border-color: #f59e0b;
 }
 
@@ -3284,6 +3293,122 @@ body.embed-fullscreen-active {
 
 .ft-example-use {
     margin-top: auto;
+}
+
+/* Example browser layout + sidebar (mirrors the Docs page) */
+.ft-examples-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.ft-examples-sidebar {
+    flex: 0 0 200px;
+    position: sticky;
+    top: 80px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.ft-examples-sidebar h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--highlight-color);
+    margin: 0 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+#ft-examples-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ft-ex-nav-btn {
+    width: 100%;
+    text-align: left;
+    padding: 7px 10px;
+    cursor: pointer;
+    white-space: normal;
+    font-size: 12px;
+    transition: filter 0.15s;
+}
+
+.ft-ex-nav-btn:hover {
+    filter: brightness(1.2);
+}
+
+.ft-ex-nav-btn.active {
+    box-shadow: inset 3px 0 0 currentColor;
+    font-weight: 800;
+}
+
+#ft-examples-list {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Backend section dividers */
+.ft-ex-group {
+    border-top: 2px solid var(--panel-border);
+    padding-top: 18px;
+    margin-top: 28px;
+}
+
+.ft-ex-group:first-child {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.ft-ex-group-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--panel-border);
+}
+
+.ft-ex-group-head .ft-backend-badge {
+    font-size: 13px;
+    padding: 4px 14px;
+}
+
+.ft-ex-group-desc {
+    margin: 0;
+    color: var(--body-color);
+    font-size: 13px;
+}
+
+@media (max-width: 900px) {
+    .ft-examples-layout {
+        flex-direction: column;
+    }
+
+    .ft-examples-sidebar {
+        position: static;
+        flex: none;
+        width: 100%;
+        box-shadow: none;
+    }
+
+    #ft-examples-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .ft-ex-nav-btn {
+        width: auto;
+    }
 }
 
 /* Step 4 - confirmation screen */

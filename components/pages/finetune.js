@@ -983,11 +983,30 @@ const Finetune = (() => {
     unsloth: 'Unsloth',
   };
 
+  const BACKEND_GROUPS = [
+    {
+      backend: 'trl',
+      label: 'Built-in (TRL)',
+      desc: 'mama-curated projects that run on any backend.',
+    },
+    {
+      backend: 'axolotl',
+      label: 'Official Axolotl',
+      desc: 'Recipes from the axolotl-ai-cloud/axolotl examples directory.',
+    },
+    {
+      backend: 'unsloth',
+      label: 'Official Unsloth',
+      desc: 'Recipes from the Unsloth docs and notebooks.',
+    },
+  ];
+
   function renderExamples() {
     const list = document.getElementById('ft-examples-list');
     if (!list) return;
     const recommended = recommendedTier();
     const hwHint = document.getElementById('ft-example-hw-hint');
+    const nav = document.getElementById('ft-examples-nav');
     const selectedBackend = document.getElementById('ft-backend-step0')?.value;
 
     const deviceName = hwDevice === 'cuda' ? 'CUDA GPU' : hwDevice === 'mps' ? 'Apple Silicon' : 'CPU';
@@ -995,40 +1014,96 @@ const Finetune = (() => {
       hwHint.textContent = `Detected hardware: ${deviceName} — recommended tier: ${HW_TIERS[recommended].label}. You can still pick any tier. Cards highlighted for the selected backend (${BACKEND_LABELS[selectedBackend] || 'Custom Script'}) match your engine.`;
     }
 
-    list.innerHTML = EXAMPLES.map(ex => {
-      const cards = Object.keys(HW_TIERS)
-        .filter(tier => ex.variants[tier])
-        .map(tier => {
-        const v = ex.variants[tier];
-        const tierInfo = HW_TIERS[tier];
-        const isRecommended = tier === recommended;
-        const isBackendMatch = ex.backend === selectedBackend;
+    // Group examples by backend, preserving the display order of BACKEND_GROUPS
+    const grouped = BACKEND_GROUPS
+      .map(group => ({ ...group, examples: EXAMPLES.filter(ex => ex.backend === group.backend) }))
+      .filter(group => group.examples.length > 0);
+
+    // Sidebar nav (like the Docs page)
+    if (nav) {
+      nav.innerHTML = grouped.map(group => `
+        <li>
+          <button type="button" class="ft-ex-nav-btn ft-backend-badge ft-backend-badge-${escapeHtml(group.backend)}" data-target="ft-ex-group-${escapeHtml(group.backend)}">${escapeHtml(group.label)}</button>
+        </li>`).join('');
+      nav.querySelectorAll('.ft-ex-nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById(btn.dataset.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    }
+
+    list.innerHTML = grouped.map(group => {
+      const cards = group.examples.map(ex => {
+        const variants = Object.keys(HW_TIERS)
+          .filter(tier => ex.variants[tier])
+          .map(tier => {
+            const v = ex.variants[tier];
+            const tierInfo = HW_TIERS[tier];
+            const isRecommended = tier === recommended;
+            const isBackendMatch = ex.backend === selectedBackend;
+            return `
+              <div class="ft-example-card ft-example-backend-${escapeHtml(ex.backend)} ${isRecommended ? 'ft-example-recommended' : ''} ${isBackendMatch ? 'ft-example-backend-active' : ''}" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">
+                <div class="ft-example-card-head">
+                  <div class="ft-example-badges">
+                    <span class="ft-tier-badge ft-tier-${tier}">${tierInfo.label} Hardware</span>
+                    <span class="ft-backend-badge ft-backend-badge-${escapeHtml(ex.backend)}">${escapeHtml(BACKEND_LABELS[ex.backend] || ex.backend)}</span>
+                  </div>
+                  ${isRecommended ? '<span class="ft-tier-rec">Recommended</span>' : ''}
+                </div>
+                <div class="ft-example-tier-hint">${tierInfo.hint}</div>
+                <p><strong>Model:</strong> <code>${escapeHtml(v.model)}</code></p>
+                <p><strong>Dataset:</strong> <code>${escapeHtml(ex.dataset)}</code></p>
+                <p><strong>Method:</strong> ${v.method.toUpperCase()} &middot; <strong>Seq len:</strong> ${v.max_seq} &middot; <strong>Samples:</strong> ${v.max_samples.toLocaleString()}</p>
+                ${ex.source ? `<a class="ft-example-source" href="${escapeHtml(ex.source)}" target="_blank" rel="noopener">Official ${escapeHtml(BACKEND_LABELS[ex.backend]) || ''} example &nearr;</a>` : ''}
+                <button class="settings-btn settings-btn-success ft-example-use" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">Use this example</button>
+              </div>`;
+          });
         return `
-          <div class="ft-example-card ft-example-backend-${escapeHtml(ex.backend)} ${isRecommended ? 'ft-example-recommended' : ''} ${isBackendMatch ? 'ft-example-backend-active' : ''}" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">
-            <div class="ft-example-card-head">
-              <span class="ft-tier-badge ft-tier-${tier}">${tierInfo.label} Hardware</span>
-              <span class="ft-backend-badge ft-backend-badge-${escapeHtml(ex.backend)}">${escapeHtml(BACKEND_LABELS[ex.backend] || ex.backend)}</span>
-            </div>
-            <div class="ft-example-tier-hint">${tierInfo.hint}${isRecommended ? ' &middot; matches your hardware' : ''}</div>
-            <p><strong>Model:</strong> <code>${escapeHtml(v.model)}</code></p>
-            <p><strong>Dataset:</strong> <code>${escapeHtml(ex.dataset)}</code></p>
-            <p><strong>Method:</strong> ${v.method.toUpperCase()} &middot; <strong>Seq len:</strong> ${v.max_seq} &middot; <strong>Samples:</strong> ${v.max_samples.toLocaleString()}</p>
-            ${ex.source ? `<a class="ft-example-source" href="${escapeHtml(ex.source)}" target="_blank" rel="noopener">Official ${escapeHtml(BACKEND_LABELS[ex.backend]) || ''} example &nearr;</a>` : ''}
-            <button class="settings-btn settings-btn-success ft-example-use" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">Use this example</button>
+          <div class="ft-example-category">
+            <h3>${escapeHtml(ex.title)}</h3>
+            <p class="ft-example-desc">${escapeHtml(ex.desc)}</p>
+            <div class="ft-example-grid">${variants.join('')}</div>
           </div>`;
       }).join('');
 
       return `
-        <div class="ft-example-category">
-          <h3>${escapeHtml(ex.title)}</h3>
-          <p class="ft-example-desc">${escapeHtml(ex.desc)}</p>
-          <div class="ft-example-grid">${cards}</div>
+        <div class="ft-ex-group" id="ft-ex-group-${escapeHtml(group.backend)}" data-group="${escapeHtml(group.backend)}">
+          <div class="ft-ex-group-head">
+            <span class="ft-backend-badge ft-backend-badge-${escapeHtml(group.backend)}">${escapeHtml(group.label)}</span>
+            <p class="ft-ex-group-desc">${escapeHtml(group.desc)}</p>
+          </div>
+          ${cards}
         </div>`;
     }).join('');
 
     list.querySelectorAll('.ft-example-use').forEach(btn => {
       btn.addEventListener('click', () => applyExample(btn.dataset.cat, btn.dataset.tier));
     });
+
+    // Scroll-spy: highlight the sidebar entry of the group currently in view
+    const groups = list.querySelectorAll('.ft-ex-group');
+    const navBtns = nav ? Array.from(nav.querySelectorAll('.ft-ex-nav-btn')) : [];
+    let spyActive = false;
+    if ('IntersectionObserver' in window && groups.length && navBtns.length) {
+      const setActive = (backend) => {
+        navBtns.forEach(b => {
+          b.classList.toggle('active', b.dataset.target === 'ft-ex-group-' + backend);
+        });
+      };
+      const spy = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            spyActive = true;
+            setActive(entry.target.dataset.group);
+            break;
+          }
+        }
+        if (!entries.some(e => e.isIntersecting)) spyActive = false;
+      }, { rootMargin: '-120px 0px -60% 0px', threshold: 0 });
+      groups.forEach(g => spy.observe(g));
+      // Keep the first entry active while above the first section
+      if (spyActive === false) setActive(groups[0].dataset.group);
+    }
   }
 
   async function exampleOutputDir(catId, tier) {

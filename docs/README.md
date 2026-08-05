@@ -126,18 +126,28 @@ without digging through folders.
 ---
 
 # Screenshots
+## training page
+visualize your training statistics
+<img width="1166" height="1011" alt="training" src="https://github.com/user-attachments/assets/82c605bf-0137-42af-ade1-aa0b95b56b97" />
+## modular backends
+modular backend setup for Unsloth and Axolotl
+<img width="1168" height="1007" alt="modules" src="https://github.com/user-attachments/assets/86cd8706-924a-416c-b28d-9097f5f8817b" />
+## mission control
+all of your hardware/software checks in one place
+<img width="1168" height="1007" alt="mission control" src="https://github.com/user-attachments/assets/ecbff9ed-d67b-4d24-8fae-6a76dc1bafcd" />
+## homepage
+with a tailored, modular styling system
+<img width="1168" height="848" alt="mainscreen" src="https://github.com/user-attachments/assets/40da9dca-5593-494a-b4f5-246738880fed" />
+## fine tune
+easy export to other backends, including example projects
+<img width="1169" height="1008" alt="fine tune 1" src="https://github.com/user-attachments/assets/8aca867b-f712-404f-8712-7b7c4a195ff0" />
+## export
+options to export, including other backends, Google Colab support for training for free on a powerful compute backend, and more options
+<img width="1166" height="1002" alt="export" src="https://github.com/user-attachments/assets/99517807-4f6c-48a1-9131-003c2c1dea4c" />
+## dataset viewer
+modules that allow you to access external websites in-app, including tutorials, Huggingface, database exporers, and more.
+<img width="1164" height="1012" alt="databse explorer" src="https://github.com/user-attachments/assets/955fe178-1dc0-4745-9642-282d5c8d5c48" />
 
-> screenshots coming soon
-
-future images:
-
-* Home screen
-* Create Project
-* Build editor
-* Dataset manager
-* Training monitor
-* Hardware detection
-* Finished model
 
 ---
 

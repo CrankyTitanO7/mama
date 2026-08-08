@@ -152,6 +152,7 @@ modules that allow you to access external websites in-app, including tutorials, 
 ---
 
 # Installation
+> NOTE: DO NOT PRESS FINISH ON THE VERY LAST STEP UNTIL THE PROGRAM IS DONE INSTALLING. Yes, it's very misleading, I will fix it eventually, but it's basically a "skip" button for now. When it is actually done installing, another green button with "Start using mama will appear." 
 
 ### Windows
 

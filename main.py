@@ -187,6 +187,11 @@ def main():
     # Windows frozen builds: unblock + preload pythonnet (clear error if it fails)
     _prepare_windows_clr()
 
+    # Disable WebKit2GTK's DMA-BUF renderer on Linux, which is known to cause
+    # crashes on some systems (e.g. Ubuntu 22.04 with NVIDIA drivers).
+    if sys.platform.startswith('linux'):
+        os.environ["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1"
+
     import webview
     from http_server import start_http_server
     from bridge import MamaApi

@@ -40,6 +40,29 @@ import threading
 import subprocess
 from pathlib import Path
 
+
+def clean_subprocess_env():
+    """Return a copy of os.environ safe for spawning real Python subprocesses.
+
+    When frozen, PyInstaller's onefile bootloader points LD_LIBRARY_PATH /
+    DYLD_LIBRARY_PATH at its own bundled-libs temp directory; a spawned
+    system/venv Python would otherwise load the app's bundled shared
+    libraries instead of its own. PyInstaller saves the pre-bootloader value
+    as *_ORIG so children can restore it.
+    """
+    env = os.environ.copy()
+    if getattr(sys, 'frozen', False):
+        for var, orig_var in (
+            ('LD_LIBRARY_PATH', 'LD_LIBRARY_PATH_ORIG'),
+            ('DYLD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH_ORIG'),
+        ):
+            if orig_var in env:
+                env[var] = env[orig_var]
+            else:
+                env.pop(var, None)
+    return env
+
+
 # ── Structured output ────────────────────────────────────────────────────────
 
 
@@ -542,7 +565,8 @@ def ensure_unsl():
         cmd = [sys.executable, "-m", "pip", "install", "--no-input",
                "--disable-pip-version-check", "unsloth"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, text=True, bufsize=1)
+                            stderr=subprocess.STDOUT, text=True, bufsize=1,
+                            env=clean_subprocess_env())
     for line in iter(proc.stdout.readline, ""):
         if line and line.strip():
             emit({"type": "install_log", "text": line.rstrip()})
@@ -657,7 +681,7 @@ def main():
             text=True,
             bufsize=1,
             start_new_session=True,
-            env=dict(os.environ),
+            env=clean_subprocess_env(),
         )
 
         state = {"last_step": 0}

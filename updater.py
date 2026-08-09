@@ -45,6 +45,28 @@ PRESERVE_RELS = ('user', 'components/recents.json')
 _last_check = None
 
 
+def clean_subprocess_env():
+    """Return a copy of os.environ safe for spawning real Python subprocesses.
+
+    When frozen, PyInstaller's onefile bootloader points LD_LIBRARY_PATH /
+    DYLD_LIBRARY_PATH at its own bundled-libs temp directory; a spawned
+    system/venv Python would otherwise load the app's bundled shared
+    libraries instead of its own. PyInstaller saves the pre-bootloader value
+    as *_ORIG so children can restore it.
+    """
+    env = os.environ.copy()
+    if getattr(sys, 'frozen', False):
+        for var, orig_var in (
+            ('LD_LIBRARY_PATH', 'LD_LIBRARY_PATH_ORIG'),
+            ('DYLD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH_ORIG'),
+        ):
+            if orig_var in env:
+                env[var] = env[orig_var]
+            else:
+                env.pop(var, None)
+    return env
+
+
 def _setup_ssl_certs() -> None:
     """Make plain urllib/ssl trust the bundled CA bundle.
 
@@ -366,6 +388,7 @@ def _extract_macos_dmg(dmg_path: Path, dest: Path) -> Path:
         r = subprocess.run(
             ['hdiutil', 'attach', str(dmg_path), '-nobrowse', '-readonly', '-mountpoint', str(mount)],
             capture_output=True, text=True, timeout=120,
+            env=clean_subprocess_env(),
         )
         if r.returncode != 0:
             raise IOError(r.stderr.strip() or 'hdiutil attach failed')
@@ -373,11 +396,13 @@ def _extract_macos_dmg(dmg_path: Path, dest: Path) -> Path:
         if not apps:
             raise IOError('No .app found inside the dmg')
         app_dest = dest / apps[0].name
-        subprocess.run(['ditto', str(apps[0]), str(app_dest)], check=True, timeout=300)
+        subprocess.run(['ditto', str(apps[0]), str(app_dest)], check=True, timeout=300,
+                       env=clean_subprocess_env())
         return app_dest
     finally:
         try:
-            subprocess.run(['hdiutil', 'detach', str(mount)], capture_output=True, timeout=60)
+            subprocess.run(['hdiutil', 'detach', str(mount)], capture_output=True, timeout=60,
+                           env=clean_subprocess_env())
         except Exception:
             pass
         shutil.rmtree(mount, ignore_errors=True)
@@ -613,13 +638,14 @@ def _preserve_user_data(old_root: Path, new_root: Path, marker: dict) -> None:
 def _relaunch(root: Path, marker: dict) -> None:
     try:
         if sys.platform == 'darwin' and (root / 'Contents').is_dir():
-            subprocess.Popen(['open', str(root)])
+            subprocess.Popen(['open', str(root)], env=clean_subprocess_env())
             return
         exe_rel = marker.get('exe_rel')
         if exe_rel:
             exe = root / exe_rel
             if exe.exists():
-                subprocess.Popen([str(exe)], cwd=str(exe.parent), start_new_session=True)
+                subprocess.Popen([str(exe)], cwd=str(exe.parent), start_new_session=True,
+                                 env=clean_subprocess_env())
                 return
         logger.warning('Could not relaunch after update')
     except Exception as e:
@@ -718,6 +744,7 @@ def spawn_applier() -> bool:
         subprocess.Popen(
             [sys.executable, '--apply-update', str(marker)],
             start_new_session=True,
+            env=clean_subprocess_env(),
         )
         logger.info('Update swapper spawned for %s', marker)
         return True

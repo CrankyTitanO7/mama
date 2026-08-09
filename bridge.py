@@ -288,7 +288,8 @@ class MamaApi:
                 result = subprocess.run(
                     [cmd, '-c',
                      'import sys,platform;print(f"{sys.version_info.major}.{sys.version_info.minor} {platform.machine()}")'],
-                    capture_output=True, text=True, timeout=8
+                    capture_output=True, text=True, timeout=8,
+                    env=clean_subprocess_env()
                 )
                 if result.returncode != 0:
                     return None
@@ -304,7 +305,8 @@ class MamaApi:
                 proc = subprocess.run(
                     [cmd, '-m', 'pip', 'install', '--dry-run', '--no-index',
                      'mama-probe-nonexistent-package'],
-                    capture_output=True, text=True, timeout=30)
+                    capture_output=True, text=True, timeout=30,
+                    env=clean_subprocess_env())
                 if proc.returncode == 0:
                     has_pip = True  # no marker, pip works (nothing to install)
                 else:
@@ -484,7 +486,8 @@ class MamaApi:
         elif sys.platform == 'darwin':
             distro = 'unknown'
             try:
-                subprocess.run(['which', 'brew'], capture_output=True, timeout=5)
+                subprocess.run(['which', 'brew'], capture_output=True, timeout=5,
+                               env=clean_subprocess_env())
                 distro = 'homebrew'
             except Exception:
                 pass
@@ -813,7 +816,7 @@ class MamaApi:
                 stderr=subprocess.PIPE,
                 text=True,
                 shell=(sys.platform == 'win32'),
-                env={**os.environ}
+                env=clean_subprocess_env()
             )
             stdout, stderr = proc.communicate(timeout=30)
             code = proc.returncode or 0
@@ -910,7 +913,7 @@ class MamaApi:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ},
+                env=clean_subprocess_env(),
                 cwd=project_folder
             )
             _, stderr = proc.communicate(timeout=60)
@@ -978,7 +981,7 @@ class MamaApi:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                env={**os.environ}
+                env=clean_subprocess_env()
             )
 
             stdout_lines: list = []
@@ -1208,7 +1211,8 @@ class MamaApi:
                 )
                 result = subprocess.run(
                     ['osascript', '-e', script_cmd],
-                    capture_output=True, text=True, timeout=120
+                    capture_output=True, text=True, timeout=120,
+                    env=clean_subprocess_env()
                 )
                 if result.returncode != 0:
                     # User cancelled
@@ -1356,7 +1360,8 @@ class MamaApi:
             if sys.platform == 'darwin':
                 result = subprocess.run(
                     ['osascript', '-e', 'return POSIX path of (choose folder with prompt "Select Project Folder")'],
-                    capture_output=True, text=True, timeout=120
+                    capture_output=True, text=True, timeout=120,
+                    env=clean_subprocess_env()
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     return result.stdout.strip()
@@ -1398,7 +1403,8 @@ class MamaApi:
                         )
                 result = subprocess.run(
                     ['osascript', '-e', cmd],
-                    capture_output=True, text=True, timeout=120
+                    capture_output=True, text=True, timeout=120,
+                    env=clean_subprocess_env()
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     return result.stdout.strip()
@@ -1477,11 +1483,11 @@ class MamaApi:
                 return False
 
             if sys.platform == 'darwin':
-                subprocess.Popen(['open', str(folder)])
+                subprocess.Popen(['open', str(folder)], env=clean_subprocess_env())
             elif sys.platform == 'win32':
-                subprocess.Popen(['explorer', str(folder)])
+                subprocess.Popen(['explorer', str(folder)], env=clean_subprocess_env())
             else:
-                subprocess.Popen(['xdg-open', str(folder)])
+                subprocess.Popen(['xdg-open', str(folder)], env=clean_subprocess_env())
             return True
         except Exception as e:
             logger.error('project_reveal_folder failed: %s', e)
@@ -1656,7 +1662,7 @@ class MamaApi:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ},
+                env=clean_subprocess_env(),
                 cwd=folder_path
             )
             _, stderr = proc.communicate(timeout=60)
@@ -1743,6 +1749,7 @@ class MamaApi:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                env=clean_subprocess_env(),
             )
             for line in iter(install_proc.stdout.readline, ''):
                 if line:
@@ -1778,7 +1785,7 @@ class MamaApi:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                env={**os.environ},
+                env=clean_subprocess_env(),
             )
             self._training_process = proc
 
@@ -1897,7 +1904,7 @@ class MamaApi:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                env={**os.environ},
+                env=clean_subprocess_env(),
             )
             self._training_process = proc
 
@@ -1957,7 +1964,7 @@ class MamaApi:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                env={**os.environ},
+                env=clean_subprocess_env(),
             )
             self._training_process = proc
 
@@ -2062,7 +2069,7 @@ class MamaApi:
                 text=True,
                 bufsize=1,
                 start_new_session=True,
-                env={**os.environ},
+                env=clean_subprocess_env(),
             )
             self._training_process = proc
 
@@ -2393,7 +2400,7 @@ class MamaApi:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                env={**os.environ},
+                env=clean_subprocess_env(),
             )
             self._model_download_process = proc
 
@@ -2480,7 +2487,7 @@ class MamaApi:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                env={**os.environ},
+                env=clean_subprocess_env(),
             )
         except Exception as e:
             logger.error('model_install_hub failed: %s', e)
@@ -2603,7 +2610,7 @@ class MamaApi:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                env={**os.environ},
+                env=clean_subprocess_env(),
             )
 
             def read_stream(stream, stream_type):
@@ -2913,7 +2920,8 @@ class MamaApi:
                 return 'wsl'
             try:
                 check = subprocess.run(
-                    ['wsl', '--status'], capture_output=True, text=True, timeout=10)
+                    ['wsl', '--status'], capture_output=True, text=True, timeout=10,
+                    env=clean_subprocess_env())
                 if check.returncode == 0:
                     return 'wsl'
             except Exception:

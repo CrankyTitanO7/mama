@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_env_cleaning.py — flags subprocess.Popen()/.run() calls that don't
+"""check_env_cleaning.py — flags subprocess Popen()/.run() invocations that don't
 pass env=clean_subprocess_env(). Catches the exact bug class found in
 bridge.py: a fix applied at one call site but not propagated to the rest.
 

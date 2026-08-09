@@ -26,6 +26,29 @@ Notes:
 
 import sys
 import subprocess
+import os
+
+
+def clean_subprocess_env():
+    """Return a copy of os.environ safe for spawning real Python subprocesses.
+
+    When frozen, PyInstaller's onefile bootloader points LD_LIBRARY_PATH /
+    DYLD_LIBRARY_PATH at its own bundled-libs temp directory; a spawned
+    system/venv Python would otherwise load the app's bundled shared
+    libraries instead of its own. PyInstaller saves the pre-bootloader value
+    as *_ORIG so children can restore it.
+    """
+    env = os.environ.copy()
+    if getattr(sys, 'frozen', False):
+        for var, orig_var in (
+            ('LD_LIBRARY_PATH', 'LD_LIBRARY_PATH_ORIG'),
+            ('DYLD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH_ORIG'),
+        ):
+            if orig_var in env:
+                env[var] = env[orig_var]
+            else:
+                env.pop(var, None)
+    return env
 
 
 # Latest stable CUDA/ROCm tags to fall back to when version detection failed.
@@ -129,7 +152,7 @@ def main():
     print("-" * 60, flush=True)
 
     # Run pip, inheriting stdout/stderr so Node.js spawn captures streamed output
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, env=clean_subprocess_env())
     sys.exit(result.returncode)
 
 

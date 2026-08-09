@@ -12,6 +12,29 @@ Exit 0 on success, 1 on failure.
 import sys
 import platform
 import subprocess
+import os
+
+
+def clean_subprocess_env():
+    """Return a copy of os.environ safe for spawning real Python subprocesses.
+
+    When frozen, PyInstaller's onefile bootloader points LD_LIBRARY_PATH /
+    DYLD_LIBRARY_PATH at its own bundled-libs temp directory; a spawned
+    system/venv Python would otherwise load the app's bundled shared
+    libraries instead of its own. PyInstaller saves the pre-bootloader value
+    as *_ORIG so children can restore it.
+    """
+    env = os.environ.copy()
+    if getattr(sys, 'frozen', False):
+        for var, orig_var in (
+            ('LD_LIBRARY_PATH', 'LD_LIBRARY_PATH_ORIG'),
+            ('DYLD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH_ORIG'),
+        ):
+            if orig_var in env:
+                env[var] = env[orig_var]
+            else:
+                env.pop(var, None)
+    return env
 
 
 def detect_windows():
@@ -44,14 +67,16 @@ def detect_linux():
     # Kernel version via uname -r
     try:
         kernel = subprocess.run(
-            ["uname", "-r"], capture_output=True, text=True, timeout=5
+            ["uname", "-r"], capture_output=True, text=True, timeout=5,
+            env=clean_subprocess_env()
         ).stdout.strip()
     except Exception:
         kernel = platform.release()
 
     try:
         arch = subprocess.run(
-            ["uname", "-m"], capture_output=True, text=True, timeout=5
+            ["uname", "-m"], capture_output=True, text=True, timeout=5,
+            env=clean_subprocess_env()
         ).stdout.strip()
     except Exception:
         arch = platform.machine()
@@ -77,7 +102,8 @@ def detect_linux():
     if not pretty_name:
         try:
             out = subprocess.run(
-                ["hostnamectl"], capture_output=True, text=True, timeout=5
+                ["hostnamectl"], capture_output=True, text=True, timeout=5,
+                env=clean_subprocess_env()
             ).stdout
             for line in out.splitlines():
                 if "Operating System:" in line:
@@ -108,13 +134,16 @@ MACOS_CODENAMES = {
 def detect_macos():
     try:
         version = subprocess.run(
-            ["sw_vers", "-productVersion"], capture_output=True, text=True, timeout=5
+            ["sw_vers", "-productVersion"], capture_output=True, text=True, timeout=5,
+            env=clean_subprocess_env()
         ).stdout.strip()
         kernel = subprocess.run(
-            ["uname", "-r"], capture_output=True, text=True, timeout=5
+            ["uname", "-r"], capture_output=True, text=True, timeout=5,
+            env=clean_subprocess_env()
         ).stdout.strip()
         arch = subprocess.run(
-            ["uname", "-m"], capture_output=True, text=True, timeout=5
+            ["uname", "-m"], capture_output=True, text=True, timeout=5,
+            env=clean_subprocess_env()
         ).stdout.strip()
     except Exception:
         version = platform.mac_ver()[0]

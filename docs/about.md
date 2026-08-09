@@ -14,7 +14,9 @@ this application does rely heavily on AI generated code. While the morality of A
 
 I am, however, the bulk producer of all intellectual concepts presented in this application. I designed each component, workflow, page, and aesthetic in the Miro software extensively.
 
-While the execution was done in a morally grey area of artificial intelligence, I can assure you that the initial seed and structure was all my original brainchild. Since AI cannot take proper accountability, I (or the developer) will take upon several duties, including writing this about page and verifying code before each version release.
+While the execution was done in a morally grey area of artificial intelligence, I can assure you that the initial seed and structure was all my original brainchild. Since AI cannot take proper accountability, I take on that responsibility myself — and I'd rather that be checkable than just asserted.
+
+Each release ships with a short description noting what was actually checked before tagging: which automated checks ran (see tools/ — e.g. check_env_cleaning.py, which catches an entire bug class rather than one instance of it), which flows I walked through manually (setup wizard on which OS, a real training run start-to-finish, etc.), and which parts of that release are AI-written code I have not personally traced end-to-end. If something in a given version wasn't verified, that'll say so — a missing check is more honest than a blanket assurance.
 
 
 ## mission

@@ -17,26 +17,50 @@
       <!-- Left Toolbar -->
       <div id="wb-toolbar">
         <div class="wb-tool-group">
-          <button class="wb-tool-btn active" data-tool="select" title="Cursor tool">
+          <button class="wb-tool-btn active" data-tool="select" title="Cursor tool (V)">
             <span class="wb-widget-icon">⌖</span>
             <span class="wb-widget-label">Cursor</span>
           </button>
-          <button class="wb-tool-btn" data-tool="line" title="Pen tool">
+          <button class="wb-tool-btn" data-tool="line" title="Connection tool (L)">
             <span class="wb-widget-icon">✎</span>
-            <span class="wb-widget-label">Pen</span>
+            <span class="wb-widget-label">Connect</span>
           </button>
-          <button class="wb-tool-btn" data-tool="eraser" title="Eraser">
+          <button class="wb-tool-btn" data-tool="pen" title="Freehand sketch (P)">
+            <span class="wb-widget-icon">🖊</span>
+            <span class="wb-widget-label">Sketch</span>
+          </button>
+          <button class="wb-tool-btn" data-tool="rect" title="Rectangle (R)">
+            <span class="wb-widget-icon">▭</span>
+            <span class="wb-widget-label">Rect</span>
+          </button>
+          <button class="wb-tool-btn" data-tool="circle" title="Circle (C)">
+            <span class="wb-widget-icon">○</span>
+            <span class="wb-widget-label">Circle</span>
+          </button>
+          <button class="wb-tool-btn" data-tool="text" title="Text (T)">
+            <span class="wb-widget-icon">T</span>
+            <span class="wb-widget-label">Text</span>
+          </button>
+          <button class="wb-tool-btn" data-tool="eraser" title="Eraser (E)">
             <span class="wb-widget-icon">⟲</span>
             <span class="wb-widget-label">Eraser</span>
           </button>
         </div>
-        <button class="wb-widget-btn active" data-widget="model" title="Model widget">
+        <button class="wb-widget-btn" data-widget="model" title="Model widget">
           <span class="wb-widget-icon">M</span>
           <span class="wb-widget-label">Model</span>
         </button>
         <button class="wb-widget-btn" data-widget="script" title="Script widget">
           <span class="wb-widget-icon">S</span>
           <span class="wb-widget-label">Script</span>
+        </button>
+        <button class="wb-widget-btn" data-widget="dataset" title="Dataset widget">
+          <span class="wb-widget-icon">D</span>
+          <span class="wb-widget-label">Dataset</span>
+        </button>
+        <button class="wb-widget-btn" data-widget="format" title="Format widget">
+          <span class="wb-widget-icon">F</span>
+          <span class="wb-widget-label">Format</span>
         </button>
       </div>
 
@@ -46,6 +70,24 @@
           <label>Color</label>
           <input type="color" id="wb-color" value="#1a1a2e">
         </div>
+        <div class="wb-prop-group" id="wb-size-group">
+          <label>Size</label>
+          <input type="range" id="wb-size" min="1" max="12" value="3">
+          <span id="wb-size-value">3</span>
+        </div>
+        <div class="wb-prop-group" id="wb-font-group" style="display:none">
+          <label>Text Size</label>
+          <input type="range" id="wb-font-size" min="10" max="72" value="24">
+          <span id="wb-font-size-value">24</span>
+        </div>
+      </div>
+
+      <!-- Actions Bar -->
+      <div id="wb-actions">
+        <button id="wb-save" title="Save graph (⌘S)">Save</button>
+        <button id="wb-open" title="Open graph (⌘O)">Open</button>
+        <button id="wb-new" title="New graph (⌘N)">New</button>
+        <button id="wb-clear" title="Clear canvas">Clear</button>
       </div>
 
       <!-- Zoom Controls -->
@@ -67,6 +109,7 @@
         <span id="wb-coords">X: 0  Y: 0</span>
         <span id="wb-zoom-status">Zoom: 100%</span>
         <span id="wb-object-count">Objects: 0</span>
+        <span id="wb-graph-status">Graph: untitled</span>
       </div>
     </div>
 

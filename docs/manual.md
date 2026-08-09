@@ -20,6 +20,10 @@ several settings are optional and not needed for core functions, but they are us
 
 an easy gui for designing multi-model systems
 
+drop **Model**, **Script**, **Dataset** and **Format** widgets on the infinite canvas, click a widget's fields to edit them, and drag the **Connect** tool from a widget's *Output* node to another widget's *Input* node to link them. widgets snap to each other's anchors automatically.
+
+the board is a real graph, not just a drawing: widgets are the nodes, connected lines are data flow, and freehand shapes/text are annotations. use **Save** (⌘S) to persist it as a `graph.json` in the open project folder (or a folder you pick) — a plain, commented, human-readable file. **Open** (⌘O) loads it back, **New** (⌘N) starts a fresh board, and the status bar shows the current graph and an unsaved "•" marker.
+
 ### database explorer
 
 a quality of life feature allowing the user to easy browse a web database (such as huggingface) to easily transfer information from outside sources.

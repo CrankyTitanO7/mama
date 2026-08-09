@@ -25,6 +25,17 @@ import paths
 
 logger = logging.getLogger('mama.bridge')
 
+# Header written on top of whiteboard graphs (graph.json). Uses // comments so
+# the file stays valid for whiteboard_read(), which strips them, while reading
+# clearly for humans.
+_WHITEBOARD_HEADER = (
+    '  // mama — multimodel whiteboard graph\n'
+    '  // This file describes a whiteboard design: widgets (model, script,\n'
+    '  // dataset, format) and the data-flow connections between their\n'
+    '  // anchors. Annotations are freehand drawings / notes, not part of the\n'
+    '  // executable graph.\n'
+)
+
 
 # Python sources the app is allowed to use for installs/venvs. Only:
 #   - python.org "website" installer  (/Library/Frameworks/Python.framework)
@@ -1554,6 +1565,51 @@ class MamaApi:
             return {'success': True}
         except Exception as e:
             logger.error('project_json_write failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def whiteboard_save(self, folder_path: str, data_json: str) -> dict:
+        """Save a whiteboard graph to <folder>/graph.json (human-readable).
+
+        The file is plain pretty-printed JSON with a // comment header that
+        explains the format; whiteboard_read() strips the comments before
+        parsing. Returns {'success': bool, 'path': str, 'error': str}.
+        """
+        try:
+            if not folder_path:
+                return {'success': False, 'error': 'No folder path provided.'}
+            graph = json.loads(data_json)
+            body = json.dumps(graph, indent=2, ensure_ascii=False)
+            body = body.replace('{\n', '{\n' + _WHITEBOARD_HEADER, 1)
+            folder = Path(folder_path)
+            folder.mkdir(parents=True, exist_ok=True)
+            graph_path = folder / 'graph.json'
+            graph_path.write_text(body, 'utf-8')
+            return {'success': True, 'path': str(graph_path)}
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error('whiteboard_save failed to serialize: %s', e)
+            return {'success': False, 'error': 'Invalid graph data: %s' % e}
+        except OSError as e:
+            logger.error('whiteboard_save failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def whiteboard_read(self, path: str) -> dict:
+        """Read a whiteboard graph from a folder or a graph.json file path.
+
+        Accepts either a project folder (reads <folder>/graph.json) or the
+        full path to a graph file. Returns {'success': bool, 'data': dict}.
+        """
+        try:
+            if not path:
+                return {'success': False, 'error': 'No path provided.'}
+            graph_path = Path(path)
+            if graph_path.is_dir() or graph_path.suffix.lower() != '.json':
+                graph_path = graph_path / 'graph.json'
+            if not graph_path.exists():
+                return {'success': False, 'error': 'No graph.json in that location.'}
+            text = self._strip_json_comments(graph_path.read_text('utf-8'))
+            return {'success': True, 'data': json.loads(text), 'path': str(graph_path)}
+        except (json.JSONDecodeError, OSError) as e:
+            logger.error('whiteboard_read failed: %s', e)
             return {'success': False, 'error': str(e)}
 
     def project_create_json(self, folder_path: str) -> dict:

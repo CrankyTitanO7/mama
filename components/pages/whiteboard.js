@@ -2,6 +2,74 @@
 // Infinite Whiteboard - Multimodal Design
 // ============================================================
 
+// Widget type registry: defines the visual + editable schema of every
+// widget that can be dropped on the board. Fields are the file-ish
+// inputs/outputs; params are the tuning knobs.
+const WIDGET_TYPES = {
+  model: {
+    label: 'Model',
+    color: '#4a90e2',
+    fields: [
+      { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
+      { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
+    ],
+    params: [
+      { key: 'learningRate', type: 'param', label: 'LR', value: '0.001' },
+      { key: 'epochs', type: 'param', label: 'Epochs', value: '10' },
+      { key: 'batchSize', type: 'param', label: 'Batch', value: '32' }
+    ],
+    paramsTitle: 'Training params'
+  },
+  script: {
+    label: 'Script',
+    color: '#34a853',
+    fields: [
+      { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
+      { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
+    ],
+    params: [
+      { key: 'command', type: 'param', label: 'Command', value: 'python script.py' },
+      { key: 'args', type: 'param', label: 'Arguments', value: '' }
+    ],
+    paramsTitle: 'Run params'
+  },
+  dataset: {
+    label: 'Dataset',
+    color: '#f5a623',
+    fields: [
+      { key: 'source', type: 'file', label: 'Source', value: '(none)' },
+      { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
+    ],
+    params: [
+      { key: 'split', type: 'param', label: 'Split', value: '80/10/10' },
+      { key: 'shuffle', type: 'param', label: 'Shuffle', value: 'true' },
+      { key: 'seed', type: 'param', label: 'Seed', value: '42' }
+    ],
+    paramsTitle: 'Dataset options'
+  },
+  format: {
+    label: 'Format',
+    color: '#9b59b6',
+    fields: [
+      { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
+      { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
+    ],
+    params: [
+      { key: 'conversion', type: 'param', label: 'Conversion', value: 'auto' },
+      { key: 'options', type: 'param', label: 'Options', value: '' }
+    ],
+    paramsTitle: 'Format options'
+  }
+};
+
+const WIDGET_LAYOUT = {
+  header: 45,        // title bar height
+  rowHeight: 26,     // field / param row height
+  rowSpacing: 8,
+  paramsGap: 20,     // space before the params section
+  bottomPad: 10
+};
+
 class Whiteboard {
   constructor() {
     this.canvas = document.getElementById('wb-canvas');
@@ -14,7 +82,6 @@ class Whiteboard {
     this.currentTool = 'select';
     this.selectedWidget = null;
     this.widgetWidth = 240;
-    this.widgetHeight = 260;
     this.nextObjectId = 1;
     this.snapThreshold = 25;
 
@@ -54,15 +121,15 @@ class Whiteboard {
     this.textEditOverlay = null;
     this.isEditingText = false;
 
-    // Resize handle
-    this.resizeHandle = null;
-    this.resizeStart = null;
-    this.resizeOriginalBounds = null;
-
     // Cursor tooltip and widget placement
     this.cursorTooltip = null;
     this.currentWidget = null;
     this.isPlacingWidget = false;
+
+    // Graph persistence
+    this.graphFolder = null;   // folder graph.json lives in (null = untitled)
+    this.graphPath = null;     // full path of last saved file
+    this.dirty = false;
 
     this.init();
   }
@@ -72,8 +139,10 @@ class Whiteboard {
     this.setupEventListeners();
     this.setupKeyboardShortcuts();
     this.setupPropertiesPanel();
+    this.setupActions();
     this.cursorTooltip = document.getElementById('wb-cursor-tooltip');
     this.render();
+    this.updateGraphStatus();
     window.addEventListener('resize', () => this.resizeCanvas());
   }
 
@@ -138,9 +207,17 @@ class Whiteboard {
       if (this.isEditingText) return;
 
       const key = e.key.toLowerCase();
+      const mod = e.ctrlKey || e.metaKey;
+
+      // Save / Open / New
+      if (mod) {
+        if (key === 's') { e.preventDefault(); this.saveGraph(); return; }
+        if (key === 'o') { e.preventDefault(); this.openGraph(); return; }
+        if (key === 'n') { e.preventDefault(); this.newGraph(); return; }
+      }
 
       // Tool shortcuts
-      if (!e.ctrlKey && !e.metaKey) {
+      if (!mod) {
         const toolMap = {
           'v': 'select',
           'p': 'pen',
@@ -158,7 +235,7 @@ class Whiteboard {
       }
 
       // Ctrl+Z / Ctrl+Y
-      if (e.ctrlKey || e.metaKey) {
+      if (mod) {
         if (key === 'z' && !e.shiftKey) {
           e.preventDefault();
           this.undo();
@@ -183,11 +260,34 @@ class Whiteboard {
 
   setupPropertiesPanel() {
     const colorInput = document.getElementById('wb-color');
+    const sizeInput = document.getElementById('wb-size');
+    const fontSizeInput = document.getElementById('wb-font-size');
 
     colorInput.addEventListener('input', () => {
       this.props.color = colorInput.value;
       this.updateSelectedProps();
     });
+    sizeInput.addEventListener('input', () => {
+      this.props.size = parseInt(sizeInput.value, 10);
+      document.getElementById('wb-size-value').textContent = this.props.size;
+      this.updateSelectedProps();
+    });
+    fontSizeInput.addEventListener('input', () => {
+      this.props.fontSize = parseInt(fontSizeInput.value, 10);
+      document.getElementById('wb-font-size-value').textContent = this.props.fontSize;
+      this.updateSelectedProps();
+    });
+  }
+
+  setupActions() {
+    document.getElementById('wb-save').addEventListener('click', () => this.saveGraph());
+    document.getElementById('wb-open').addEventListener('click', () => this.openGraph());
+    document.getElementById('wb-new').addEventListener('click', () => this.newGraph());
+    document.getElementById('wb-clear').addEventListener('click', () => this.clearCanvas());
+  }
+
+  bridge() {
+    return window.pywebview && window.pywebview.api;
   }
 
   // ---- Tool Management ----
@@ -202,11 +302,11 @@ class Whiteboard {
       this.clearWidgetSelection();
     }
 
-    // Show/hide font size control
+    // Show/hide prop controls
+    const sizeGroup = document.getElementById('wb-size-group');
     const fontGroup = document.getElementById('wb-font-group');
-    if (fontGroup) {
-      fontGroup.style.display = tool === 'text' ? 'flex' : 'none';
-    }
+    if (sizeGroup) sizeGroup.style.display = (tool === 'line' || tool === 'pen' || tool === 'rect' || tool === 'circle') ? 'flex' : 'none';
+    if (fontGroup) fontGroup.style.display = tool === 'text' ? 'flex' : 'none';
 
     this.canvas.style.cursor = tool === 'select' ? 'default' :
                                tool === 'text' ? 'text' :
@@ -223,6 +323,8 @@ class Whiteboard {
     document.querySelectorAll('.wb-tool-btn[data-tool]').forEach(btn => {
       btn.classList.remove('active');
     });
+    document.getElementById('wb-size-group').style.display = 'none';
+    document.getElementById('wb-font-group').style.display = 'none';
     this.canvas.style.cursor = 'crosshair';
     this.updateCursorTooltip();
   }
@@ -232,6 +334,69 @@ class Whiteboard {
     document.querySelectorAll('.wb-widget-btn[data-widget]').forEach(btn => {
       btn.classList.remove('active');
     });
+  }
+
+  // ---- Widget Creation & Layout ----
+
+  createWidget(widgetType, wx, wy) {
+    const def = WIDGET_TYPES[widgetType] || WIDGET_TYPES.model;
+    const widget = {
+      id: this.generateId(),
+      type: 'widget',
+      widgetType,
+      label: def.label,
+      x: Math.round(wx - this.widgetWidth / 2),
+      y: Math.round(wy - this.getWidgetHeight(def) / 2),
+      width: this.widgetWidth,
+      height: this.getWidgetHeight(def),
+      color: def.color,
+      fields: JSON.parse(JSON.stringify(def.fields)),
+      params: JSON.parse(JSON.stringify(def.params || [])),
+      paramsTitle: def.paramsTitle || 'Parameters'
+    };
+    return widget;
+  }
+
+  getWidgetHeight(def) {
+    const rows = (def.fields ? def.fields.length : 0) + (def.params ? def.params.length : 0);
+    const paramsSection = def.params && def.params.length > 0 ? WIDGET_LAYOUT.paramsGap : 0;
+    return WIDGET_LAYOUT.header + rows * (WIDGET_LAYOUT.rowHeight + WIDGET_LAYOUT.rowSpacing) +
+           paramsSection + WIDGET_LAYOUT.bottomPad - WIDGET_LAYOUT.rowSpacing;
+  }
+
+  // Shared geometry for a widget: field/param row rects (used for drawing,
+  // hit-testing and field editing) plus the height the widget should have.
+  getWidgetLayout(widget) {
+    const L = WIDGET_LAYOUT;
+    const innerWidth = widget.width - 24;
+    const rects = [];
+    let rowY = widget.y + L.header;
+    let paramsTitleY = null;
+
+    (widget.fields || []).forEach(field => {
+      rects.push({
+        widget, field, key: field.key,
+        type: field.type, label: field.label,
+        x: widget.x + 12, y: rowY, width: innerWidth, height: L.rowHeight
+      });
+      rowY += L.rowHeight + L.rowSpacing;
+    });
+
+    if (widget.params && widget.params.length > 0) {
+      paramsTitleY = rowY + 2;
+      rowY += L.paramsGap;
+      widget.params.forEach(param => {
+        rects.push({
+          widget, field: param, key: param.key,
+          type: param.type, label: param.label,
+          x: widget.x + 12, y: rowY, width: innerWidth, height: L.rowHeight
+        });
+        rowY += L.rowHeight + L.rowSpacing;
+      });
+    }
+
+    const height = rowY - widget.y + L.bottomPad - L.rowSpacing;
+    return { rects, height, paramsTitleY };
   }
 
   // ---- Drawing Actions ----
@@ -255,14 +420,12 @@ class Whiteboard {
     if (e.button === 2) {
       const hit = this.hitTest(world.x, world.y);
       if (hit) {
-        if (hit.type === 'widget' || hit.type === 'line' || hit.type === 'path') {
-          this.saveState();
-          this.objects = this.objects.filter(o => o !== hit);
-          this.deselectAll();
-          this.updateObjectCount();
-          this.render();
-          return;
-        }
+        this.saveState();
+        this.removeObjects([hit]);
+        this.deselectAll();
+        this.markDirty();
+        this.updateObjectCount();
+        this.render();
       }
       return;
     }
@@ -272,25 +435,7 @@ class Whiteboard {
     if (this.currentTool === 'widget' && this.selectedWidget && !this.isPlacingWidget) {
       this.saveState();
       this.isPlacingWidget = true;
-      this.currentWidget = {
-        id: this.generateId(),
-        type: 'widget',
-        widgetType: this.selectedWidget,
-        x: world.x - this.widgetWidth / 2,
-        y: world.y - this.widgetHeight / 2,
-        width: this.widgetWidth,
-        height: this.widgetHeight,
-        color: this.selectedWidget === 'model' ? '#4a90e2' : '#34a853',
-        fields: [
-          { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
-          { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
-        ],
-        params: this.selectedWidget === 'model' ? [
-          { key: 'learningRate', type: 'param', label: 'LR', value: '0.001' },
-          { key: 'epochs', type: 'param', label: 'Epochs', value: '10' },
-          { key: 'batchSize', type: 'param', label: 'Batch', value: '32' }
-        ] : []
-      };
+      this.currentWidget = this.createWidget(this.selectedWidget, world.x, world.y);
       this.selectedObjects = [this.currentWidget];
       this.render();
       return;
@@ -306,12 +451,14 @@ class Whiteboard {
             const newValue = window.prompt(`Edit ${fieldHit.label}`, fieldHit.field.value);
             if (newValue !== null) {
               fieldHit.field.value = newValue;
+              this.markDirty();
               this.render();
             }
             return;
           }
         }
 
+        this.saveState();
         this.isDragging = true;
         this.dragOffset = { x: world.x - hit.x, y: world.y - hit.y };
         this.selectedObjects = [hit];
@@ -327,8 +474,9 @@ class Whiteboard {
       const hit = this.hitTest(world.x, world.y);
       if (hit) {
         this.saveState();
-        this.objects = this.objects.filter(o => o !== hit);
+        this.removeObjects([hit]);
         this.deselectAll();
+        this.markDirty();
         this.render();
       }
       return;
@@ -407,51 +555,8 @@ class Whiteboard {
     }
   }
 
-  getWidgetFieldRects(widget) {
-    const fieldHeight = 24;
-    const spacing = 8;
-    const innerWidth = widget.width - 24;
-    let rowY = widget.y + 40;
-    const rects = [];
-
-    (widget.fields || []).forEach(field => {
-      rects.push({
-        widget,
-        field,
-        key: field.key,
-        type: field.type,
-        label: field.label,
-        x: widget.x + 12,
-        y: rowY,
-        width: innerWidth,
-        height: fieldHeight
-      });
-      rowY += fieldHeight + spacing;
-    });
-
-    if (widget.widgetType === 'model') {
-      rowY += 12;
-      (widget.params || []).forEach(param => {
-        rects.push({
-          widget,
-          field: param,
-          key: param.key,
-          type: param.type,
-          label: param.label,
-          x: widget.x + 12,
-          y: rowY,
-          width: innerWidth,
-          height: fieldHeight
-        });
-        rowY += fieldHeight + spacing;
-      });
-    }
-
-    return rects;
-  }
-
   getWidgetFieldAt(widget, wx, wy) {
-    const rects = this.getWidgetFieldRects(widget);
+    const rects = this.getWidgetLayout(widget).rects;
     return rects.find(r => wx >= r.x && wx <= r.x + r.width && wy >= r.y && wy <= r.y + r.height) || null;
   }
 
@@ -498,34 +603,6 @@ class Whiteboard {
     const b = parseInt(c.slice(4, 6), 16);
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     return lum > 0.6 ? '#111111' : '#ffffff';
-  }
-
-  placeWidgetAt(wx, wy) {
-    const x = wx - this.widgetWidth / 2;
-    const y = wy - this.widgetHeight / 2;
-    const color = this.selectedWidget === 'model' ? '#4a90e2' : '#34a853';
-    const widget = {
-      id: this.generateId(),
-      type: 'widget',
-      widgetType: this.selectedWidget,
-      x,
-      y,
-      width: this.widgetWidth,
-      height: this.widgetHeight,
-      color,
-      fields: [
-        { key: 'input', type: 'file', label: 'Input file', value: '(none)' },
-        { key: 'output', type: 'file', label: 'Output file', value: '(none)' }
-      ],
-      params: this.selectedWidget === 'model' ? [
-        { key: 'learningRate', type: 'param', label: 'LR', value: '0.001' },
-        { key: 'epochs', type: 'param', label: 'Epochs', value: '10' },
-        { key: 'batchSize', type: 'param', label: 'Batch', value: '32' }
-      ] : []
-    };
-    this.objects.push(widget);
-    this.updateObjectCount();
-    this.render();
   }
 
   onMouseMove(e) {
@@ -612,15 +689,18 @@ class Whiteboard {
 
     if (this.isDragging) {
       this.isDragging = false;
+      this.markDirty();
       return;
     }
 
     if (this.isPlacingWidget) {
       this.isPlacingWidget = false;
       if (this.currentWidget) {
+        this.currentWidget.height = this.getWidgetLayout(this.currentWidget).height;
         this.objects.push(this.currentWidget);
         this.currentWidget = null;
         this.setTool('select');
+        this.markDirty();
         this.updateObjectCount();
         this.render();
       }
@@ -678,6 +758,7 @@ class Whiteboard {
 
       this.objects.push(this.currentPath);
       this.currentPath = null;
+      this.markDirty();
       this.updateObjectCount();
       this.render();
     }
@@ -713,6 +794,22 @@ class Whiteboard {
       const sy = e.clientY - rect.top;
       const world = this.screenToWorld(sx, sy);
       this.startTextInput(world.x, world.y);
+      return;
+    }
+
+    if (this.currentTool === 'select') {
+      const rect = this.canvas.getBoundingClientRect();
+      const world = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      const hit = this.hitTest(world.x, world.y);
+      if (hit && hit.type === 'widget' && !this.getWidgetFieldAt(hit, world.x, world.y)) {
+        const newLabel = window.prompt('Rename widget', hit.label);
+        if (newLabel !== null && newLabel.trim()) {
+          this.saveState();
+          hit.label = newLabel.trim();
+          this.markDirty();
+          this.render();
+        }
+      }
     }
   }
 
@@ -844,6 +941,7 @@ class Whiteboard {
         color: this.props.color,
         fontSize: this.props.fontSize
       });
+      this.markDirty();
       this.updateObjectCount();
       this.render();
     }
@@ -876,7 +974,9 @@ class Whiteboard {
         const dist = Math.sqrt((wx - obj.x) ** 2 + (wy - obj.y) ** 2);
         if (dist < obj.radius + threshold) return obj;
       } else if (obj.type === 'line') {
-        const dist = this.pointToLineDist(wx, wy, obj.x, obj.y, obj.endX, obj.endY);
+        const from = this.getLinePoint(obj, 'from');
+        const to = this.getLinePoint(obj, 'to');
+        const dist = this.pointToLineDist(wx, wy, from.x, from.y, to.x, to.y);
         if (dist < threshold + obj.size / 2) return obj;
       } else if (obj.type === 'text') {
         // Approximate text bounds
@@ -911,11 +1011,22 @@ class Whiteboard {
     this.render();
   }
 
+  // Remove objects and any lines attached to removed widgets.
+  removeObjects(list) {
+    const ids = new Set(list.map(o => o.id));
+    this.objects = this.objects.filter(o => {
+      if (ids.has(o.id)) return false;
+      if (o.type === 'line' && (ids.has(o.fromWidgetId) || ids.has(o.toWidgetId))) return false;
+      return true;
+    });
+  }
+
   deleteSelected() {
     if (this.selectedObjects.length === 0) return;
     this.saveState();
-    this.objects = this.objects.filter(o => !this.selectedObjects.includes(o));
+    this.removeObjects(this.selectedObjects);
     this.selectedObjects = [];
+    this.markDirty();
     this.updateSelectionUI();
     this.updateObjectCount();
     this.render();
@@ -924,21 +1035,20 @@ class Whiteboard {
   updateSelectedProps() {
     if (this.selectedObjects.length === 0) return;
     const obj = this.selectedObjects[0];
-    obj.color = this.props.color;
-    if (obj.type !== 'text') {
-      obj.size = this.props.size;
-    }
-    if (obj.type === 'text') {
-      obj.fontSize = this.props.fontSize;
-    }
+    if (obj.color !== undefined) obj.color = this.props.color;
+    if (obj.type !== 'text' && obj.type !== 'widget') obj.size = this.props.size;
+    if (obj.type === 'text') obj.fontSize = this.props.fontSize;
+    this.markDirty();
     this.render();
   }
 
   updateCursorTooltip(world) {
     if (!this.cursorTooltip) return;
     let text = 'Left click: move';
-    if (this.currentTool === 'line') text = 'Left click: draw line';
+    if (this.currentTool === 'line') text = 'Left click: draw connection';
     else if (this.currentTool === 'pen') text = 'Left click: draw path';
+    else if (this.currentTool === 'rect') text = 'Left click: draw rectangle';
+    else if (this.currentTool === 'circle') text = 'Left click: draw circle';
     else if (this.currentTool === 'eraser') text = 'Left click: erase';
     else if (this.currentTool === 'text') text = 'Left click: type text';
     else if (this.currentTool === 'widget' && this.selectedWidget) {
@@ -953,10 +1063,25 @@ class Whiteboard {
   }
 
   updateSelectionUI() {
-    // Update property panel to reflect selected object's properties
-    if (this.selectedObjects.length > 0) {
-      const obj = this.selectedObjects[0];
-      document.getElementById('wb-color').value = obj.color || '#1a1a2e';
+    const obj = this.selectedObjects[0];
+    const colorInput = document.getElementById('wb-color');
+    const sizeInput = document.getElementById('wb-size');
+    const fontSizeInput = document.getElementById('wb-font-size');
+
+    if (!obj) {
+      colorInput.value = this.props.color;
+      sizeInput.value = this.props.size;
+      fontSizeInput.value = this.props.fontSize;
+      return;
+    }
+    colorInput.value = obj.color || this.props.color;
+    if (obj.type === 'text') {
+      fontSizeInput.value = obj.fontSize || this.props.fontSize;
+      document.getElementById('wb-font-size-value').textContent = obj.fontSize || this.props.fontSize;
+    }
+    if (obj.size !== undefined) {
+      sizeInput.value = obj.size;
+      document.getElementById('wb-size-value').textContent = obj.size;
     }
   }
 
@@ -975,6 +1100,7 @@ class Whiteboard {
     this.redoStack.push(JSON.stringify(this.objects));
     this.objects = JSON.parse(this.undoStack.pop());
     this.selectedObjects = [];
+    this.markDirty();
     this.updateSelectionUI();
     this.updateObjectCount();
     this.render();
@@ -985,6 +1111,7 @@ class Whiteboard {
     this.undoStack.push(JSON.stringify(this.objects));
     this.objects = JSON.parse(this.redoStack.pop());
     this.selectedObjects = [];
+    this.markDirty();
     this.updateSelectionUI();
     this.updateObjectCount();
     this.render();
@@ -996,8 +1123,242 @@ class Whiteboard {
     this.saveState();
     this.objects = [];
     this.selectedObjects = [];
+    this.markDirty();
     this.updateSelectionUI();
     this.updateObjectCount();
+    this.render();
+  }
+
+  // ---- Graph Persistence ----
+
+  markDirty() {
+    this.dirty = true;
+    this.updateGraphStatus();
+  }
+
+  updateGraphStatus() {
+    const el = document.getElementById('wb-graph-status');
+    if (!el) return;
+    if (this.graphPath) {
+      const norm = this.graphPath.replace(/\\/g, '/');
+      let name = norm.split('/').pop();
+      const dir = norm.split('/').slice(-2, -1)[0] || '';
+      el.textContent = this.dirty ? `Graph: ${dir}/${name} •` : `Graph: ${dir}/${name}`;
+    } else {
+      el.textContent = this.dirty ? 'Graph: untitled •' : 'Graph: untitled';
+    }
+    el.title = this.graphPath || 'Not saved yet';
+  }
+
+  // Serialize the board into a plain, human-readable graph document.
+  serialize() {
+    const nodes = [];
+    const connections = [];
+    const annotations = [];
+
+    for (const obj of this.objects) {
+      if (obj.type === 'widget') {
+        nodes.push({
+          id: obj.id,
+          widget_type: obj.widgetType,
+          label: obj.label,
+          x: Math.round(obj.x),
+          y: Math.round(obj.y),
+          width: obj.width,
+          height: obj.height,
+          color: obj.color,
+          fields: (obj.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type, value: f.value })),
+          params: (obj.params || []).map(p => ({ key: p.key, label: p.label, value: p.value })),
+          params_title: obj.paramsTitle
+        });
+      } else if (obj.type === 'line' && obj.fromWidgetId && obj.toWidgetId) {
+        // A line with widgets on both ends is a real graph connection.
+        connections.push({
+          id: obj.id,
+          from: obj.fromWidgetId,
+          from_anchor: obj.fromAnchor || 'output',
+          to: obj.toWidgetId,
+          to_anchor: obj.toAnchor || 'input',
+          color: obj.color,
+          size: obj.size
+        });
+      } else {
+        // Everything else is a freehand annotation.
+        annotations.push(JSON.parse(JSON.stringify(obj)));
+      }
+    }
+
+    return {
+      format: 'mama-whiteboard-graph',
+      version: 1,
+      saved_at: new Date().toISOString(),
+      canvas: { x: this.viewport.x, y: this.viewport.y, zoom: this.viewport.zoom },
+      nodes,
+      connections,
+      annotations
+    };
+  }
+
+  // Rebuild board state from a serialized graph document.
+  loadGraphData(data) {
+    this.objects = [];
+    this.nextObjectId = 1;
+
+    for (const node of data.nodes || []) {
+      const def = WIDGET_TYPES[node.widget_type] || WIDGET_TYPES.model;
+      this.objects.push({
+        id: node.id,
+        type: 'widget',
+        widgetType: node.widget_type || 'model',
+        label: node.label || def.label,
+        x: node.x || 0,
+        y: node.y || 0,
+        width: node.width || this.widgetWidth,
+        height: node.height || def.height || 260,
+        color: node.color || def.color,
+        fields: (node.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type || 'file', value: f.value })),
+        params: (node.params || []).map(p => ({ key: p.key, label: p.label, type: 'param', value: p.value })),
+        paramsTitle: node.params_title || def.paramsTitle || 'Parameters'
+      });
+    }
+
+    for (const conn of data.connections || []) {
+      this.objects.push({
+        id: conn.id,
+        type: 'line',
+        x: 0, y: 0, endX: 0, endY: 0,
+        fromWidgetId: conn.from,
+        fromAnchor: conn.from_anchor || 'output',
+        toWidgetId: conn.to,
+        toAnchor: conn.to_anchor || 'input',
+        color: conn.color || '#1a1a2e',
+        size: conn.size || 3
+      });
+    }
+
+    for (const ann of data.annotations || []) {
+      const a = JSON.parse(JSON.stringify(ann));
+      a.type = ann.type;
+      if (!a.id) a.id = this.generateId();
+      this.objects.push(a);
+    }
+
+    // Bump the id counter past every loaded id.
+    let maxNum = 0;
+    for (const obj of this.objects) {
+      const m = /^obj-(\d+)$/.exec(obj.id || '');
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    }
+    this.nextObjectId = maxNum + 1;
+
+    const canvas = data.canvas || {};
+    this.viewport.x = canvas.x || 0;
+    this.viewport.y = canvas.y || 0;
+    this.viewport.zoom = canvas.zoom || 1;
+
+    this.selectedObjects = [];
+    this.undoStack = [];
+    this.redoStack = [];
+    this.updateSelectionUI();
+    this.updateObjectCount();
+    this.updateZoomUI();
+    this.render();
+  }
+
+  // Resolve where to store graph.json: an explicit target, else the open
+  // project folder from recents, else ask the user for a folder.
+  async resolveGraphFolder() {
+    if (this.graphFolder) return this.graphFolder;
+    const bridge = this.bridge();
+    try {
+      const recents = await bridge.project_recents_read();
+      if (recents && recents.open) return recents.open;
+    } catch (_) {}
+    return bridge.project_pick_folder();
+  }
+
+  async saveGraph() {
+    const bridge = this.bridge();
+    if (!bridge) { alert('Save requires the app backend (window.pywebview.api).'); return; }
+
+    let folder = this.graphFolder;
+    if (!folder) {
+      folder = await this.resolveGraphFolder();
+      if (!folder) return;
+    }
+
+    try {
+      const result = await bridge.whiteboard_save(folder, JSON.stringify(this.serialize(), null, 2));
+      if (result.success) {
+        this.graphFolder = folder;
+        this.graphPath = result.path;
+        this.dirty = false;
+        this.updateGraphStatus();
+      } else {
+        alert('Save failed: ' + (result.error || 'unknown error'));
+      }
+    } catch (e) {
+      alert('Save failed: ' + (e.message || e));
+    }
+  }
+
+  async openGraph() {
+    const bridge = this.bridge();
+    if (!bridge) { alert('Open requires the app backend (window.pywebview.api).'); return; }
+
+    if (this.dirty && !confirm('Discard unsaved changes and open a graph?')) return;
+
+    let result = null;
+    const candidates = [];
+    if (this.graphFolder) candidates.push(this.graphFolder);
+    try {
+      const recents = await bridge.project_recents_read();
+      if (recents && recents.open) candidates.push(recents.open);
+    } catch (_) {}
+    for (const folder of candidates) {
+      result = await bridge.whiteboard_read(folder);
+      if (result.success) break;
+    }
+
+    if (!result || !result.success) {
+      // Fall back to picking a graph.json file directly.
+      const picked = await bridge.project_pick_file('json');
+      if (!picked) {
+        if (result) alert('No graph found: ' + (result.error || ''));
+        return;
+      }
+      result = await bridge.whiteboard_read(picked);
+    }
+
+    if (result.success) {
+      this.loadGraphData(result.data);
+      this.graphFolder = result.path.replace(/[\\/][^\\/]*$/, '');
+      this.graphPath = result.path;
+      this.dirty = false;
+      this.updateGraphStatus();
+      this.updateCursorTooltip();
+    } else {
+      alert('Open failed: ' + (result.error || 'unknown error'));
+    }
+  }
+
+  async newGraph() {
+    if (this.dirty && !confirm('Discard the current graph and start fresh?')) return;
+    this.objects = [];
+    this.selectedObjects = [];
+    this.undoStack = [];
+    this.redoStack = [];
+    this.nextObjectId = 1;
+    this.graphFolder = null;
+    this.graphPath = null;
+    this.dirty = false;
+    this.viewport.x = 0;
+    this.viewport.y = 0;
+    this.viewport.zoom = 1;
+    this.updateSelectionUI();
+    this.updateObjectCount();
+    this.updateZoomUI();
+    this.updateGraphStatus();
     this.render();
   }
 
@@ -1042,11 +1403,18 @@ class Whiteboard {
         minY = Math.min(minY, obj.y - obj.fontSize);
         maxX = Math.max(maxX, obj.x + obj.text.length * obj.fontSize * 0.6);
         maxY = Math.max(maxY, obj.y);
+      } else if (obj.type === 'line') {
+        const from = this.getLinePoint(obj, 'from');
+        const to = this.getLinePoint(obj, 'to');
+        minX = Math.min(minX, from.x, to.x);
+        minY = Math.min(minY, from.y, to.y);
+        maxX = Math.max(maxX, from.x, to.x);
+        maxY = Math.max(maxY, from.y, to.y);
       } else {
-        const x1 = Math.min(obj.x, obj.endX || obj.x + (obj.width || 0));
-        const x2 = Math.max(obj.x, obj.endX || obj.x + (obj.width || 0));
-        const y1 = Math.min(obj.y, obj.endY || obj.y + (obj.height || 0));
-        const y2 = Math.max(obj.y, obj.endY || obj.y + (obj.height || 0));
+        const x1 = Math.min(obj.x, obj.x + (obj.width || 0));
+        const x2 = Math.max(obj.x, obj.x + (obj.width || 0));
+        const y1 = Math.min(obj.y, obj.y + (obj.height || 0));
+        const y2 = Math.max(obj.y, obj.y + (obj.height || 0));
         if (obj.type === 'circle') {
           minX = Math.min(minX, obj.x - obj.radius);
           minY = Math.min(minY, obj.y - obj.radius);
@@ -1225,9 +1593,22 @@ class Whiteboard {
     ctx.lineWidth = obj.size;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(obj.x, obj.y);
-    ctx.lineTo(obj.endX, obj.endY);
+    const from = this.getLinePoint(obj, 'from');
+    const to = this.getLinePoint(obj, 'to');
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
     ctx.stroke();
+
+    // Draw anchor dots when the line connects widgets
+    if (obj.fromWidgetId || obj.toWidgetId) {
+      ctx.fillStyle = '#1a73e8';
+      ctx.beginPath();
+      ctx.arc(from.x, from.y, 3.5 / this.viewport.zoom, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(to.x, to.y, 3.5 / this.viewport.zoom, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   drawRect(ctx, obj) {
@@ -1245,6 +1626,10 @@ class Whiteboard {
   }
 
   drawWidget(ctx, obj) {
+    const L = WIDGET_LAYOUT;
+    const layout = this.getWidgetLayout(obj);
+    obj.height = layout.height;
+
     ctx.fillStyle = obj.color;
     ctx.strokeStyle = '#1a1a2e';
     ctx.lineWidth = 2 / this.viewport.zoom;
@@ -1256,8 +1641,7 @@ class Whiteboard {
     ctx.font = `${16}px 'Segoe UI', sans-serif`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    const title = obj.widgetType === 'model' ? 'Model' : 'Script';
-    ctx.fillText(title, obj.x + 14, obj.y + 20);
+    ctx.fillText(obj.label || obj.widgetType, obj.x + 14, obj.y + 20);
 
     // Input/output nodes
     const nodeRadius = 8 / this.viewport.zoom;
@@ -1281,50 +1665,25 @@ class Whiteboard {
     ctx.textAlign = 'right';
     ctx.fillText('Output', obj.x + obj.width - 12, obj.y + obj.height / 2 - 16);
 
-    // Widget field boxes
-    const fieldYStart = obj.y + 45;
-    const fieldHeight = 26;
-    const fieldSpacing = 8;
-    const innerWidth = obj.width - 24;
-    let rowY = fieldYStart;
+    // Field / param boxes (shared geometry with hit-testing)
     ctx.font = `${12}px 'Segoe UI', sans-serif`;
     ctx.textAlign = 'left';
-    (obj.fields || []).forEach(field => {
-      const boxX = obj.x + 12;
-      const boxY = rowY;
+    for (const rect of layout.rects) {
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(boxX, boxY, innerWidth, fieldHeight);
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
       ctx.strokeStyle = 'rgba(255,255,255,0.24)';
-      ctx.strokeRect(boxX, boxY, innerWidth, fieldHeight);
+      ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
       ctx.fillStyle = textColor;
-      ctx.fillText(`${field.label}:`, boxX + 8, boxY + fieldHeight / 2);
+      ctx.fillText(`${rect.label}:`, rect.x + 8, rect.y + rect.height / 2);
       ctx.textAlign = 'right';
-      ctx.fillText(field.value, boxX + innerWidth - 8, boxY + fieldHeight / 2);
+      ctx.fillText(rect.field.value, rect.x + rect.width - 8, rect.y + rect.height / 2);
       ctx.textAlign = 'left';
-      rowY += fieldHeight + fieldSpacing;
-    });
+    }
 
-    if (obj.widgetType === 'model' && obj.params && obj.params.length > 0) {
-      const titleBoxY = rowY + 4;
+    if (layout.paramsTitleY !== null) {
       ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.font = `${11}px 'Segoe UI', sans-serif`;
-      ctx.fillText('Training params', obj.x + 12, titleBoxY);
-      rowY += 20;
-      ctx.font = `${12}px 'Segoe UI', sans-serif`;
-      obj.params.forEach(param => {
-        const boxX = obj.x + 12;
-        const boxY = rowY;
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.fillRect(boxX, boxY, innerWidth, fieldHeight);
-        ctx.strokeStyle = 'rgba(255,255,255,0.24)';
-        ctx.strokeRect(boxX, boxY, innerWidth, fieldHeight);
-        ctx.fillStyle = textColor;
-        ctx.textAlign = 'left';
-        ctx.fillText(`${param.label}:`, boxX + 8, boxY + fieldHeight / 2);
-        ctx.textAlign = 'right';
-        ctx.fillText(param.value, boxX + innerWidth - 8, boxY + fieldHeight / 2);
-        rowY += fieldHeight + fieldSpacing;
-      });
+      ctx.fillText(obj.paramsTitle || 'Parameters', obj.x + 12, layout.paramsTitleY);
     }
   }
 
@@ -1382,11 +1741,13 @@ class Whiteboard {
       }
       return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
     } else if (obj.type === 'line') {
+      const from = this.getLinePoint(obj, 'from');
+      const to = this.getLinePoint(obj, 'to');
       return {
-        x: Math.min(obj.x, obj.endX),
-        y: Math.min(obj.y, obj.endY),
-        width: Math.abs(obj.endX - obj.x),
-        height: Math.abs(obj.endY - obj.y)
+        x: Math.min(from.x, to.x),
+        y: Math.min(from.y, to.y),
+        width: Math.abs(to.x - from.x),
+        height: Math.abs(to.y - from.y)
       };
     } else if (obj.type === 'rect') {
       return { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
@@ -1405,6 +1766,8 @@ class Whiteboard {
         width: textWidth,
         height: obj.fontSize * 1.2
       };
+    } else if (obj.type === 'widget') {
+      return { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
     }
     return null;
   }

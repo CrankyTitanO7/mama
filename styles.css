@@ -2220,6 +2220,43 @@ body.embed-fullscreen-active {
     text-align: center;
 }
 
+/* Actions Bar (save / open / new / clear) */
+#wb-actions {
+    position: absolute;
+    top: 12px;
+    right: 20px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+#wb-actions button {
+    min-width: 44px;
+    height: 28px;
+    padding: 0 12px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    background: #ffffff;
+    color: #1a1a2e;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+#wb-actions button:hover {
+    background: rgba(66, 133, 244, 0.08);
+    border-color: rgba(66, 133, 244, 0.4);
+    color: #1a73e8;
+}
+
 /* Zoom Controls */
 #wb-zoom-controls {
     position: absolute;
@@ -2530,6 +2567,12 @@ body.embed-fullscreen-active {
 
     #wb-zoom-controls {
         bottom: 60px;
+        right: 10px;
+    }
+
+    #wb-actions {
+        top: auto;
+        bottom: 110px;
         right: 10px;
     }
 

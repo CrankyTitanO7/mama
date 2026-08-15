@@ -1,0 +1,14 @@
+{
+  "name": "lowvram-8b",
+  "description": "Soup's headline claim: LoRA-tune an 8B model on a ~4 GB GPU via layer streaming + 4bit.",
+  "example": true,
+  "example_kind": "soup",
+  "soup": {
+    "config": "soup.yaml",
+    "model": "Qwen/Qwen2.5-8B-Instruct",
+    "dataset": "teknium/OpenHermes-2.5 (MIT)",
+    "fetch": "soup data download teknium/OpenHermes-2.5 -o data/train.jsonl --samples 2000",
+    "train": "soup train --config soup.yaml",
+    "note": "stream_layers keeps VRAM bounded by one layer; quantized base sharded once and cached."
+  }
+}

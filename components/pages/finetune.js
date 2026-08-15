@@ -14,6 +14,8 @@ const Finetune = (() => {
   let axolotlAvailable = null; // null = unknown | true | false
   let unslothAvailable = null; // null = unknown | true | false
   let previewedColumns = []; // last columns returned by the dataset preview
+  let bundledExamples = null; // backend-loaded example projects (examples_list)
+  let soupAddonInstalled = null; // from the same call
 
   // ── Utils ─────────────────────────────────────────────────────────
 
@@ -981,6 +983,7 @@ const Finetune = (() => {
     trl: 'Built-in',
     axolotl: 'Axolotl',
     unsloth: 'Unsloth',
+    soup: 'Soup',
   };
 
   const BACKEND_GROUPS = [
@@ -998,6 +1001,11 @@ const Finetune = (() => {
       backend: 'unsloth',
       label: 'Official Unsloth',
       desc: 'Recipes from the Unsloth docs and notebooks.',
+    },
+    {
+      backend: 'soup',
+      label: 'Soup (low VRAM)',
+      desc: 'Bundled Soup projects — low-VRAM fine-tuning from one YAML (examples/soup/). Data is fetched from the Hub, not committed.',
     },
   ];
 
@@ -1018,6 +1026,12 @@ const Finetune = (() => {
     const grouped = BACKEND_GROUPS
       .map(group => ({ ...group, examples: EXAMPLES.filter(ex => ex.backend === group.backend) }))
       .filter(group => group.examples.length > 0);
+    // The Soup group has no entries in EXAMPLES (its projects come from the
+    // backend), so add it to the nav whenever bundled projects exist.
+    if (Array.isArray(bundledExamples) && bundledExamples.length > 0) {
+      const soupGroup = BACKEND_GROUPS.find(g => g.backend === 'soup');
+      if (soupGroup) grouped.push(soupGroup);
+    }
 
     // Sidebar nav (like the Docs page)
     if (nav) {
@@ -1033,38 +1047,47 @@ const Finetune = (() => {
     }
 
     list.innerHTML = grouped.map(group => {
-      const cards = group.examples.map(ex => {
-        const variants = Object.keys(HW_TIERS)
-          .filter(tier => ex.variants[tier])
-          .map(tier => {
-            const v = ex.variants[tier];
-            const tierInfo = HW_TIERS[tier];
-            const isRecommended = tier === recommended;
-            const isBackendMatch = ex.backend === selectedBackend;
-            return `
-              <div class="ft-example-card ft-example-backend-${escapeHtml(ex.backend)} ${isRecommended ? 'ft-example-recommended' : ''} ${isBackendMatch ? 'ft-example-backend-active' : ''}" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">
-                <div class="ft-example-card-head">
-                  <div class="ft-example-badges">
-                    <span class="ft-tier-badge ft-tier-${tier}">${tierInfo.label} Hardware</span>
-                    <span class="ft-backend-badge ft-backend-badge-${escapeHtml(ex.backend)}">${escapeHtml(BACKEND_LABELS[ex.backend] || ex.backend)}</span>
+      const isSoupGroup = group.backend === 'soup';
+      let cards;
+      if (isSoupGroup) {
+        // Bundled projects served by the backend (examples/soup/): turnkey
+        // folders (project.json + soup.yaml) you open, then train with
+        // `soup train --config soup.yaml` — data comes from the Hub.
+        cards = soupCardsHtml(recommended, selectedBackend);
+      } else {
+        cards = group.examples.map(ex => {
+          const variants = Object.keys(HW_TIERS)
+            .filter(tier => ex.variants[tier])
+            .map(tier => {
+              const v = ex.variants[tier];
+              const tierInfo = HW_TIERS[tier];
+              const isRecommended = tier === recommended;
+              const isBackendMatch = ex.backend === selectedBackend;
+              return `
+                <div class="ft-example-card ft-example-backend-${escapeHtml(ex.backend)} ${isRecommended ? 'ft-example-recommended' : ''} ${isBackendMatch ? 'ft-example-backend-active' : ''}" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">
+                  <div class="ft-example-card-head">
+                    <div class="ft-example-badges">
+                      <span class="ft-tier-badge ft-tier-${tier}">${tierInfo.label} Hardware</span>
+                      <span class="ft-backend-badge ft-backend-badge-${escapeHtml(ex.backend)}">${escapeHtml(BACKEND_LABELS[ex.backend] || ex.backend)}</span>
+                    </div>
+                    ${isRecommended ? '<span class="ft-tier-rec">Recommended</span>' : ''}
                   </div>
-                  ${isRecommended ? '<span class="ft-tier-rec">Recommended</span>' : ''}
-                </div>
-                <div class="ft-example-tier-hint">${tierInfo.hint}</div>
-                <p><strong>Model:</strong> <code>${escapeHtml(v.model)}</code></p>
-                <p><strong>Dataset:</strong> <code>${escapeHtml(ex.dataset)}</code></p>
-                <p><strong>Method:</strong> ${v.method.toUpperCase()} &middot; <strong>Seq len:</strong> ${v.max_seq} &middot; <strong>Samples:</strong> ${v.max_samples.toLocaleString()}</p>
-                ${ex.source ? `<a class="ft-example-source" href="${escapeHtml(ex.source)}" target="_blank" rel="noopener">Official ${escapeHtml(BACKEND_LABELS[ex.backend]) || ''} example &nearr;</a>` : ''}
-                <button class="settings-btn settings-btn-success ft-example-use" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">Use this example</button>
-              </div>`;
-          });
-        return `
-          <div class="ft-example-category">
-            <h3>${escapeHtml(ex.title)}</h3>
-            <p class="ft-example-desc">${escapeHtml(ex.desc)}</p>
-            <div class="ft-example-grid">${variants.join('')}</div>
-          </div>`;
-      }).join('');
+                  <div class="ft-example-tier-hint">${tierInfo.hint}</div>
+                  <p><strong>Model:</strong> <code>${escapeHtml(v.model)}</code></p>
+                  <p><strong>Dataset:</strong> <code>${escapeHtml(ex.dataset)}</code></p>
+                  <p><strong>Method:</strong> ${v.method.toUpperCase()} &middot; <strong>Seq len:</strong> ${v.max_seq} &middot; <strong>Samples:</strong> ${v.max_samples.toLocaleString()}</p>
+                  ${ex.source ? `<a class="ft-example-source" href="${escapeHtml(ex.source)}" target="_blank" rel="noopener">Official ${escapeHtml(BACKEND_LABELS[ex.backend]) || ''} example &nearr;</a>` : ''}
+                  <button class="settings-btn settings-btn-success ft-example-use" data-cat="${escapeHtml(ex.id)}" data-tier="${tier}">Use this example</button>
+                </div>`;
+            });
+          return `
+            <div class="ft-example-category">
+              <h3>${escapeHtml(ex.title)}</h3>
+              <p class="ft-example-desc">${escapeHtml(ex.desc)}</p>
+              <div class="ft-example-grid">${variants.join('')}</div>
+            </div>`;
+        }).join('');
+      }
 
       return `
         <div class="ft-ex-group" id="ft-ex-group-${escapeHtml(group.backend)}" data-group="${escapeHtml(group.backend)}">
@@ -1072,12 +1095,15 @@ const Finetune = (() => {
             <span class="ft-backend-badge ft-backend-badge-${escapeHtml(group.backend)}">${escapeHtml(group.label)}</span>
             <p class="ft-ex-group-desc">${escapeHtml(group.desc)}</p>
           </div>
-          ${cards}
+          ${isSoupGroup ? `<div class="ft-example-category"><div class="ft-example-grid">${cards}</div></div>` : cards}
         </div>`;
     }).join('');
 
     list.querySelectorAll('.ft-example-use').forEach(btn => {
       btn.addEventListener('click', () => applyExample(btn.dataset.cat, btn.dataset.tier));
+    });
+    list.querySelectorAll('.ft-example-soup-open').forEach(btn => {
+      btn.addEventListener('click', () => openSoupExample(btn.dataset.key));
     });
 
     // Scroll-spy: highlight the sidebar entry of the group currently in view
@@ -1104,6 +1130,64 @@ const Finetune = (() => {
       // Keep the first entry active while above the first section
       if (spyActive === false) setActive(groups[0].dataset.group);
     }
+  }
+
+  function soupCardsHtml(recommended, selectedBackend) {
+    const isBackendMatch = selectedBackend === 'soup';
+    const addonNote = soupAddonInstalled
+      ? ''
+      : `<p class="ft-example-soup-addon">Soup add-on not installed — install it from the <a href="#" onclick="event.preventDefault(); window.electron.navigateTo('public/modules.html')">Modules page</a> first (one click).</p>`;
+    return bundledExamples.map(ex => {
+      return `
+        <div class="ft-example-card ft-example-backend-soup ${isBackendMatch ? 'ft-example-backend-active' : ''}" data-key="${escapeHtml(ex.key)}">
+          <div class="ft-example-card-head">
+            <div class="ft-example-badges">
+              <span class="ft-tier-badge ft-tier-easy">Turnkey Project</span>
+              <span class="ft-backend-badge ft-backend-badge-soup">Soup</span>
+            </div>
+          </div>
+          <p><strong>Model:</strong> <code>${escapeHtml(ex.model)}</code></p>
+          <p><strong>Dataset:</strong> <code>${escapeHtml(ex.dataset)}</code></p>
+          ${ex.fetch ? `<p class="ft-example-cmd"><strong>Fetch data:</strong> <code>${escapeHtml(ex.fetch)}</code></p>` : ''}
+          ${ex.train ? `<p class="ft-example-cmd"><strong>Train:</strong> <code>${escapeHtml(ex.train)}</code></p>` : ''}
+          ${ex.note ? `<p class="ft-example-tier-hint">${escapeHtml(ex.note)}</p>` : ''}
+          ${addonNote}
+          <button class="settings-btn settings-btn-primary ft-example-soup-open" data-key="${escapeHtml(ex.key)}">Open example</button>
+        </div>`;
+    }).join('');
+  }
+
+  async function loadBundledExamples() {
+    if (!window.electron.examplesList) return;
+    try {
+      const res = await window.electron.examplesList();
+      bundledExamples = (res && res.success) ? (res.examples || []) : [];
+      soupAddonInstalled = res && res.success ? !!res.soupAddonInstalled : null;
+    } catch (e) {
+      bundledExamples = [];
+    }
+    renderExamples();
+  }
+
+  async function openSoupExample(key) {
+    if (!window.electron.examplesOpen) {
+      alert('Opening bundled examples is not available in this build.');
+      return;
+    }
+    const res = await window.electron.examplesOpen(key);
+    if (!res || !res.success) {
+      alert('Could not open the example: ' + (res?.error || 'unknown error'));
+      return;
+    }
+    const hint = res.copied
+      ? 'The example was copied into your mama data folder (the app bundle is read-only), then opened as the current project.'
+      : 'The example folder is now the current project.';
+    alert(
+      `${hint}\n\nNext steps (in a terminal inside the project folder):\n` +
+      '1. soup data download <hub-dataset> -o data/train.jsonl   (exact command in the README)\n' +
+      '2. soup train --config soup.yaml\n\n' +
+      'Run `soup profile --config soup.yaml` first to see what the run needs.'
+    );
   }
 
   async function exampleOutputDir(catId, tier) {
@@ -1698,6 +1782,7 @@ const Finetune = (() => {
       restoreDatasetRecents(),
       restoreCustomScriptRecents(),
       applyEasyMode(),
+      loadBundledExamples(),
     ]);
 
     updateConfigPreview();

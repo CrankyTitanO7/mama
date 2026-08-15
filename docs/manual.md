@@ -44,7 +44,9 @@ the **Output** tab sets the default output folder (the open project's `data/` by
 
 ### modules (add-ons)
 
-install optional AI training tooling from the top-right **modules** nav item: Axolotl, Unsloth, **Soup** (low-VRAM fine-tuning, 8B on a 4 GB GPU), and **grui** (records screen + input for imitation learning). everything installs into one shared environment (the open project's `.venv` or a real Python); grui's repo files live in the app's add-ons folder and pip steps use `uv` when it's on PATH. every step's output streams into the page. see `docs/addons.md`.
+install optional AI training tooling from the top-right **modules** nav item: Axolotl, Unsloth, **Soup** (low-VRAM fine-tuning, 8B on a 4 GB GPU), and **grui** (records screen + input for imitation learning). everything installs into one shared environment (the open project's `.venv` or a real Python); grui's repo files live in the app's add-ons folder and pip steps use `uv` when it's on PATH. every step's output streams into the page.
+
+**soup example projects** — three ready-made projects ship under `examples/soup/` (hello-sft, lowvram-8b, your-data); each has `project.json` + a tuned `soup.yaml` and pulls its dataset from the Hugging Face Hub (`soup data download`), never committing data. **starting a soup project** walks through all three ways to begin (fine-tune examples, `soup init --template`, your own data). see `docs/addons.md`, `docs/soup-start.md`, `docs/soup-examples.md`.
 
 ## baby's first project
 

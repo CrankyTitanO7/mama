@@ -127,6 +127,10 @@ SHIM_SCRIPT = """
     onModuleProgress: (callback) => { electron._handlers['_modulesProgressCallback'] = callback; },
     offModuleProgress: () => { delete electron._handlers['_modulesProgressCallback']; },
 
+    // ═══════════ Examples (bundled projects, e.g. soup) ═══════════
+    examplesList: async () => { try { return await (await api()).examples_list(); } catch(e) { return { success: false, error: String(e) }; } },
+    examplesOpen: async (key) => { try { return await (await api()).examples_open(key || ''); } catch(e) { return { success: false, error: String(e) }; } },
+
     // ═══════════ Data (build your own datasets) ═══════════
     dataGruiStatus: async () => { try { return await (await api()).data_grui_status(); } catch(e) { return { success: false, error: String(e) }; } },
     dataTablePreview: async (path, delimiter, limit) => { try { return await (await api()).data_table_preview(path || '', delimiter || '', Number(limit || 10)); } catch(e) { return { success: false, error: String(e) }; } },

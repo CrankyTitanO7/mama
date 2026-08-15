@@ -1,0 +1,14 @@
+{
+  "name": "hello-sft",
+  "description": "Smallest Soup example: SFT a 1.1B model on public instruction data in minutes on any laptop.",
+  "example": true,
+  "example_kind": "soup",
+  "soup": {
+    "config": "soup.yaml",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "dataset": "HuggingFaceH4/no_robots (CC-BY-4.0)",
+    "fetch": "soup data download HuggingFaceH4/no_robots -o data/train.jsonl --samples 1000",
+    "train": "soup train --config soup.yaml",
+    "note": "LoRA SFT, ~5–20 min on CPU/MPS; no GPU needed."
+  }
+}

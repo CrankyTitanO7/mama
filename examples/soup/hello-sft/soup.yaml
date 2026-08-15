@@ -1,0 +1,38 @@
+# hello-sft — smallest working Soup example
+# LoRA SFT of TinyLlama-1.1B on a slice of HuggingFaceH4/no_robots.
+# Runs on any laptop (CPU/MPS), minutes not hours. It will overfit on
+# 1000 rows — that is the point: a fast, repeatable first training run.
+#
+# Usage:
+#   soup data preview HuggingFaceH4/no_robots     # look before you pull
+#   soup data download HuggingFaceH4/no_robots -o data/train.jsonl --samples 1000
+#   soup train --config soup.yaml
+
+base: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+task: sft
+
+data:
+  train: data/train.jsonl
+  format: auto          # Soup picks alpaca / chat / messages from the rows
+  max_length: 512       # plenty for this set; the VRAM pre-flight budgets on it
+
+training:
+  epochs: 1
+  lr: 5e-4
+  batch_size: 4
+  gradient_accumulation_steps: 4   # effective 16
+  quantization: none               # 1.1B fits unquantised
+  scheduler: linear
+  warmup_ratio: 0.05
+  weight_decay: 0.0
+  logging_steps: 10
+  save_steps: 100
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.05
+    target_modules:
+      - q_proj
+      - v_proj
+
+output: ./output

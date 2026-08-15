@@ -1,0 +1,13 @@
+{
+  "name": "your-data",
+  "description": "Bring-your-own-data Soup project: build the set on mama's Data page, then train locally.",
+  "example": true,
+  "example_kind": "soup",
+  "soup": {
+    "config": "soup.yaml",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "dataset": "your own (Data page or HF Hub)",
+    "fetch": "soup data download <hf-dataset> -o data/train.jsonl",
+    "train": "soup train --config soup.yaml"
+  }
+}

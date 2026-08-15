@@ -140,3 +140,32 @@ def test_version_preflight_bails_before_steps(monkeypatch):
     assert result['success'] is False
     assert '3.12' in result['error']
     assert any('requires Python' in c.get('text', '') for c in emitted)
+
+
+def test_examples_list_and_open_in_place(monkeypatch):
+    """examples_list discovers bundled projects; dev open uses the folder in place."""
+    import bridge
+    import tempfile
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parent.parent
+    tmp = tempfile.mkdtemp()
+    api = bridge.MamaApi(user_settings_path=f'{tmp}/s.json', base_dir=str(repo))
+    monkeypatch.setattr(api, '_recents_path', Path(tmp) / 'recents.json')
+
+    res = api.examples_list()
+    assert res['success']
+    keys = {e['key'] for e in res['examples']}
+    assert {'hello-sft', 'lowvram-8b', 'your-data'} <= keys
+    entry = next(e for e in res['examples'] if e['key'] == 'hello-sft')
+    assert entry['kind'] == 'soup'
+    assert entry['model'] and entry['fetch'] and entry['hasConfig']
+
+    opened = api.examples_open('hello-sft')
+    assert opened['success'] is True
+    assert opened['copied'] is False
+    assert 'examples' in opened['path'] and opened['path'].endswith('hello-sft')
+    assert api._read_recents()['open'] == opened['path']
+
+    unknown = api.examples_open('nope')
+    assert unknown['success'] is False and 'Unknown' in unknown['error']

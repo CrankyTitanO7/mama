@@ -3302,6 +3302,12 @@ body.embed-fullscreen-active {
     border-color: rgba(255, 179, 71, 0.4);
 }
 
+.ft-backend-badge-soup {
+    background: rgba(129, 199, 132, 0.16);
+    color: #a5d6a7;
+    border-color: rgba(129, 199, 132, 0.4);
+}
+
 /* Highlight card of the selected backend (step 0 selector).
    Visually distinct from the "Recommended" hardware border: tinted
    background + 4px left accent bar in the backend color. */
@@ -3322,6 +3328,26 @@ body.embed-fullscreen-active {
 .ft-example-backend-active.ft-example-backend-unsloth {
     background: color-mix(in srgb, #f59e0b 14%, var(--widget-bg));
     border-color: #f59e0b;
+}
+
+.ft-example-backend-active.ft-example-backend-soup {
+    background: color-mix(in srgb, #81c784 14%, var(--widget-bg));
+    border-color: #81c784;
+}
+
+.ft-example-cmd code {
+    font-size: 11px;
+    word-break: break-all;
+}
+
+.ft-example-soup-addon {
+    font-size: 12px;
+    color: var(--warning-color, #ffb74d);
+}
+
+.ft-example-soup-addon a {
+    color: inherit;
+    text-decoration: underline;
 }
 
 .ft-example-source {

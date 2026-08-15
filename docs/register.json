@@ -3,6 +3,8 @@
     "about" : "about.md", 
     "user manual" : "manual.md", 
     "add-ons and your own data" : "addons.md",
+    "starting a soup project" : "soup-start.md",
+    "soup example projects" : "soup-examples.md",
     "power user appendix" : "poweruser.md", 
     "full guide" : "dev.md", 
     "license" : "../LICENSE.md"

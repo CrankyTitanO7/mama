@@ -12,6 +12,7 @@ datas = [
     (os.path.join(base_dir, 'components'), 'components'),
     (os.path.join(base_dir, 'user'), 'user'),
     (os.path.join(base_dir, 'docs'), 'docs'),
+    (os.path.join(base_dir, 'examples'), 'examples'),
     (os.path.join(base_dir, 'styles.css'), '.'),
 ]
 

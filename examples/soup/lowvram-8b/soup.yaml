@@ -1,0 +1,43 @@
+# lowvram-8b — 8B tuning on a laptop GPU
+# LoRA SFT of Qwen2.5-8B-Instruct on a slice of teknium/OpenHermes-2.5,
+# using layer streaming: the frozen base is quantised once and streamed one
+# layer at a time into a small VRAM buffer, so peak VRAM is bounded by a
+# single layer, not the whole model.
+#
+# Usage:
+#   soup data preview teknium/OpenHermes-2.5
+#   soup data download teknium/OpenHermes-2.5 -o data/train.jsonl --samples 2000
+#   soup profile --config soup.yaml --gpu 4090   # see the numbers before training
+#   soup train --config soup.yaml
+
+base: Qwen/Qwen2.5-8B-Instruct
+task: sft
+
+data:
+  train: data/train.jsonl
+  format: auto
+  max_length: 1024
+
+training:
+  epochs: 1
+  lr: 2e-5
+  batch_size: 2
+  gradient_accumulation_steps: 4          # effective 8
+  quantization: 4bit                      # the NEON base shard, cached on disk
+  scheduler: linear
+  warmup_ratio: 0.05
+  logging_steps: 10
+  save_steps: 100
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.05
+    target_modules: auto
+  # Layer streaming (v0.72+): stream frozen layers from RAM into VRAM one
+  # at a time instead of keeping the base resident. This is the "8B on a
+  # 4 GB GPU" trick — the upstream benchmark peaks just under ~3.5 GB.
+  stream_layers: true
+  stream_source: auto
+  stream_buffers: 2
+
+output: ./output

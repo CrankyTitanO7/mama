@@ -1,0 +1,41 @@
+# your-data — bring your own data
+# Community/task tuning on *your* rows. The default below is a small,
+# cheap, CPU-friendly LoRA run; swap `base:`, `data.train`, and the
+# training knobs to match your set (and your GPU).
+#
+# This is the project that pairs with mama's Data page:
+#   grind your CSV / pasted text / grui recordings into alpaca or trl
+#   JSONL on the Data page, drop the file in data/, then:
+#
+#   soup train --config soup.yaml
+#
+# Or pull a Hub dataset instead:
+#   soup data download <hf-dataset> -o data/train.jsonl [--samples N]
+
+base: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+task: sft
+
+data:
+  train: data/train.jsonl
+  format: auto
+  max_length: 512
+
+training:
+  epochs: 3
+  lr: 5e-4
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  quantization: none
+  scheduler: linear
+  warmup_ratio: 0.05
+  logging_steps: 10
+  save_steps: 100
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.05
+    target_modules:
+      - q_proj
+      - v_proj
+
+output: ./output

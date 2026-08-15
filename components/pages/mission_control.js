@@ -7,8 +7,6 @@ const MC = (() => {
   // ── Config ────────────────────────────────────────────────
   const CHECKS = [
     { id: 'python',        label: 'Python',        action: 'python',        settingKey: null },
-    { id: 'node',          label: 'Node.js',       action: 'node',          settingKey: null },
-    { id: 'npm',           label: 'npm',            action: 'npm',           settingKey: null },
     { id: 'git',           label: 'Git',            action: 'git',           settingKey: null },
     { id: 'torch',         label: 'PyTorch',       action: 'import-torch',  settingKey: 'pyt' },
     { id: 'tensorflow',    label: 'TensorFlow',    action: 'import-tf',     settingKey: 'tf' },
@@ -675,34 +673,6 @@ const MC = (() => {
     }
   }
 
-  async function runCheckNode() {
-    setStatus('node', 'pending');
-    try {
-      const result = await window.electron.runSystemCommand('node', ['--version']);
-      if (result.code === 0 && result.stdout) {
-        setStatus('node', 'pass', result.stdout.trim());
-      } else {
-        setStatus('node', 'fail', 'Not found');
-      }
-    } catch (e) {
-      setStatus('node', 'fail', e.message);
-    }
-  }
-
-  async function runCheckNpm() {
-    setStatus('npm', 'pending');
-    try {
-      const result = await window.electron.runSystemCommand('npm', ['--version']);
-      if (result.code === 0 && result.stdout) {
-        setStatus('npm', 'pass', `v${result.stdout.trim()}`);
-      } else {
-        setStatus('npm', 'fail', 'Not found');
-      }
-    } catch (e) {
-      setStatus('npm', 'fail', e.message);
-    }
-  }
-
   async function runCheckGit() {
     setStatus('git', 'pending');
     try {
@@ -781,8 +751,6 @@ const MC = (() => {
   async function runSingleCheck(id) {
     switch (id) {
       case 'python':     return runCheckPython();
-      case 'node':       return runCheckNode();
-      case 'npm':        return runCheckNpm();
       case 'git':        return runCheckGit();
       case 'docker':     return runCheckDocker();
       case 'torch':      return runCheckImportTorch();
@@ -802,8 +770,6 @@ const MC = (() => {
       if (cards[check.id] && cards[check.id].disabled) return;
       switch (check.id) {
         case 'python':     tasks.push(runCheckPython()); break;
-        case 'node':       tasks.push(runCheckNode()); break;
-        case 'npm':        tasks.push(runCheckNpm()); break;
         case 'git':        tasks.push(runCheckGit()); break;
         case 'docker':     tasks.push(runCheckDocker()); break;
         case 'torch':      tasks.push(runCheckImportTorch()); break;

@@ -42,3 +42,6 @@ build/
 models/
 # add-on module installs (git clones + venvs created by the Modules page)
 addons/
+
+# example projects keep training artifacts out of the repo
+examples/**/output/

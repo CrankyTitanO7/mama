@@ -124,41 +124,12 @@ def clean_subprocess_env():
     return env
 
 
-# Backend "modules" the user can install/uninstall from the topbar dropdown.
-# Each module lists the exact pip steps (shown and run by the UI). On WSL the
-# steps are executed inside the default WSL distro; native Windows has no
-# supported modules, macOS only unsloth.
-MODULES = [
-    {
-        'key': 'axolotl',
-        'name': 'Axolotl',
-        'description': 'Axolotl fine-tuning framework (needs Linux or WSL + CUDA)',
-        'import_name': 'axolotl',
-        'platforms': ('linux', 'wsl'),
-        'unsupported_reason': 'Axolotl only runs on Linux or WSL with an NVIDIA CUDA GPU.',
-        'install_steps': ('pip install axolotl',),
-        'uninstall_steps': ('pip uninstall -y axolotl',),
-    },
-    {
-        'key': 'unsloth',
-        'name': 'Unsloth',
-        'description': 'Unsloth — fast LoRA/QLoRA fine-tuning',
-        'import_name': 'unsloth',
-        'platforms': ('linux', 'macos', 'wsl'),
-        'unsupported_reason': 'Unsloth does not support native Windows; use WSL, Linux, or macOS.',
-        # install steps are platform specific, see _module_install_steps
-        'install_steps': ('pip install unsloth',),
-        'uninstall_steps': ('pip uninstall -y unsloth',),
-    },
-]
-
-MODULES_BY_KEY = {m['key']: m for m in MODULES}
-
-# Official macOS install requires building from source via the github repo.
-UNSLOTH_MACOS_INSTALL_STEPS = (
-    'pip install --upgrade --force-reinstall --no-cache-dir '
-    '"unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"',
-)
+# Add-on modules the user can install/uninstall from the topbar dropdown.
+# Each module is declared declaratively in modules/definitions/ (see
+# modules/README.md); this registry is imported here so the bridge stays
+# the single integration point while specs stay easy to edit.
+from modules import by_key as module_by_key, all_modules as all_module_specs
+from modules.spec import DELETE_INSTALL_DIR
 
 
 class MamaApi:
@@ -2906,7 +2877,8 @@ class MamaApi:
         return {'success': False, 'error': result.get('stderr', 'Unknown error')}
 
     # ═══════════════════════════════════════════════════════════════════════
-    # Modules (axolotl / unsloth)
+    # Modules (add-on framework)
+    # Specs live in modules/definitions/ — see modules/README.md.
     # ═══════════════════════════════════════════════════════════════════════
 
     def _module_platform(self) -> str:
@@ -2929,61 +2901,193 @@ class MamaApi:
             return 'native_windows'
         return 'other'
 
-    def _module_install_steps(self, module: dict, platform: str) -> list:
-        if module['key'] == 'unsloth' and platform == 'macos':
+    # ── Module storage (repo-based modules) ────────────────────────────────
+
+    def _addon_root(self) -> Path:
+        """Writable root for cloned add-on modules.
+
+        In development this is the repo's addons/ folder; in frozen builds
+        the bundle may be read-only or replaced on update, so clones live
+        under the per-user data directory instead.
+        """
+        if getattr(sys, 'frozen', False):
+            return self._data_dir / 'addons'
+        return self._base_dir / 'addons'
+
+    def _module_install_path(self, spec) -> Optional[Path]:
+        """Absolute path where a repo-based module lives (None for pip modules)."""
+        if not spec.install_dir:
+            return None
+        return self._addon_root() / spec.install_dir
+
+    def _module_venv_python(self, spec) -> Optional[str]:
+        """Python of a venv-based module (None if not created yet)."""
+        install_path = self._module_install_path(spec)
+        if not install_path:
+            return None
+        if sys.platform == 'win32':
+            venv_python = install_path / '.venv' / 'Scripts' / 'python.exe'
+        else:
+            venv_python = install_path / '.venv' / 'bin' / 'python3'
+        return str(venv_python) if venv_python.exists() else None
+
+    def _module_venv_bin(self, spec) -> Path:
+        """bin/ (Scripts/) dir of a venv-based module's venv."""
+        install_path = self._module_install_path(spec) or self._addon_root()
+        return install_path / '.venv' / ('Scripts' if sys.platform == 'win32' else 'bin')
+
+    def _prepare_module_dir(self, spec, platform) -> bool:
+        """Clone repo + create venv for repo-based modules; emit progress.
+
+        Returns True on success (or if nothing needs doing). pip-only
+        modules skip right through.
+        """
+        if not spec.repo_url:
+            return True
+        install_path = self._module_install_path(spec)
+        if install_path is None:
+            return True
+        try:
+            if not install_path.exists():
+                install_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = install_path.parent / ('.' + spec.key + '.tmp')
+                if tmp.exists():
+                    shutil.rmtree(str(tmp))
+                self._emit_module_progress(
+                    spec.key, {'type': 'meta', 'text': f'git clone {spec.repo_url}'})
+                code = self._run_module_step(spec.key, spec.clone_flags(str(tmp)),
+                                             cwd=str(install_path.parent))
+                if code != 0:
+                    return False
+                tmp.rename(install_path)
+            if spec.venv and not self._module_venv_python(spec):
+                python = self._get_python() or self._get_training_python()
+                if not python:
+                    self._emit_module_progress(
+                        spec.key, {'type': 'error', 'text': 'Python 3 not found on PATH.'})
+                    return False
+                self._emit_module_progress(
+                    spec.key, {'type': 'meta',
+                               'text': f'creating local venv: {install_path / ".venv"}'})
+                code = self._run_module_step(
+                    spec.key, [python, '-m', 'venv', str(install_path / '.venv')],
+                    cwd=str(install_path))
+                if code != 0:
+                    self._emit_module_progress(
+                        spec.key, {'type': 'error', 'text': '.venv creation failed.'})
+                    return False
+        except Exception as e:
+            logger.error('prepare_module_dir failed for %s: %s', spec.key, e)
+            self._emit_module_progress(spec.key, {'type': 'error', 'text': str(e)})
+            return False
+        return True
+
+    def _remove_module_dir(self, spec) -> bool:
+        """Delete a repo-based module's install directory entirely."""
+        install_path = self._module_install_path(spec)
+        if not install_path or not install_path.exists():
+            return True
+        try:
+            shutil.rmtree(str(install_path))
+            self._emit_module_progress(
+                spec.key, {'type': 'meta', 'text': f'removed {install_path}'})
+            return True
+        except Exception as e:
+            logger.error('remove_module_dir failed for %s: %s', spec.key, e)
+            return False
+
+    # ── Step interpretation ───────────────────────────────────────────────
+
+    @staticmethod
+    def _module_install_steps(spec, platform: str) -> list:
+        if spec.key == 'unsloth' and platform == 'macos':
+            from modules.definitions.unsloth import UNSLOTH_MACOS_INSTALL_STEPS
             return list(UNSLOTH_MACOS_INSTALL_STEPS)
-        return list(module['install_steps'])
+        return list(spec.install_steps)
 
-    def _module_steps(self, module: dict, action: str, platform: str) -> list:
+    @staticmethod
+    def _module_steps(spec, action: str, platform: str) -> list:
         if action == 'uninstall':
-            return list(module['uninstall_steps'])
-        return self._module_install_steps(module, platform)
+            return list(spec.uninstall_steps)
+        return MamaApi._module_install_steps(spec, platform)
 
-    def _module_python(self, platform: str) -> Optional[str]:
-        """The interpreter the module steps run under (None for WSL)."""
-        if platform in ('linux', 'macos'):
+    def _module_python(self, spec, platform: str) -> Optional[str]:
+        """Interpreter steps run under (None for WSL).
+
+        venv-based modules use their own local venv python; pip modules use
+        the training python (project .venv if set, then a real Python).
+        """
+        if spec.venv:
+            venv_python = self._module_venv_python(spec)
+            if venv_python:
+                return venv_python
+        if platform in ('linux', 'macos', 'native_windows'):
             return self._get_training_python() or self._get_python()
         return None
 
-    def _module_step_args(self, step: str, platform: str) -> Optional[list]:
-        """Turn a 'pip install ...' step into a concrete argv for this platform."""
+    def _module_step_args(self, spec, step: str, platform: str):
+        """Turn one step into (argv, cwd|None). None means Python missing."""
         if platform == 'wsl':
-            # Run inside the default WSL distro. Prefer python3 -m pip so we
-            # don't depend on the bare `pip` shim being installed there.
             inner = step
             if inner.startswith('pip '):
                 inner = 'python3 -m pip' + inner[len('pip'):]
-            return ['wsl', '-e', 'sh', '-lc', inner]
-        python = self._module_python(platform)
+            # WSL steps run in shell; cwd applies below.
+            return (['wsl', '-e', 'sh', '-lc', inner],
+                    str(self._module_install_path(spec)) if spec.install_dir else None)
+        python = self._module_python(spec, platform)
         if not python:
             return None
         import shlex
         parts = shlex.split(step)
-        if parts and parts[0] == 'pip':
-            return [python, '-m', 'pip'] + parts[1:]
-        return [python] + parts
+        if parts and parts[0] in ('pip', 'pip3'):
+            return ([python, '-m', 'pip'] + parts[1:],
+                    str(self._module_install_path(spec)) if spec.install_dir else None)
+        if parts and parts[0] in ('python', 'python3'):
+            return ([python] + parts[1:],
+                    str(self._module_install_path(spec)) if spec.install_dir else None)
+        return (parts, str(self._module_install_path(spec)) if spec.install_dir else None)
 
-    def _module_installed(self, module: dict, platform: str) -> bool:
+    # ── Installed check ───────────────────────────────────────────────────
+
+    def _module_installed(self, spec, platform: str) -> bool:
         try:
+            if spec.is_installed is not None:
+                return bool(spec.is_installed(spec, self))
             if platform == 'wsl':
-                cmd = ['wsl', '-e', 'python3', '-c',
-                       f'import {module["import_name"]}; print("ok")']
+                if spec.import_name:
+                    cmd = ['wsl', '-e', 'python3', '-c',
+                           f'import {spec.import_name}; print("ok")']
+                else:
+                    return False
             else:
-                python = self._module_python(platform)
+                python = self._module_python(spec, platform)
                 if not python:
                     return False
-                cmd = [python, '-c',
-                       f'import {module["import_name"]}; print("ok")']
+                if spec.import_name:
+                    cmd = [python, '-c',
+                           f'import {spec.import_name}; print("ok")']
+                elif spec.console_script:
+                    # Console scripts live in the module's venv bin/.
+                    if not spec.venv or not self._module_install_path(spec):
+                        return False
+                    script = spec.console_script
+                    if sys.platform == 'win32':
+                        script += '.exe'
+                    return (self._module_venv_bin(spec) / script).exists()
+                else:
+                    return False
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=60,
                 env=clean_subprocess_env())
             return result.returncode == 0
         except Exception as e:
-            logger.debug('module installed check failed for %s: %s',
-                         module['key'], e)
+            logger.debug('module installed check failed for %s: %s', spec.key, e)
             return False
 
-    def _run_module_step(self, module_key: str, args: list) -> int:
+    # ── Step runner ───────────────────────────────────────────────────────
+
+    def _run_module_step(self, module_key: str, args: list,
+                         cwd: str = None) -> int:
         """Run one module step, streaming its output to the frontend."""
         try:
             proc = subprocess.Popen(
@@ -2992,6 +3096,7 @@ class MamaApi:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                cwd=cwd,
                 env=clean_subprocess_env(),
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
             )
@@ -3010,53 +3115,68 @@ class MamaApi:
             return 1
 
     def _handle_module_action(self, key: str, action: str) -> dict:
-        module = MODULES_BY_KEY.get(key or '')
-        if not module:
+        spec = module_by_key(key or '')
+        if not spec:
             return {'success': False, 'error': f'Unknown module: {key}'}
         platform = self._module_platform()
-        if platform not in module['platforms']:
-            self._emit_module_progress(module['key'], {'type': 'error', 'text': module['unsupported_reason']})
-            return {'success': False, 'error': module['unsupported_reason']}
+        if platform not in spec.platforms:
+            self._emit_module_progress(spec.key, {'type': 'error', 'text': spec.unsupported_reason})
+            return {'success': False, 'error': spec.unsupported_reason}
 
-        steps = self._module_steps(module, action, platform)
+        if action == 'install' and not self._prepare_module_dir(spec, platform):
+            return {'success': False, 'error': 'Module setup failed (see output).'}
+
+        steps = self._module_steps(spec, action, platform)
         label = 'Install' if action == 'install' else 'Uninstall'
-        self._emit_module_progress(module['key'], {'type': 'meta', 'text': f'{label}ing {module["name"]}...'})
+        self._emit_module_progress(spec.key, {'type': 'meta', 'text': f'{label}ing {spec.name}...'})
 
         for i, step in enumerate(steps, 1):
-            self._emit_module_progress(module['key'], {'type': 'meta', 'text': f'Step {i}/{len(steps)}: {step}'})
-            args = self._module_step_args(step, platform)
-            if args is None:
-                self._emit_module_progress(module['key'], {'type': 'error', 'text': 'Python 3 not found on PATH.'})
-                return {'success': False, 'error': 'Python 3 not found on PATH.'}
-            code = self._run_module_step(module['key'], args)
-            if code != 0:
-                self._emit_module_progress(module['key'], {
-                    'type': 'done', 'success': False,
-                    'error': f'{label} failed at step {i}/{len(steps)}.',
-                })
-                return {'success': False, 'error': f'Step {i} failed (exit {code})'}
-            self._emit_module_progress(module['key'], {'type': 'step', 'current': i, 'total': len(steps)})
+            self._emit_module_progress(spec.key, {'type': 'meta', 'text': f'Step {i}/{len(steps)}: {step}'})
+            if step == DELETE_INSTALL_DIR:
+                if not self._remove_module_dir(spec):
+                    self._emit_module_progress(spec.key, {
+                        'type': 'done', 'success': False,
+                        'error': f'{label} failed at step {i}/{len(steps)}.',
+                    })
+                    return {'success': False, 'error': 'Could not remove install directory.'}
+            else:
+                resolved = self._module_step_args(spec, step, platform)
+                if resolved is None:
+                    self._emit_module_progress(spec.key, {'type': 'error', 'text': 'Python 3 not found on PATH.'})
+                    return {'success': False, 'error': 'Python 3 not found on PATH.'}
+                args, cwd = resolved
+                code = self._run_module_step(spec.key, args, cwd=cwd)
+                if code != 0:
+                    self._emit_module_progress(spec.key, {
+                        'type': 'done', 'success': False,
+                        'error': f'{label} failed at step {i}/{len(steps)}.',
+                    })
+                    return {'success': False, 'error': f'Step {i} failed (exit {code})'}
+            self._emit_module_progress(spec.key, {'type': 'step', 'current': i, 'total': len(steps)})
 
-        self._emit_module_progress(module['key'], {'type': 'done', 'success': True})
+        self._emit_module_progress(spec.key, {'type': 'done', 'success': True})
         return {'success': True}
 
     def modules_get(self) -> dict:
         """Return module list with platform support + installed status."""
         platform = self._module_platform()
         modules = []
-        for module in MODULES:
-            supported = platform in module['platforms']
+        for spec in all_module_specs():
+            supported = platform in spec.platforms
             modules.append({
-                'key': module['key'],
-                'name': module['name'],
-                'description': module['description'],
-                'platforms': list(module['platforms']),
+                'key': spec.key,
+                'name': spec.name,
+                'description': spec.description,
+                'platforms': list(spec.platforms),
                 'platform': platform,
                 'supported': supported,
-                'unsupported_reason': module['unsupported_reason'] if not supported else '',
-                'installed': self._module_installed(module, platform) if supported else False,
-                'install_steps': self._module_steps(module, 'install', platform) if supported else [],
-                'uninstall_steps': list(module['uninstall_steps']) if supported else [],
+                'unsupported_reason': spec.unsupported_reason if not supported else '',
+                'installed': self._module_installed(spec, platform) if supported else False,
+                'install_steps': self._module_steps(spec, 'install', platform) if supported else [],
+                'uninstall_steps': self._module_steps(spec, 'uninstall', platform) if supported else [],
+                'tags': list(spec.tags),
+                'repo_url': spec.repo_url,
+                'install_dir': str(self._module_install_path(spec)) if spec.install_dir else '',
             })
         return {'success': True, 'modules': modules, 'platform': platform}
 
@@ -3070,28 +3190,36 @@ class MamaApi:
 
     def modules_run_step(self, key: str, action: str, index: int) -> dict:
         """Run a single install/uninstall step of a module."""
-        module = MODULES_BY_KEY.get(key or '')
-        if not module:
+        spec = module_by_key(key or '')
+        if not spec:
             return {'success': False, 'error': f'Unknown module: {key}'}
         platform = self._module_platform()
-        if platform not in module['platforms']:
-            self._emit_module_progress(module['key'], {'type': 'error', 'text': module['unsupported_reason']})
-            return {'success': False, 'error': module['unsupported_reason']}
+        if platform not in spec.platforms:
+            self._emit_module_progress(spec.key, {'type': 'error', 'text': spec.unsupported_reason})
+            return {'success': False, 'error': spec.unsupported_reason}
         try:
             idx = int(index or 0)
         except (TypeError, ValueError):
             idx = 0
-        steps = self._module_steps(module, action, platform)
+        steps = self._module_steps(spec, action, platform)
         if not (0 <= idx < len(steps)):
             return {'success': False, 'error': 'Invalid step index'}
         step = steps[idx]
-        self._emit_module_progress(module['key'], {'type': 'meta', 'text': f'Running: {step}'})
-        args = self._module_step_args(step, platform)
-        if args is None:
-            self._emit_module_progress(module['key'], {'type': 'error', 'text': 'Python 3 not found on PATH.'})
+        self._emit_module_progress(spec.key, {'type': 'meta', 'text': f'Running: {step}'})
+        if step == DELETE_INSTALL_DIR:
+            ok = self._remove_module_dir(spec)
+            self._emit_module_progress(spec.key, {
+                'type': 'done', 'success': ok,
+                'error': '' if ok else 'Could not remove install directory.',
+            })
+            return {'success': ok}
+        resolved = self._module_step_args(spec, step, platform)
+        if resolved is None:
+            self._emit_module_progress(spec.key, {'type': 'error', 'text': 'Python 3 not found on PATH.'})
             return {'success': False, 'error': 'Python 3 not found on PATH.'}
-        code = self._run_module_step(module['key'], args)
-        self._emit_module_progress(module['key'], {
+        args, cwd = resolved
+        code = self._run_module_step(spec.key, args, cwd=cwd)
+        self._emit_module_progress(spec.key, {
             'type': 'done', 'success': code == 0,
             'error': '' if code == 0 else f'Step failed (exit {code})',
         })
@@ -3100,6 +3228,288 @@ class MamaApi:
     def _emit_module_progress(self, module_key: str, chunk: dict):
         payload = {'module': module_key, **chunk}
         self._enqueue_emit('_modulesProgressCallback', payload)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Data page (build your own fine-tuning datasets)
+    # Pure conversion logic lives in components/backend/data/converters.py;
+    # the methods here are thin wrappers + streaming subprocess runners.
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _grui_spec(self):
+        """The grui add-on ModuleSpec (None if the definition is missing)."""
+        from modules import by_key as _by_key
+        return _by_key('grui')
+
+    def _grui_console(self) -> Optional[str]:
+        """Absolute path to grui's console script inside its local venv."""
+        spec = self._grui_spec()
+        if not spec:
+            return None
+        bin_dir = self._module_venv_bin(spec)
+        name = 'grui.exe' if sys.platform == 'win32' else 'grui'
+        console = bin_dir / name
+        return str(console) if console.exists() else None
+
+    def data_grui_status(self) -> dict:
+        """Install status + recordings for the grui add-on module."""
+        spec = self._grui_spec()
+        if not spec:
+            return {'success': False, 'error': 'grui module definition not found.'}
+        platform = self._module_platform()
+        supported = platform in spec.platforms
+        installed = self._module_installed(spec, platform) if supported else False
+        install_path = self._module_install_path(spec)
+        recordings = []
+        if installed and install_path and (install_path / 'recordings').is_dir():
+            try:
+                for child in sorted((install_path / 'recordings').glob('*')):
+                    if child.is_dir() and (child / 'events.jsonl').exists():
+                        try:
+                            meta = json.loads(
+                                (child / 'metadata.json').read_text('utf-8'))
+                        except Exception:
+                            meta = {}
+                        recordings.append({
+                            'name': child.name,
+                            'path': str(child),
+                            'duration': meta.get('duration'),
+                            'started_at': meta.get('started_at'),
+                            'platform': meta.get('platform'),
+                            'frames': meta.get('stats', {}).get('frames_captured'),
+                        })
+            except OSError as e:
+                logger.warning('grui recordings scan failed: %s', e)
+        return {
+            'success': True,
+            'installed': installed,
+            'supported': supported,
+            'unsupported_reason': spec.unsupported_reason if not supported else '',
+            'install_dir': str(install_path) if install_path else '',
+            'console': self._grui_console(),
+            'venv_python': self._module_venv_python(spec),
+            'recordings': recordings,
+        }
+
+    def _emit_data_progress(self, chunk: dict):
+        self._enqueue_emit('_dataProgressCallback', chunk)
+
+    def _run_data_stream(self, args: list, cwd: str = None,
+                         env: dict = None, label: str = 'grui') -> int:
+        """Run a subprocess, streaming stdout/stderr as _dataProgressCallback."""
+        self._emit_data_progress({'type': 'meta', 'text': f'$ {" ".join(args)}'})
+        try:
+            proc = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                cwd=cwd,
+                env=env or clean_subprocess_env(),
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+            )
+
+            def read_stream(stream, stream_type):
+                for line in iter(stream.readline, ''):
+                    if line:
+                        self._emit_data_progress({'type': stream_type, 'text': line.rstrip()})
+                stream.close()
+
+            out_t = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
+            err_t = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
+            out_t.start()
+            err_t.start()
+            proc.wait(timeout=60 * 60)
+            out_t.join(timeout=5)
+            err_t.join(timeout=5)
+            return proc.returncode or 0
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            self._emit_data_progress({'type': 'error', 'text': f'{label} timed out (1 hour).'})
+            return 1
+        except Exception as e:
+            logger.error('%s run failed: %s', label, e)
+            self._emit_data_progress({'type': 'error', 'text': str(e)})
+            return 1
+
+    def data_table_preview(self, path: str, delimiter: str = '',
+                           limit: int = 10) -> dict:
+        """Preview a CSV/TSV file: columns, first rows, delimiter guess."""
+        if not path:
+            return {'success': False, 'error': 'No file selected.'}
+        try:
+            from components.backend.data.converters import read_table
+            return read_table(path, delimiter or None, max(1, int(limit)))
+        except Exception as e:
+            logger.error('data_table_preview failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def _data_default_dir(self) -> Path:
+        """Default home for built datasets: <open project>/data (else user data dir)."""
+        try:
+            recents = self._read_recents() or {}
+            proj = recents.get('open')
+            if proj:
+                return Path(proj) / 'data'
+        except Exception:
+            pass
+        return self._data_dir / 'user' / 'data'
+
+    def data_default_output_dir(self) -> str:
+        """Suggested folder for built datasets (prefills the UI)."""
+        return str(self._data_default_dir())
+
+    @staticmethod
+    def _resolve_data_out(params: dict, source: str, fallback: Path) -> Path:
+        """Effective output path for a built dataset. An explicit output_path
+        wins; an input-file source writes next to it; otherwise the fallback
+        (project data dir) is used."""
+        out = (params.get('output_path') or '').strip()
+        if not out and source:
+            src = Path(source)
+            if src.is_dir():  # grui recording → sibling _finetune file
+                out = str(src.parent / (src.name + '_finetune.jsonl'))
+            else:
+                out = str(src.parent / (src.stem + '.jsonl'))
+        if not out:
+            out = str(fallback / 'dataset.jsonl')
+        return Path(out)
+
+    def data_build_from_table(self, params: dict) -> dict:
+        """Build a fine-tuning JSONL from a CSV/TSV file's columns."""
+        params = params or {}
+        path = (params.get('input_path') or '').strip()
+        instruction_col = (params.get('instruction_col') or '').strip()
+        response_col = (params.get('response_col') or '').strip()
+        context_col = ((params.get('context_col') or '').strip()) or None
+        fmt = (params.get('format') or 'alpaca').strip().lower()
+        if not path or not instruction_col or not response_col:
+            return {'success': False, 'error': 'File and both columns are required.'}
+        try:
+            from components.backend.data.converters import (
+                build_from_table, examples_to_records, write_jsonl)
+            examples = build_from_table(
+                path, instruction_col, response_col, context_col,
+                max_samples=int(params['max_samples']) if params.get('max_samples') else None,
+                shuffle=bool(params.get('shuffle')),
+                seed=int(params.get('seed', 42)))
+            if not examples:
+                return {'success': False,
+                        'error': 'No rows had both columns filled in — nothing to write.'}
+            out = self._resolve_data_out(params, path, self._data_default_dir())
+            count = write_jsonl(out, examples_to_records(examples, fmt))
+            return {'success': True, 'path': str(out), 'samples': count,
+                    'format': fmt}
+        except Exception as e:
+            logger.error('data_build_from_table failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def data_build_from_text(self, params: dict) -> dict:
+        """Build a fine-tuning JSONL from pasted instruction/response text."""
+        params = params or {}
+        text = params.get('text') or ''
+        fmt = (params.get('format') or 'alpaca').strip().lower()
+        if not text.strip():
+            return {'success': False, 'error': 'Nothing to convert — paste text first.'}
+        try:
+            from components.backend.data.converters import (
+                build_from_text, examples_to_records, write_jsonl)
+            examples = build_from_text(
+                text,
+                max_samples=int(params['max_samples']) if params.get('max_samples') else None,
+                shuffle=bool(params.get('shuffle')),
+                seed=int(params.get('seed', 42)))
+            if not examples:
+                return {'success': False, 'error':
+                        'No instruction/response pairs found. Use "Q:"/"A:" lines or tab-separated pairs.'}
+            out = self._resolve_data_out(params, '', self._data_default_dir())
+            count = write_jsonl(out, examples_to_records(examples, fmt))
+            return {'success': True, 'path': str(out), 'samples': count,
+                    'format': fmt}
+        except Exception as e:
+            logger.error('data_build_from_text failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def data_grui_recording_build(self, params: dict) -> dict:
+        """Convert one grui recording's events into a fine-tuning JSONL."""
+        params = params or {}
+        recording = (params.get('recording_dir') or '').strip()
+        if not recording:
+            return {'success': False, 'error': 'No recording selected.'}
+        fmt = (params.get('format') or 'alpaca').strip().lower()
+        try:
+            from components.backend.data.converters import (
+                build_from_grui_recording, examples_to_records, write_jsonl)
+            examples = build_from_grui_recording(
+                recording,
+                instruction=(params.get('instruction') or '').strip() or None,
+                max_samples=int(params['max_samples']) if params.get('max_samples') else None)
+            if not examples:
+                return {'success': False, 'error':
+                        'No usable segments found. Record with F9 annotations over a longer session.'}
+            out = self._resolve_data_out(params, recording, self._data_default_dir())
+            count = write_jsonl(out, examples_to_records(examples, fmt))
+            return {'success': True, 'path': str(out), 'samples': count,
+                    'format': fmt}
+        except Exception as e:
+            logger.error('data_grui_recording_build failed: %s', e)
+            return {'success': False, 'error': str(e)}
+
+    def data_grui_dataset_build(self, params: dict) -> dict:
+        """Run `grui dataset build` (raw observation→action samples).
+
+        Streams output to _dataProgressCallback. This is the grui-native
+        path that produces the datasets `grui train` consumes.
+        """
+        params = params or {}
+        console = self._grui_console()
+        if not console:
+            return {'success': False,
+                    'error': 'grui is not installed. Install it from the Modules page first.'}
+        recording = (params.get('recording_dir') or '').strip()
+        if not recording:
+            return {'success': False, 'error': 'No recording selected.'}
+        out_dir = (params.get('out_dir') or '').strip()
+        cmd = [console, 'dataset', 'build', recording]
+        if out_dir:
+            cmd += ['--out', out_dir]
+        obs = params.get('obs_duration')
+        fps = params.get('fps')
+        stride = params.get('stride')
+        if obs:
+            cmd += ['--obs-duration', str(obs)]
+        if fps:
+            cmd += ['--fps', str(fps)]
+        if stride:
+            cmd += ['--stride', str(stride)]
+        code = self._run_data_stream(cmd, label='grui dataset')
+        self._emit_data_progress({'type': 'done', 'success': code == 0})
+        return {'success': code == 0, 'code': code}
+
+    def data_grui_train(self, params: dict) -> dict:
+        """Run `grui train` — behavior-cloning policy training."""
+        params = params or {}
+        console = self._grui_console()
+        if not console:
+            return {'success': False,
+                    'error': 'grui is not installed. Install it from the Modules page first.'}
+        dataset = (params.get('dataset_dir') or '').strip()
+        out = (params.get('out') or '').strip()
+        if not dataset or not out:
+            return {'success': False,
+                    'error': 'Both the dataset directory and the checkpoint output are required.'}
+        cmd = [console, 'train', '--dataset', dataset, '--out', out]
+        if params.get('epochs'):
+            cmd += ['--epochs', str(params['epochs'])]
+        if params.get('batch_size'):
+            cmd += ['--batch-size', str(params['batch_size'])]
+        if params.get('lr'):
+            cmd += ['--lr', str(params['lr'])]
+        if params.get('device'):
+            cmd += ['--device', str(params['device'])]
+        code = self._run_data_stream(cmd, label='grui train')
+        self._emit_data_progress({'type': 'done', 'success': code == 0})
+        return {'success': code == 0, 'code': code, 'out': out}
 
     # ═══════════════════════════════════════════════════════════════════════
     # Export

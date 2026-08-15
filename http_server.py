@@ -127,6 +127,18 @@ SHIM_SCRIPT = """
     onModuleProgress: (callback) => { electron._handlers['_modulesProgressCallback'] = callback; },
     offModuleProgress: () => { delete electron._handlers['_modulesProgressCallback']; },
 
+    // ═══════════ Data (build your own datasets) ═══════════
+    dataGruiStatus: async () => { try { return await (await api()).data_grui_status(); } catch(e) { return { success: false, error: String(e) }; } },
+    dataTablePreview: async (path, delimiter, limit) => { try { return await (await api()).data_table_preview(path || '', delimiter || '', Number(limit || 10)); } catch(e) { return { success: false, error: String(e) }; } },
+    dataBuildFromTable: async (params) => { try { return await (await api()).data_build_from_table(params || {}); } catch(e) { return { success: false, error: String(e) }; } },
+    dataBuildFromText: async (params) => { try { return await (await api()).data_build_from_text(params || {}); } catch(e) { return { success: false, error: String(e) }; } },
+    dataGruiRecordingBuild: async (params) => { try { return await (await api()).data_grui_recording_build(params || {}); } catch(e) { return { success: false, error: String(e) }; } },
+    dataGruiDatasetBuild: async (params) => { try { return await (await api()).data_grui_dataset_build(params || {}); } catch(e) { return { success: false, error: String(e) }; } },
+    dataGruiTrain: async (params) => { try { return await (await api()).data_grui_train(params || {}); } catch(e) { return { success: false, error: String(e) }; } },
+    dataDefaultOutputDir: async () => { try { return await (await api()).data_default_output_dir(); } catch(e) { return ''; } },
+    onDataProgress: (callback) => { electron._handlers['_dataProgressCallback'] = callback; },
+    offDataProgress: () => { delete electron._handlers['_dataProgressCallback']; },
+
     // ═══════════ Tests ═══════════
     runImportTest: async (framework, projectFolder) => {
       try { return wrapResult(await (await api()).run_import_test(framework, projectFolder || null)); } catch(e) { return wrapError(e); }

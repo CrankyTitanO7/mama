@@ -40,3 +40,5 @@ build/
 
 # model training artifacts
 models/
+# add-on module installs (git clones + venvs created by the Modules page)
+addons/

@@ -32,6 +32,20 @@ a quality of life feature allowing the user to easy browse a web database (such 
 
 a page designed to walk a user through exporting a model for any use case. future aspirations include instant app/website generation (from template, not LLM), ollama (or other client) exports, etc. 
 
+### data (build your own datasets)
+
+the **data** page (nav: fine tune → data → training) builds fine-tuning sets locally, in Alpaca JSONL (`instruction/input/output` — for Soup and Axolotl) or TRL JSONL (`prompt/completion` — for the built-in trainer):
+
+1. **grui recordings** — after installing the grui add-on (Modules page), pick a recording from `addons/grui/recordings/`. every F9 annotation becomes one example: instruction = the annotation label (or your own task text), response = the action transcript. the tab also runs grui's own raw dataset builder (`grui dataset build`) and behavior-cloning training (`grui train`) with live output.
+2. **CSV / TSV** — pick a delimited file, preview columns, choose the instruction and response columns (plus an optional context column), build.
+3. **paste text** — `Q:`/`A:` blocks (blank-line separated, indented continuations) or one tab-separated pair per line.
+
+the **Output** tab sets the default output folder (the open project's `data/` by default). built sets plug straight into the fine-tune page or a Soup `soup.yaml`. see `docs/addons.md` for details.
+
+### modules (add-ons)
+
+install optional AI training tooling from the top-right **modules** nav item: Axolotl, Unsloth, **Soup** (low-VRAM fine-tuning, 8B on a 4 GB GPU), and **grui** (records screen + input for imitation learning). pip modules install into the training python; grui gets its own git clone + local venv. every step's output streams into the page. see `docs/addons.md`.
+
 ## baby's first project
 
 1) make a directory

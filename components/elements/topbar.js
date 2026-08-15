@@ -11,6 +11,7 @@ class Topbar {
       { label: 'multimodel design', page: 'multicon.html', key: 'multicon' },
       { label: 'mission control', page: 'mission_control.html', key: 'mission_control' },
       { label: 'fine tune', page: 'finetune.html', key: 'finetune' },
+      { label: 'data', page: 'data.html', key: 'data' },
       { label: 'training', page: 'training.html', key: 'training' },
       { label: 'export', page: 'export.html', key: 'export' }
     ];

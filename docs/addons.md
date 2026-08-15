@@ -13,27 +13,38 @@ Mama ships with four installable add-ons. Open the **Modules** page
 
 | add-on | what it adds | install style |
 |--------|--------------|---------------|
-| **Axolotl** | Axolotl fine-tuning framework (Linux/WSL + CUDA) | pip into the training python |
-| **Unsloth** | fast LoRA/QLoRA fine-tuning (Linux/WSL/macOS) | pip into the training python |
+| **Axolotl** | Axolotl fine-tuning framework (Linux/WSL + CUDA) | pip into the shared environment |
+| **Unsloth** | fast LoRA/QLoRA fine-tuning (Linux/WSL/macOS) | pip into the shared environment |
 | **Soup** | low-VRAM fine-tuning from one YAML — layer streaming trains an 8B model on a 4 GB laptop GPU (Linux/macOS/Windows, CUDA/MPS/CPU) | pip `soup-cli[train]` |
-| **grui** | records your screen + keyboard/mouse while you work in any software, then builds imitation-learning data and trains behavior-cloning policies | git clone + its own local venv under the app's add-ons folder |
+| **grui** | records your screen + keyboard/mouse while you work in any software, then builds imitation-learning data and trains behavior-cloning policies | git clone into the add-ons folder, packages in the shared environment |
 
 Where installed things live:
 
-- **pip modules** go into the training python (the interpreter the app
-  installs torch into, or the current project's `.venv`).
-- **grui** lives in its own virtualenv, e.g.
-  `~/Library/Application Support/mama/addons/grui/.venv` (macOS;
+- **Everything installs into one shared environment** — the interpreter
+  the app already uses for training: the open project's `.venv` if the
+  project has one, otherwise a real Python found on PATH. Nothing is
+  duplicated per module, even when modules share heavy deps (torch, …).
+- **git-cloned modules** (grui) keep *only repository files* under the
+  add-ons root — `~/Library/Application Support/mama/addons/grui/` (macOS;
   `%APPDATA%\mama\addons` on Windows, `~/.local/share/mama/addons` on
   Linux; the repo's `addons/` in development). Its recordings are saved
   under `addons/grui/recordings/`.
+- **uv, when installed** — pip steps run through `uv pip install` with the
+  shared environment as target; uv's global cache hardlinks wheels across
+  installs, so reinstalls and cross-module deps don't re-download or
+  multiply on disk.
 
-### Why grui needs its own venv
+### Why there is no per-module venv
 
-grui pins Python 3.12+ and its own dependency stack (PySide6, pynput,
-opencv, imageio-ffmpeg, …). Keeping it isolated means installing it never
-touches the training environment, and vice versa. The Modules page handles
-clone + venv creation + `pip install -e .` + `[ml]` (torch) automatically.
+Per-module venvs turned every install into a fresh copy of the whole
+dependency stack (grui alone pulls PySide6, opencv, torch, …). One shared
+environment means heavier deps are installed once and reused by every
+module and by training itself. Isolation still exists where it matters:
+grui requires **Python >= 3.12** and refuses to install into an older
+project `.venv` with a clear message (open a project with a newer venv).
+
+The Modules page handles clone + `pip install -e .` + `[ml]` (torch)
+automatically, so `grui` starts working with one click.
 
 ---
 
@@ -71,6 +82,6 @@ Conversion logic lives in `components/backend/data/converters.py`
 
 Each add-on is one declarative spec file under `modules/definitions/`.
 Specs are auto-discovered — to add a module, copy `soup.py` (pip) or
-`grui.py` (git + venv) and fill in the fields. The full guide is
+`grui.py` (git clone) and fill in the fields. The full guide is
 `modules/README.md`; a fresh checkout never contains installs (the
 `addons/` folder is git-ignored), only definitions.

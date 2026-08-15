@@ -2920,27 +2920,68 @@ class MamaApi:
             return None
         return self._addon_root() / spec.install_dir
 
-    def _module_venv_python(self, spec) -> Optional[str]:
-        """Python of a venv-based module (None if not created yet)."""
-        install_path = self._module_install_path(spec)
-        if not install_path:
-            return None
-        if sys.platform == 'win32':
-            venv_python = install_path / '.venv' / 'Scripts' / 'python.exe'
-        else:
-            venv_python = install_path / '.venv' / 'bin' / 'python3'
-        return str(venv_python) if venv_python.exists() else None
+    def _module_uv_path(self) -> Optional[str]:
+        """Path to `uv` if it is on PATH (cached). Used when available to
+        install packages with a shared global cache."""
+        if hasattr(self, '_module_uv_cache'):
+            return self._module_uv_cache
+        uv = None
+        try:
+            uv = shutil.which('uv')
+        except Exception:
+            uv = None
+        self._module_uv_cache = uv
+        return uv
 
-    def _module_venv_bin(self, spec) -> Path:
-        """bin/ (Scripts/) dir of a venv-based module's venv."""
-        install_path = self._module_install_path(spec) or self._addon_root()
-        return install_path / '.venv' / ('Scripts' if sys.platform == 'win32' else 'bin')
+    def _module_scripts_dir(self, python: str) -> Optional[Path]:
+        """Scripts dir (bin/ or Scripts/) of the given Python environment."""
+        if not hasattr(self, '_module_scripts_cache'):
+            self._module_scripts_cache = {}
+        cached = self._module_scripts_cache.get(python)
+        if cached is not None:
+            return cached
+        scripts = None
+        try:
+            result = subprocess.run(
+                [python, '-c',
+                 'import sysconfig; print(sysconfig.get_path("scripts"))'],
+                capture_output=True, text=True, timeout=30,
+                env=clean_subprocess_env())
+            if result.returncode == 0 and result.stdout.strip():
+                scripts = Path(result.stdout.strip())
+        except Exception as e:
+            logger.debug('scripts dir probe failed for %s: %s', python, e)
+        self._module_scripts_cache[python] = scripts
+        return scripts
+
+    def _module_version(self, python: str) -> Optional[tuple]:
+        """(major, minor, micro) of the given Python environment (cached)."""
+        if not hasattr(self, '_module_version_cache'):
+            self._module_version_cache = {}
+        cached = self._module_version_cache.get(python)
+        if cached is not None:
+            return cached
+        version = None
+        try:
+            result = subprocess.run(
+                [python, '-c',
+                 'import sys; print("%d.%d.%d" % sys.version_info[:3])'],
+                capture_output=True, text=True, timeout=30,
+                env=clean_subprocess_env())
+            if result.returncode == 0 and result.stdout.strip():
+                version = tuple(int(x) for x in result.stdout.strip().split('.')[:3])
+        except Exception as e:
+            logger.debug('version probe failed for %s: %s', python, e)
+        self._module_version_cache[python] = version
+        return version
 
     def _prepare_module_dir(self, spec, platform) -> bool:
-        """Clone repo + create venv for repo-based modules; emit progress.
+        """Clone repo for repo-based modules; emit progress.
 
-        Returns True on success (or if nothing needs doing). pip-only
-        modules skip right through.
+        The install dir holds repository files only — packages are installed
+        into the shared environment (project .venv or system python), so no
+        local venv is created here. Returns True on success (or if nothing
+        needs doing). pip-only modules skip right through.
         """
         if not spec.repo_url:
             return True
@@ -2960,22 +3001,6 @@ class MamaApi:
                 if code != 0:
                     return False
                 tmp.rename(install_path)
-            if spec.venv and not self._module_venv_python(spec):
-                python = self._get_python() or self._get_training_python()
-                if not python:
-                    self._emit_module_progress(
-                        spec.key, {'type': 'error', 'text': 'Python 3 not found on PATH.'})
-                    return False
-                self._emit_module_progress(
-                    spec.key, {'type': 'meta',
-                               'text': f'creating local venv: {install_path / ".venv"}'})
-                code = self._run_module_step(
-                    spec.key, [python, '-m', 'venv', str(install_path / '.venv')],
-                    cwd=str(install_path))
-                if code != 0:
-                    self._emit_module_progress(
-                        spec.key, {'type': 'error', 'text': '.venv creation failed.'})
-                    return False
         except Exception as e:
             logger.error('prepare_module_dir failed for %s: %s', spec.key, e)
             self._emit_module_progress(spec.key, {'type': 'error', 'text': str(e)})
@@ -3014,13 +3039,10 @@ class MamaApi:
     def _module_python(self, spec, platform: str) -> Optional[str]:
         """Interpreter steps run under (None for WSL).
 
-        venv-based modules use their own local venv python; pip modules use
-        the training python (project .venv if set, then a real Python).
+        Everything installs into ONE shared environment — the same python
+        the app uses for training: the open project's .venv if it has one,
+        otherwise a real Python. No per-module virtualenvs exist.
         """
-        if spec.venv:
-            venv_python = self._module_venv_python(spec)
-            if venv_python:
-                return venv_python
         if platform in ('linux', 'macos', 'native_windows'):
             return self._get_training_python() or self._get_python()
         return None
@@ -3040,6 +3062,13 @@ class MamaApi:
         import shlex
         parts = shlex.split(step)
         if parts and parts[0] in ('pip', 'pip3'):
+            # Prefer uv when available: one shared global cache means the
+            # heavy deps (torch, PySide6, …) are not re-downloaded and are
+            # hardlinked across installs. Falls back to python -m pip.
+            uv = self._module_uv_path()
+            if uv:
+                return ([uv, 'pip', parts[1], '--python', python] + parts[2:],
+                        str(self._module_install_path(spec)) if spec.install_dir else None)
             return ([python, '-m', 'pip'] + parts[1:],
                     str(self._module_install_path(spec)) if spec.install_dir else None)
         if parts and parts[0] in ('python', 'python3'):
@@ -3067,13 +3096,15 @@ class MamaApi:
                     cmd = [python, '-c',
                            f'import {spec.import_name}; print("ok")']
                 elif spec.console_script:
-                    # Console scripts live in the module's venv bin/.
-                    if not spec.venv or not self._module_install_path(spec):
+                    # Console scripts live in the shared environment's
+                    # scripts dir (bin/ or Scripts/).
+                    scripts_dir = self._module_scripts_dir(python)
+                    if not scripts_dir:
                         return False
                     script = spec.console_script
                     if sys.platform == 'win32':
                         script += '.exe'
-                    return (self._module_venv_bin(spec) / script).exists()
+                    return (scripts_dir / script).exists()
                 else:
                     return False
             result = subprocess.run(
@@ -3125,6 +3156,23 @@ class MamaApi:
 
         if action == 'install' and not self._prepare_module_dir(spec, platform):
             return {'success': False, 'error': 'Module setup failed (see output).'}
+
+        if (action == 'install' and platform != 'wsl'
+                and (spec.min_python or spec.max_python)):
+            python = self._module_python(spec, platform)
+            version = self._module_version(python) if python else None
+            if version is None:
+                self._emit_module_progress(spec.key, {
+                    'type': 'error',
+                    'text': f'Could not determine the shared environment\'s Python version.'})
+                return {'success': False, 'error': 'Python version check failed.'}
+            if not spec.version_ok(version):
+                text = (f'{spec.name} requires Python {spec.version_gate_text()}, '
+                        f'but the shared environment runs {version[0]}.{version[1]}.'
+                        f' Open a project with a newer .venv (or a newer Python on '
+                        f'PATH) and try again.')
+                self._emit_module_progress(spec.key, {'type': 'error', 'text': text})
+                return {'success': False, 'error': text}
 
         steps = self._module_steps(spec, action, platform)
         label = 'Install' if action == 'install' else 'Uninstall'
@@ -3241,13 +3289,18 @@ class MamaApi:
         return _by_key('grui')
 
     def _grui_console(self) -> Optional[str]:
-        """Absolute path to grui's console script inside its local venv."""
+        """Absolute path to grui's console script in the shared environment."""
         spec = self._grui_spec()
         if not spec:
             return None
-        bin_dir = self._module_venv_bin(spec)
+        python = self._module_python(spec, self._module_platform())
+        if not python:
+            return None
+        scripts_dir = self._module_scripts_dir(python)
+        if not scripts_dir:
+            return None
         name = 'grui.exe' if sys.platform == 'win32' else 'grui'
-        console = bin_dir / name
+        console = scripts_dir / name
         return str(console) if console.exists() else None
 
     def data_grui_status(self) -> dict:
@@ -3286,7 +3339,7 @@ class MamaApi:
             'unsupported_reason': spec.unsupported_reason if not supported else '',
             'install_dir': str(install_path) if install_path else '',
             'console': self._grui_console(),
-            'venv_python': self._module_venv_python(spec),
+            'python': self._module_python(spec, platform),
             'recordings': recordings,
         }
 

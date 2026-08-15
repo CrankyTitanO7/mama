@@ -34,5 +34,6 @@ SPEC = ModuleSpec(
     # (shlex.split() honours the embedded quotes).
     install_steps=('pip install "soup-cli[train]"',),
     uninstall_steps=('pip uninstall -y soup-cli',),
+    min_python='3.10',
     tags=('pip package', 'low VRAM'),
 )

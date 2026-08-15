@@ -44,7 +44,7 @@ the **Output** tab sets the default output folder (the open project's `data/` by
 
 ### modules (add-ons)
 
-install optional AI training tooling from the top-right **modules** nav item: Axolotl, Unsloth, **Soup** (low-VRAM fine-tuning, 8B on a 4 GB GPU), and **grui** (records screen + input for imitation learning). pip modules install into the training python; grui gets its own git clone + local venv. every step's output streams into the page. see `docs/addons.md`.
+install optional AI training tooling from the top-right **modules** nav item: Axolotl, Unsloth, **Soup** (low-VRAM fine-tuning, 8B on a 4 GB GPU), and **grui** (records screen + input for imitation learning). everything installs into one shared environment (the open project's `.venv` or a real Python); grui's repo files live in the app's add-ons folder and pip steps use `uv` when it's on PATH. every step's output streams into the page. see `docs/addons.md`.
 
 ## baby's first project
 

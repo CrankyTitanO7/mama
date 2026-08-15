@@ -7,20 +7,19 @@ unless your module genuinely needs it.
 
 Current modules:
 
-| key      | what it is                                                        | style           |
-|----------|-------------------------------------------------------------------|-----------------|
-| `axolotl`| Axolotl fine-tuning framework (Linux/WSL + CUDA)                  | pip package     |
-| `unsloth`| Unsloth fast LoRA/QLoRA fine-tuning                               | pip package     |
-| `soup`   | Soup low-VRAM fine-tuning (8B on a 4 GB GPU via layer streaming)  | pip package     |
-| `grui`   | grui screen/keyboard/mouse recorder + imitation-learning datasets | git + local venv|
+| key      | what it is                                                        | style                   |
+|----------|-------------------------------------------------------------------|-------------------------|
+| `axolotl`| Axolotl fine-tuning framework (Linux/WSL + CUDA)                  | pip package             |
+| `unsloth`| Unsloth fast LoRA/QLoRA fine-tuning                               | pip package             |
+| `soup`   | Soup low-VRAM fine-tuning (8B on a 4 GB GPU via layer streaming)  | pip package             |
+| `grui`   | grui screen/keyboard/mouse recorder + imitation-learning datasets | git clone, shared env   |
 
 ---
 
 ## Adding a new module
 
 1. Copy `definitions/soup.py` (pip module) or `definitions/grui.py`
-   (git-cloned module with its own venv) to
-   `definitions/<your-key>.py`.
+   (git-cloned module) to `definitions/<your-key>.py`.
 2. Fill in the spec fields (table below).
 3. Done. The registry auto-discovers the file; the Modules page and all
    install/uninstall machinery pick it up with no other changes.
@@ -48,24 +47,43 @@ SPEC = ModuleSpec(
 | `key`              | unique id; must match the file name (`definitions/soup.py` → `key='soup'`)                                     |
 | `name`, `description` | shown on the Modules page                                                                                  |
 | `import_name`      | python import to probe for the installed check (e.g. `soup_cli`)                                               |
-| `console_script`   | instead of an import probe: look for this executable in the module's venv `bin/` (Windows: `Scripts/`)         |
+| `console_script`   | instead of an import probe: look for this executable in the shared environment's scripts dir (`bin/`, Windows: `Scripts/`) |
 | `platforms`        | tuple of supported `linux` / `macos` / `wsl` / `native_windows`                                                |
 | `unsupported_reason` | shown when the current platform is not supported                                                            |
 | `install_steps`    | ordered steps run on install (strings, see step syntax below)                                                  |
 | `uninstall_steps`  | ordered steps run on uninstall                                                                                 |
 | `repo_url`         | if set, the repo is cloned into `<addons root>/<install_dir>` before the steps run                             |
-| `install_dir`      | directory under the add-ons root where repo-based modules live                                                 |
-| `venv`             | `True` → the machinery creates `<install_dir>/.venv` and runs pip/python steps with that interpreter           |
-| `tags`             | small labels surfaced to the UI (`pip package`, `low VRAM`, `local venv`, …)                                   |
+| `install_dir`      | directory under the add-ons root where repo-based modules live (repository files only)                         |
+| `min_python` / `max_python` | optional version gates ("3.12" style) checked against the shared environment before install |
+| `tags`             | small labels surfaced to the UI (`pip package`, `low VRAM`, …)                                                 |
+
+## The shared environment (one venv to rule them all)
+
+Every module — pip *and* git-cloned — installs its packages into the **same
+shared environment**: the interpreter the app already uses for training,
+i.e. the open project's `.venv` if the project has one, otherwise a real
+Python found on PATH. There are **no per-module virtualenvs**; an install
+dir never contains more than the cloned repository files.
+
+That keeps heavy dependencies (torch, PySide6, …) from being duplicated for
+each module, and it means the Modules page and the training pipeline share
+one consistent toolchain.
 
 Where things live:
 
-- **pip modules** install into the *training python* (the interpreter the
-  app installs torch into, or the current project's `.venv`).
-- **repo modules** live in the add-ons root — `~/Library/Application
+- **packages** → open project's `.venv`, or the app's Python.
+- **git-cloned module code** → the add-ons root — `~/Library/Application
   Support/mama/addons/` (macOS), `%APPDATA%/mama/addons` (Windows),
   `~/.local/share/mama/addons` (Linux); in development that's the repo's
   `addons/` folder, which is git-ignored.
+
+### Version gates
+
+`min_python`/`max_python` protect the shared environment from modules that
+need a newer (or older) interpreter — grui requires **Python >= 3.12**, so
+installing it into a 3.11 project `.venv` fails fast with a readable
+message instead of a confusing pip error. Use them whenever the upstream
+project pins a version range.
 
 ## Step syntax
 
@@ -74,18 +92,25 @@ Modules page. Interpretation:
 
 | step                              | runs as                                               |
 |-----------------------------------|-------------------------------------------------------|
-| `pip install pkg` / `pip3 ...`    | `<python> -m pip install pkg`                         |
+| `pip install pkg` / `pip3 ...`    | `uv pip <sub> --python <python> ...` when uv is on PATH, else `<python> -m pip ...` |
 | `python <script> args...`         | `<python> <script> args...`                           |
 | `git clone ...`, anything else    | run as-is (no shell, argv is split like a shell)      |
 
-For `venv: True` modules, pip/python steps use the venv interpreter and
-**all** steps run with the install dir as the working directory — so
-`pip install -e .` installs the cloned repo itself, and bare commands like
-`ffmpeg` resolve inside the venv's PATH.
+`<python>` is the shared environment's interpreter. When **uv** is on PATH
+it drives every pip step: uv keeps one global package cache and hardlinks
+wheels across installs, so reinstalls and cross-module deps (torch,
+datasets, …) are not re-downloaded and don't eat extra disk. Without uv the
+machinery falls back to plain `python -m pip`.
+
+All steps run with the install dir as the working directory when the
+module has one — so for git-cloned modules `pip install -e .` installs the
+repo itself into the shared environment, and its console script lands in
+the shared environment's scripts dir.
 
 `uninstall_steps=(DELETE_INSTALL_DIR,)` (from `modules.spec`) removes the
 module's install directory — the correct uninstall for git-cloned modules,
-since everything lives in that folder.
+since their repo files live in that folder (packages stay in the shared
+environment, as designed).
 
 ## Platform keys
 
@@ -96,9 +121,9 @@ host OSes.
 ## Wiring to a page (optional)
 
 Installing a module is only step one — usually you want the app to *use*
-it. gr ui is the template for this: mama's Data page shells out to the
-module's venv (see `MamaApi._module_install_path()` / venv helpers in
-`bridge.py`) for:
+it. grui is the template for this: mama's Data page shells out to the
+module's console script (resolved via the shared environment — see
+`MamaApi._module_scripts_dir()` in `bridge.py`) for:
 
 - `grui dataset build <recording> --out <dir>` — raw observation→action samples
 - `grui train --dataset <dir> --out <ckpt> --epochs N` — behavior-cloning training

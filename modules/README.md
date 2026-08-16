@@ -121,16 +121,16 @@ host OSes.
 ## Wiring to a page (optional)
 
 Installing a module is only step one — usually you want the app to *use*
-it. grui is the template for this: mama's Data page shells out to the
-module's console script (resolved via the shared environment — see
-`MamaApi._module_scripts_dir()` in `bridge.py`) for:
+it. grui is the template for this: fine-tune step 2 shows a status line
+and an *Open grui* button backed by `MamaApi.grui_status()` /
+`MamaApi.grui_launch()` (the console script is resolved via the shared
+environment — see `MamaApi._module_scripts_dir()` in `bridge.py`), and
+the modules and examples pages check `_module_installed()` before
+enabling features.
 
-- `grui dataset build <recording> --out <dir>` — raw observation→action samples
-- `grui train --dataset <dir> --out <ckpt> --epochs N` — behavior-cloning training
-
-The pattern: keep the module's own CLI the single source of truth, run it
-as a subprocess with streaming output, and let the frontend show the log
-(see `_dataProgressCallback` in `http_server.py`'s shim).
+The pattern: keep the module's own CLI the single source of truth; for
+long-running subcommands launch it detached with `start_new_session=True`
+and let grui itself open its GUI (the PySide6 recorder window).
 
 ## Notes when packaging
 

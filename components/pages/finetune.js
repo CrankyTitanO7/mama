@@ -747,6 +747,128 @@ const Finetune = (() => {
     }
   }
 
+  // ── Own CSV / TSV dataset ───────────────────────────────────────
+
+  let csvPreviewColumns = [];
+  let csvPreviewFile = '';
+
+  function fillCsvSelect(el, options, skipNone, first) {
+    if (!el) return;
+    el.innerHTML = (skipNone ? '' : '<option value="">— none —</option>') +
+      options.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (first !== undefined && first !== null && first !== '') el.value = first;
+    else if (el.options.length) el.selectedIndex = 0;
+  }
+
+  async function previewCsv() {
+    const file = (document.getElementById('ft-csv-file').value || '').trim();
+    const info = document.getElementById('ft-csv-info');
+    const wrap = document.getElementById('ft-csv-table-wrap');
+    if (!file) {
+      if (info) info.textContent = 'Pick a table file first.';
+      return;
+    }
+    csvPreviewFile = file;
+    if (info) info.textContent = 'Previewing…';
+    try {
+      const result = await window.electron.dataTablePreview(file, '', 6);
+      if (!result || result.success !== true) {
+        if (info) info.textContent = (result && result.error) || 'Preview failed.';
+        return;
+      }
+      csvPreviewColumns = result.columns || [];
+      document.getElementById('ft-csv-preview-area').style.display = 'block';
+      if (info) {
+        info.textContent = `${csvPreviewColumns.length} column(s) · ${result.total} row(s) · delimiter: ${result.delimiter_label}`;
+      }
+      fillCsvSelect(document.getElementById('ft-csv-instruction-col'), csvPreviewColumns, true, csvPreviewColumns[0]);
+      fillCsvSelect(document.getElementById('ft-csv-response-col'), csvPreviewColumns, true, csvPreviewColumns[csvPreviewColumns.length - 1]);
+      fillCsvSelect(document.getElementById('ft-csv-context-col'), csvPreviewColumns, false, '');
+      if (wrap) {
+        const rows = result.rows || [];
+        wrap.innerHTML = rows.length
+          ? '<table class="ft-data-table"><thead><tr>' +
+            csvPreviewColumns.map(c => `<th>${escapeHtml(c)}</th>`).join('') +
+            '</tr></thead><tbody>' +
+            rows.map(row => '<tr>' + csvPreviewColumns.map(c => `<td>${escapeHtml(row[c] ?? '')}</td>`).join('') + '</tr>').join('') +
+            '</tbody></table>'
+          : '<p class="ft-empty">No data rows in file.</p>';
+      }
+    } catch (e) {
+      if (info) info.textContent = 'Preview failed: ' + (e.message || e);
+    }
+  }
+
+  async function buildCsvDataset() {
+    const info = document.getElementById('ft-csv-info');
+    const params = {
+      input_path: csvPreviewFile,
+      instruction_col: (document.getElementById('ft-csv-instruction-col').value || '').trim(),
+      response_col: (document.getElementById('ft-csv-response-col').value || '').trim(),
+      context_col: (document.getElementById('ft-csv-context-col').value || '').trim(),
+      format: document.getElementById('ft-csv-format').value,
+      max_samples: (document.getElementById('ft-csv-max-samples').value || '').trim(),
+    };
+    if (info) info.textContent = 'Building…';
+    try {
+      const result = await window.electron.dataBuildFromTable(params);
+      if (!result || !result.success) {
+        if (info) info.textContent = (result && result.error) || 'Build failed.';
+        return;
+      }
+      // Make the built set the active dataset for training (steps 3–4).
+      selectedDataset = result.path;
+      const colInput = document.getElementById('ft-ds-column');
+      if (colInput && params.instruction_col) colInput.value = params.instruction_col;
+      if (csvPreviewColumns.length) previewedColumns = csvPreviewColumns;
+      if (info) {
+        info.innerHTML = `Wrote ${result.samples} example(s) (${result.format}) → ${escapeHtml(result.path)}. <strong>This is now the active dataset</strong> — continue to Step 3 / 4, or preview it with <em>Preview Dataset</em> below.`;
+      }
+    } catch (e) {
+      if (info) info.textContent = 'Build failed: ' + (e.message || e);
+    }
+  }
+
+  // ── grui recorder ───────────────────────────────────────────────
+
+  async function refreshGruiStatus() {
+    const statusEl = document.getElementById('ft-grui-status');
+    const openBtn = document.getElementById('ft-grui-open');
+    try {
+      const result = await window.electron.gruiStatus();
+      if (!result || result.success !== true) {
+        if (statusEl) statusEl.textContent = 'grui status check failed.';
+        return;
+      }
+      if (!result.installed) {
+        if (statusEl) statusEl.textContent = result.supported
+          ? 'grui is not installed — one click on the Modules page (top-right).'
+          : (result.unsupported_reason || 'grui is not supported here.');
+        if (openBtn) openBtn.disabled = true;
+      } else {
+        if (statusEl) statusEl.textContent = 'grui installed — recordings are saved in the add-on folder.';
+        if (openBtn) openBtn.disabled = false;
+      }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'grui status check failed.';
+    }
+  }
+
+  async function openGrui() {
+    const statusEl = document.getElementById('ft-grui-status');
+    if (statusEl) statusEl.textContent = 'Launching grui…';
+    try {
+      const result = await window.electron.gruiLaunch();
+      if (!result || !result.success) {
+        if (statusEl) statusEl.textContent = (result && result.error) || 'Could not launch grui.';
+        return;
+      }
+      if (statusEl) statusEl.textContent = 'grui launched — find it in your taskbar / Dock / window list.';
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Could not launch grui: ' + (e.message || e);
+    }
+  }
+
   // ── Save / restore dataset inputs ──────────────────────────────
 
   async function saveDatasetRecents() {
@@ -1718,6 +1840,13 @@ const Finetune = (() => {
 
     // Dataset tab
     document.getElementById('ft-ds-load')?.addEventListener('click', loadDatasetPreview);
+    document.getElementById('ft-csv-browse')?.addEventListener('click', async () => {
+      const file = await window.electron.projectPickFile('csv,tsv,txt');
+      if (file) document.getElementById('ft-csv-file').value = file;
+    });
+    document.getElementById('ft-csv-preview')?.addEventListener('click', previewCsv);
+    document.getElementById('ft-csv-build')?.addEventListener('click', buildCsvDataset);
+    document.getElementById('ft-grui-open')?.addEventListener('click', openGrui);
 
     // Config tab - auto-update preview
     document.querySelectorAll('#ft-tab-config input, #ft-tab-config select').forEach(el => {
@@ -1783,6 +1912,7 @@ const Finetune = (() => {
       restoreCustomScriptRecents(),
       applyEasyMode(),
       loadBundledExamples(),
+      refreshGruiStatus(),
     ]);
 
     updateConfigPreview();

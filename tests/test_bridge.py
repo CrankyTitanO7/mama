@@ -112,3 +112,40 @@ def test_whiteboard_save_invalid_json(api):
     result = api.whiteboard_save(str(api._base_dir), "{not valid json")
     assert result["success"] is False
     assert "error" in result
+
+
+def test_grui_status_reports_not_installed(api):
+    result = api.grui_status()
+    assert result["success"] is True
+    assert result["installed"] is False
+    assert not result["console"]
+
+
+def test_grui_launch_without_install_errors(api):
+    result = api.grui_launch()
+    assert result["success"] is False
+    assert "not installed" in result["error"]
+
+
+def test_data_build_from_table_writes_jsonl(tmp_path, api):
+    csv = tmp_path / "pairs.csv"
+    csv.write_text(
+        "question,answer\nwhat is 2+2?,4\ncapital of france?,paris\n",
+        "utf-8",
+    )
+
+    result = api.data_build_from_table({
+        "input_path": str(csv),
+        "instruction_col": "question",
+        "response_col": "answer",
+        "format": "trl",
+    })
+    assert result["success"] is True
+    assert result["samples"] == 2
+    assert result["format"] == "trl"
+
+    out = tmp_path / "pairs.jsonl"
+    assert out.exists()
+    rows = [json.loads(line) for line in out.read_text("utf-8").splitlines()]
+    assert rows[0]["prompt"] == "what is 2+2?"
+    assert rows[0]["completion"] == "4"

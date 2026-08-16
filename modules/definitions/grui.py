@@ -18,7 +18,9 @@ outputs training data for neural networks").
     by the upstream project
 
 Recordings are saved by the grui app under <install dir>/recordings/ and
-can be imported into mama's own fine-tuning JSONL from the Data page.
+the app is launched from mama's fine-tune page (step 2, "Open grui");
+grui's own CLI (`grui dataset build`, `grui train`) works from a terminal
+in the install dir.
 """
 
 from modules.spec import ModuleSpec, DELETE_INSTALL_DIR

@@ -30,7 +30,7 @@ models.
 3. LoRA adapters land in `./output/`.
 
 Every example sets `data.format: auto`, so it accepts any mix of alpaca /
-chat / messages rows — including JSONL you built on the **Data page**
+chat / messages rows — including JSONL you built in fine-tune step 2
 (which pairs with `your-data` by design).
 
 ## Data without the Hub

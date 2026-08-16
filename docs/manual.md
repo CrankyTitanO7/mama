@@ -32,15 +32,12 @@ a quality of life feature allowing the user to easy browse a web database (such 
 
 a page designed to walk a user through exporting a model for any use case. future aspirations include instant app/website generation (from template, not LLM), ollama (or other client) exports, etc. 
 
-### data (build your own datasets)
+### fine-tune step 2 (your own data)
 
-the **data** page (nav: fine tune → data → training) builds fine-tuning sets locally, in Alpaca JSONL (`instruction/input/output` — for Soup and Axolotl) or TRL JSONL (`prompt/completion` — for the built-in trainer):
+step 2 of the fine-tune page builds your own training set:
 
-1. **grui recordings** — after installing the grui add-on (Modules page), pick a recording from `addons/grui/recordings/`. every F9 annotation becomes one example: instruction = the annotation label (or your own task text), response = the action transcript. the tab also runs grui's own raw dataset builder (`grui dataset build`) and behavior-cloning training (`grui train`) with live output.
-2. **CSV / TSV** — pick a delimited file, preview columns, choose the instruction and response columns (plus an optional context column), build.
-3. **paste text** — `Q:`/`A:` blocks (blank-line separated, indented continuations) or one tab-separated pair per line.
-
-the **Output** tab sets the default output folder (the open project's `data/` by default). built sets plug straight into the fine-tune page or a Soup `soup.yaml`. see `docs/addons.md` for details.
+1. **CSV / TSV** — pick a delimited file, preview columns, choose the instruction and response columns (plus an optional context column), pick a format (TRL for the built-in trainer, Alpaca for Soup / Axolotl), and build. a JSONL set is written next to your file (or in the project's `data/`) and becomes the active dataset for training.
+2. **grui recorder** — the *Open grui* button launches the grui add-on (install from the Modules page): record screen + input, then use grui's own dataset builder / behavior-cloning training from a terminal. see `docs/addons.md` for details.
 
 ### modules (add-ons)
 

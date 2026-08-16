@@ -150,6 +150,63 @@
             <div class="ft-table-wrap" id="ft-ds-table-wrap"></div>
           </div>
         </div>
+
+        <div class="ft-section">
+          <h2>Use your own CSV / TSV</h2>
+          <p>Build a fine-tuning dataset from a local table file: pick the columns, write a JSONL set, and it becomes the active dataset for training.</p>
+
+          <div class="ft-field">
+            <label>Table file</label>
+            <div class="ft-file-picker">
+              <input type="text" id="ft-csv-file" class="ft-input" placeholder="Path to your .csv / .tsv / .txt file">
+              <button id="ft-csv-browse" class="settings-btn settings-btn-secondary">Browse…</button>
+            </div>
+            <span class="ft-hint">Comma-, tab- or pipe-delimited; the format is detected automatically. Data stays on your machine.</span>
+          </div>
+
+          <div class="ft-field ft-field-row">
+            <button id="ft-csv-preview" class="settings-btn settings-btn-primary">Preview Columns</button>
+          </div>
+
+          <div id="ft-csv-preview-area" style="display:none">
+            <div class="ft-field">
+              <label>Instruction column</label>
+              <select id="ft-csv-instruction-col" class="ft-select"></select>
+            </div>
+            <div class="ft-field">
+              <label>Response column</label>
+              <select id="ft-csv-response-col" class="ft-select"></select>
+            </div>
+            <div class="ft-field">
+              <label>Context column (optional)</label>
+              <select id="ft-csv-context-col" class="ft-select"></select>
+            </div>
+            <div class="ft-field ft-field-row">
+              <label>Format</label>
+              <select id="ft-csv-format" class="ft-select ft-input-narrow">
+                <option value="trl" selected>TRL (prompt / completion) — built-in trainer</option>
+                <option value="alpaca">Alpaca (instruction / output) — Soup, Axolotl</option>
+              </select>
+              <label>Max samples (optional)</label>
+              <input type="number" id="ft-csv-max-samples" class="ft-input ft-input-narrow" placeholder="All rows" min="1">
+            </div>
+            <div class="ft-field ft-field-row">
+              <button id="ft-csv-build" class="settings-btn settings-btn-success">Build Dataset</button>
+            </div>
+            <div id="ft-csv-info" class="ft-ds-info"></div>
+            <div class="ft-table-wrap" id="ft-csv-table-wrap"></div>
+          </div>
+        </div>
+
+        <div class="ft-section">
+          <h2>Recorder — grui</h2>
+          <p>Record your screen + keyboard/mouse while you work in any software, and turn the recording into imitation-learning data. grui is an add-on installed from the Modules page (top-right).</p>
+
+          <div class="ft-field ft-field-row">
+            <button id="ft-grui-open" class="settings-btn settings-btn-primary">Open grui</button>
+            <span class="ft-hint" id="ft-grui-status">Checking grui…</span>
+          </div>
+        </div>
       </div>
 
       <!-- Tab: Configuration -->

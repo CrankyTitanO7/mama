@@ -1,8 +1,8 @@
 # Add-on Modules & Your Own Data
 
 Two features work together: **add-on modules** extend mama with external
-tooling (installable from the *Modules* page), and the **Data page** turns
-local sources into fine-tuning datasets you can train on.
+tooling (installable from the *Modules* page), and the **Fine-Tune page's
+Dataset step** builds fine-tuning datasets from your own local sources.
 
 ---
 
@@ -48,29 +48,23 @@ automatically, so `grui` starts working with one click.
 
 ---
 
-## The Data page (build your own fine-tuning set)
+## Your own data (inside fine-tune step 2)
 
-The **Data** page (nav: *fine tune → data → training*) builds datasets
-locally from three sources, in **Alpaca JSONL** (`instruction/input/output`
-— Soup, Axolotl, and most fine-tuning stacks) or **TRL JSONL**
-(`prompt/completion` — mama's built-in trainer auto-detects it).
+The Dataset step of the **Fine-Tune** page builds datasets locally, in
+**Alpaca JSONL** (`instruction/input/output` — Soup, Axolotl, and most
+fine-tuning stacks) or **TRL JSONL** (`prompt/completion` — mama's built-in
+trainer auto-detects it):
 
-1. **grui recordings** — pick one of your recordings (from
-   `addons/grui/recordings/`); every F9 annotation becomes one example
-   (instruction = the annotation label or your own task text; response =
-   the plain-language action transcript). It can also:
-   - run **grui dataset build** — the recording's raw
-     observation→action samples in grui's own format;
-   - run **grui train** — behavior-cloning policy (CNN+GRU) training on a
-     built dataset, streamed live into the page.
-2. **CSV / TSV** — pick a delimited file, preview the columns, choose the
-   instruction / response (and optional context) columns, build.
-3. **Paste text** — Q:/A: blocks (blank-line separated, indented
-   continuations) or one tab-separated pair per line.
+1. **CSV / TSV** — pick a delimited file, preview the columns, choose the
+   instruction / response (and optional context) columns, build. A JSONL
+   set is written next to your file (or into the open project's `data/`
+   folder) and becomes the active dataset for training.
+2. **grui recorder** — the *Open grui* button launches the grui app: record
+   your screen + input in any software, then use grui's own tooling from a
+   terminal (`grui dataset build <recording>` and `grui train`, see the
+   grui repo's README). Recordings are saved under the add-on folder.
 
-The **Output** tab sets the default output folder — the open project's
-`data/` directory by default. Built sets can go straight into the Fine-Tune
-page's dataset field, or be pointed at by a Soup `soup.yaml`
+Built sets can also be pointed at by a Soup `soup.yaml`
 (`data.train: <path>`, `data.format: alpaca`).
 
 Conversion logic lives in `components/backend/data/converters.py`

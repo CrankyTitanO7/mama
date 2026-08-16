@@ -34,7 +34,7 @@ soup train --config soup.yaml
 
 ## 3. With your own data
 
-Data page → CSV / pasted text / grui recording → Alpaca JSONL in `data/`
+Fine-tune step 2 → CSV / TSV → Alpaca JSONL in `data/`
 → `soup train --config soup.yaml`. `data.format: auto` detects alpaca,
 chat and messages rows. The `your-data` example is this exact loop.
 

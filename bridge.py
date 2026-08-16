@@ -3371,9 +3371,9 @@ class MamaApi:
         return {'success': True, 'path': str(folder), 'copied': copied}
 
     # ═══════════════════════════════════════════════════════════════════════
-    # Data page (build your own fine-tuning datasets)
-    # Pure conversion logic lives in components/backend/data/converters.py;
-    # the methods here are thin wrappers + streaming subprocess runners.
+    # Fine-tune: your own datasets + the grui recorder add-on
+    # CSV/TSV → JSONL conversion lives in components/backend/data/converters.py;
+    # the grui recorder app is launched from fine-tune step 2.
     # ═══════════════════════════════════════════════════════════════════════
 
     def _grui_spec(self):
@@ -3396,8 +3396,8 @@ class MamaApi:
         console = scripts_dir / name
         return str(console) if console.exists() else None
 
-    def data_grui_status(self) -> dict:
-        """Install status + recordings for the grui add-on module."""
+    def grui_status(self) -> dict:
+        """Install status of the grui recorder add-on (fine-tune step 2)."""
         spec = self._grui_spec()
         if not spec:
             return {'success': False, 'error': 'grui module definition not found.'}
@@ -3405,26 +3405,6 @@ class MamaApi:
         supported = platform in spec.platforms
         installed = self._module_installed(spec, platform) if supported else False
         install_path = self._module_install_path(spec)
-        recordings = []
-        if installed and install_path and (install_path / 'recordings').is_dir():
-            try:
-                for child in sorted((install_path / 'recordings').glob('*')):
-                    if child.is_dir() and (child / 'events.jsonl').exists():
-                        try:
-                            meta = json.loads(
-                                (child / 'metadata.json').read_text('utf-8'))
-                        except Exception:
-                            meta = {}
-                        recordings.append({
-                            'name': child.name,
-                            'path': str(child),
-                            'duration': meta.get('duration'),
-                            'started_at': meta.get('started_at'),
-                            'platform': meta.get('platform'),
-                            'frames': meta.get('stats', {}).get('frames_captured'),
-                        })
-            except OSError as e:
-                logger.warning('grui recordings scan failed: %s', e)
         return {
             'success': True,
             'installed': installed,
@@ -3433,50 +3413,29 @@ class MamaApi:
             'install_dir': str(install_path) if install_path else '',
             'console': self._grui_console(),
             'python': self._module_python(spec, platform),
-            'recordings': recordings,
         }
 
-    def _emit_data_progress(self, chunk: dict):
-        self._enqueue_emit('_dataProgressCallback', chunk)
-
-    def _run_data_stream(self, args: list, cwd: str = None,
-                         env: dict = None, label: str = 'grui') -> int:
-        """Run a subprocess, streaming stdout/stderr as _dataProgressCallback."""
-        self._emit_data_progress({'type': 'meta', 'text': f'$ {" ".join(args)}'})
+    def grui_launch(self) -> dict:
+        """Launch the grui recorder app (PySide6 GUI) detached from mama."""
+        console = self._grui_console()
+        if not console:
+            return {'success': False,
+                    'error': 'grui is not installed. Install it from the Modules page first.'}
+        spec = self._grui_spec()
+        install_dir = self._module_install_path(spec) if spec else None
         try:
-            proc = subprocess.Popen(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                cwd=cwd,
-                env=env or clean_subprocess_env(),
+            subprocess.Popen(
+                [console],
+                cwd=str(install_dir) if install_dir else None,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
             )
-
-            def read_stream(stream, stream_type):
-                for line in iter(stream.readline, ''):
-                    if line:
-                        self._emit_data_progress({'type': stream_type, 'text': line.rstrip()})
-                stream.close()
-
-            out_t = threading.Thread(target=read_stream, args=(proc.stdout, 'stdout'), daemon=True)
-            err_t = threading.Thread(target=read_stream, args=(proc.stderr, 'stderr'), daemon=True)
-            out_t.start()
-            err_t.start()
-            proc.wait(timeout=60 * 60)
-            out_t.join(timeout=5)
-            err_t.join(timeout=5)
-            return proc.returncode or 0
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            self._emit_data_progress({'type': 'error', 'text': f'{label} timed out (1 hour).'})
-            return 1
+            return {'success': True, 'console': console}
         except Exception as e:
-            logger.error('%s run failed: %s', label, e)
-            self._emit_data_progress({'type': 'error', 'text': str(e)})
-            return 1
+            logger.error('grui launch failed: %s', e)
+            return {'success': False, 'error': str(e)}
 
     def data_table_preview(self, path: str, delimiter: str = '',
                            limit: int = 10) -> dict:
@@ -3501,10 +3460,6 @@ class MamaApi:
             pass
         return self._data_dir / 'user' / 'data'
 
-    def data_default_output_dir(self) -> str:
-        """Suggested folder for built datasets (prefills the UI)."""
-        return str(self._data_default_dir())
-
     @staticmethod
     def _resolve_data_out(params: dict, source: str, fallback: Path) -> Path:
         """Effective output path for a built dataset. An explicit output_path
@@ -3513,10 +3468,7 @@ class MamaApi:
         out = (params.get('output_path') or '').strip()
         if not out and source:
             src = Path(source)
-            if src.is_dir():  # grui recording → sibling _finetune file
-                out = str(src.parent / (src.name + '_finetune.jsonl'))
-            else:
-                out = str(src.parent / (src.stem + '.jsonl'))
+            out = str(src.parent / (src.stem + '.jsonl'))
         if not out:
             out = str(fallback / 'dataset.jsonl')
         return Path(out)
@@ -3549,113 +3501,6 @@ class MamaApi:
         except Exception as e:
             logger.error('data_build_from_table failed: %s', e)
             return {'success': False, 'error': str(e)}
-
-    def data_build_from_text(self, params: dict) -> dict:
-        """Build a fine-tuning JSONL from pasted instruction/response text."""
-        params = params or {}
-        text = params.get('text') or ''
-        fmt = (params.get('format') or 'alpaca').strip().lower()
-        if not text.strip():
-            return {'success': False, 'error': 'Nothing to convert — paste text first.'}
-        try:
-            from components.backend.data.converters import (
-                build_from_text, examples_to_records, write_jsonl)
-            examples = build_from_text(
-                text,
-                max_samples=int(params['max_samples']) if params.get('max_samples') else None,
-                shuffle=bool(params.get('shuffle')),
-                seed=int(params.get('seed', 42)))
-            if not examples:
-                return {'success': False, 'error':
-                        'No instruction/response pairs found. Use "Q:"/"A:" lines or tab-separated pairs.'}
-            out = self._resolve_data_out(params, '', self._data_default_dir())
-            count = write_jsonl(out, examples_to_records(examples, fmt))
-            return {'success': True, 'path': str(out), 'samples': count,
-                    'format': fmt}
-        except Exception as e:
-            logger.error('data_build_from_text failed: %s', e)
-            return {'success': False, 'error': str(e)}
-
-    def data_grui_recording_build(self, params: dict) -> dict:
-        """Convert one grui recording's events into a fine-tuning JSONL."""
-        params = params or {}
-        recording = (params.get('recording_dir') or '').strip()
-        if not recording:
-            return {'success': False, 'error': 'No recording selected.'}
-        fmt = (params.get('format') or 'alpaca').strip().lower()
-        try:
-            from components.backend.data.converters import (
-                build_from_grui_recording, examples_to_records, write_jsonl)
-            examples = build_from_grui_recording(
-                recording,
-                instruction=(params.get('instruction') or '').strip() or None,
-                max_samples=int(params['max_samples']) if params.get('max_samples') else None)
-            if not examples:
-                return {'success': False, 'error':
-                        'No usable segments found. Record with F9 annotations over a longer session.'}
-            out = self._resolve_data_out(params, recording, self._data_default_dir())
-            count = write_jsonl(out, examples_to_records(examples, fmt))
-            return {'success': True, 'path': str(out), 'samples': count,
-                    'format': fmt}
-        except Exception as e:
-            logger.error('data_grui_recording_build failed: %s', e)
-            return {'success': False, 'error': str(e)}
-
-    def data_grui_dataset_build(self, params: dict) -> dict:
-        """Run `grui dataset build` (raw observation→action samples).
-
-        Streams output to _dataProgressCallback. This is the grui-native
-        path that produces the datasets `grui train` consumes.
-        """
-        params = params or {}
-        console = self._grui_console()
-        if not console:
-            return {'success': False,
-                    'error': 'grui is not installed. Install it from the Modules page first.'}
-        recording = (params.get('recording_dir') or '').strip()
-        if not recording:
-            return {'success': False, 'error': 'No recording selected.'}
-        out_dir = (params.get('out_dir') or '').strip()
-        cmd = [console, 'dataset', 'build', recording]
-        if out_dir:
-            cmd += ['--out', out_dir]
-        obs = params.get('obs_duration')
-        fps = params.get('fps')
-        stride = params.get('stride')
-        if obs:
-            cmd += ['--obs-duration', str(obs)]
-        if fps:
-            cmd += ['--fps', str(fps)]
-        if stride:
-            cmd += ['--stride', str(stride)]
-        code = self._run_data_stream(cmd, label='grui dataset')
-        self._emit_data_progress({'type': 'done', 'success': code == 0})
-        return {'success': code == 0, 'code': code}
-
-    def data_grui_train(self, params: dict) -> dict:
-        """Run `grui train` — behavior-cloning policy training."""
-        params = params or {}
-        console = self._grui_console()
-        if not console:
-            return {'success': False,
-                    'error': 'grui is not installed. Install it from the Modules page first.'}
-        dataset = (params.get('dataset_dir') or '').strip()
-        out = (params.get('out') or '').strip()
-        if not dataset or not out:
-            return {'success': False,
-                    'error': 'Both the dataset directory and the checkpoint output are required.'}
-        cmd = [console, 'train', '--dataset', dataset, '--out', out]
-        if params.get('epochs'):
-            cmd += ['--epochs', str(params['epochs'])]
-        if params.get('batch_size'):
-            cmd += ['--batch-size', str(params['batch_size'])]
-        if params.get('lr'):
-            cmd += ['--lr', str(params['lr'])]
-        if params.get('device'):
-            cmd += ['--device', str(params['device'])]
-        code = self._run_data_stream(cmd, label='grui train')
-        self._emit_data_progress({'type': 'done', 'success': code == 0})
-        return {'success': code == 0, 'code': code, 'out': out}
 
     # ═══════════════════════════════════════════════════════════════════════
     # Export

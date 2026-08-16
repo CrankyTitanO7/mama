@@ -5251,56 +5251,7 @@ body.has-update-banner .page-content {
     margin-top: 0;
 }
 
-/* ── Data page (public/data.html) ──────────────────────────────────────── */
-
-.data-status-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin: 0 0 16px;
-    padding: 8px 16px;
-    border: 1px solid var(--topbar-active);
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--topbar-active) 8%, transparent);
-}
-.data-status { color: var(--topbar-muted); font-size: 14px; }
-
-.data-grui-notice {
-    margin: 12px 0;
-    padding: 12px 16px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--topbar-active) 10%, transparent);
-    border: 1px solid var(--topbar-active);
-    font-size: 14px;
-}
-
-.data-result {
-    margin: 12px 0;
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 14px;
-    word-break: break-all;
-}
-.data-result-ok {
-    background: color-mix(in srgb, #4ade80 12%, transparent);
-    border: 1px solid #4ade80;
-    color: #4ade80;
-}
-.data-result-err {
-    background: color-mix(in srgb, #f87171 10%, transparent);
-    border: 1px solid #f87171;
-    color: #f87171;
-}
-
-.data-textarea {
-    min-height: 260px;
-    width: 100%;
-    resize: vertical;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 13px;
-    line-height: 1.55;
-}
+/* ── Fine-tune step 2 · own CSV preview ───────────────────────────────── */
 
 .ft-data-table {
     width: 100%;

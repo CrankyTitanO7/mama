@@ -70,7 +70,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=datas,
-    # bridge.py imports the data converters lazily inside methods, so
+    # bridge/ imports the data converters lazily inside methods, so
     # modulegraph never sees them — collect them explicitly (the source
     # files are also shipped in components/, but imports need the PYZ).
     hiddenimports=['webview', 'components.backend.data.converters'] + platform_hiddenimports,

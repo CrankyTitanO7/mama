@@ -124,7 +124,7 @@ Installing a module is only step one — usually you want the app to *use*
 it. grui is the template for this: fine-tune step 2 shows a status line
 and an *Open grui* button backed by `MamaApi.grui_status()` /
 `MamaApi.grui_launch()` (the console script is resolved via the shared
-environment — see `MamaApi._module_scripts_dir()` in `bridge.py`), and
+environment — see `MamaApi._module_scripts_dir()` in the `bridge/` package), and
 the modules and examples pages check `_module_installed()` before
 enabling features.
 
@@ -135,5 +135,5 @@ and let grui itself open its GUI (the PySide6 recorder window).
 ## Notes when packaging
 
 `main.spec` bundles `modules/` as Python code (they're imported by
-`bridge.py`), and `addons/` (user-created module installs) is git-ignored;
+the `bridge/` package), and `addons/` (user-created module installs) is git-ignored;
 a clean checkout never contains installs, only definitions.
